@@ -593,6 +593,7 @@ de SOL (`descargar`, `extraer`, `individual`).
 | `docs/carpetas-oc-local.md` | Carga pesada de las carpetas de OC en una computadora (PowerShell, Tesseract, Poppler) | Vigente |
 | `docs/ESTADO-Y-PENDIENTES.md` | Dónde vive todo y qué falta | Vigente |
 | `docs/apps-script.md` | Instalación de cada Apps Script, tableros, captura de OC | Vigente |
+| `docs/detracciones-spot.md` | Constancias de detracción (SPOT): recorrido en SOL, Drive y cruce con facturas | En construcción |
 
 ---
 

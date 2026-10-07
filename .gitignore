@@ -1,0 +1,18 @@
+# Dependencias
+/node_modules
+
+# Credenciales: nunca al repositorio
+.env*
+!.env.example
+/secrets/
+/secretos/
+*.pem
+
+# Resultados de los scripts (salida, bitácoras, capturas): se generan en cada corrida
+/scripts/out/*
+!/scripts/out/README.md
+
+# Varios
+.DS_Store
+*.tsbuildinfo
+npm-debug.log*

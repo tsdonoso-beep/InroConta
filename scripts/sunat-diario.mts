@@ -1,0 +1,353 @@
+// La consulta diaria a SUNAT
+//
+// Corre en GitHub Actions, no en Vercel: allá un cron solo puede correr una
+// vez al día y cada ejecución muere al minuto, mientras que el ticket de
+// SUNAT tarda entre uno y tres minutos.
+//
+// Consulta el mes en curso y el anterior. El anterior porque los proveedores
+// siguen declarando después del cierre, así que un mes «terminado» cambia
+// durante semanas; el actual para ver lo que va entrando.
+//
+// Entra con la cuenta del robot, no con la de una persona. Así la bitácora
+// dice quién consultó, y la clave de nadie vive en un servidor.
+
+import { createClient } from "@supabase/supabase-js";
+import { credencialesDe } from "../src/shared/lib/sunat/credenciales.ts";
+import { pedirExportacion, consultarTicket, bajarArchivo, procesoEnCurso } from "../src/shared/lib/sunat/sire.ts";
+import { periodoDe, periodoCerradoAnterior, validarPeriodo } from "../src/shared/lib/sunat/periodo.ts";
+import { leerZip } from "../src/shared/lib/sunat/zip.ts";
+import { leerPropuestaRce, revisarIdentidad } from "../src/shared/lib/sunat/rce.ts";
+import {
+  filasComprobantesSunat, mapaPadronPorRuc, TIPOS_SUNAT, type ComprobanteHistorico,
+} from "../src/shared/lib/export/comprobantes-sunat.ts";
+import { publicarHojaPorAnio } from "../src/shared/lib/drive/servidor.ts";
+
+const EMPRESA = process.env.SUNAT_EMPRESA ?? "INROPRIN";
+const RUC     = process.env.SUNAT_RUC ?? "20512201611";
+
+/**
+ * Corta la ejecución diciendo qué falta, en vez de fallar más adelante.
+ *
+ * Acepta más de un nombre porque Supabase reserva el prefijo SUPABASE_ en sus
+ * propios secretos, y quien copie los valores desde ahí llega con los nombres
+ * que Supabase permitió. Los dos sirven; fallar por el nombre habiendo puesto
+ * el valor correcto sería una pérdida de tiempo tonta.
+ */
+function exigir(...nombres: string[]): string {
+  for (const n of nombres) {
+    const v = (process.env[n] ?? "").trim();
+    if (v) return v;
+  }
+  console.error(
+    `✗ Falta ${nombres.join(" o ")}.\n` +
+    "  Van en GitHub · Settings · Secrets and variables · Actions,\n" +
+    "  no en los secretos de Supabase: Actions no puede leer de ahí."
+  );
+  process.exit(1);
+}
+
+const url    = exigir("SUPABASE_URL", "PROJECT_URL");
+const anon   = exigir("SUPABASE_ANON_KEY", "ANON_KEY");
+const correo = exigir("ROBOT_CORREO");
+const clave  = exigir("ROBOT_CLAVE");
+
+const leidas = credencialesDe(EMPRESA, RUC, process.env);
+if (!leidas.ok) { console.error("✗ " + leidas.motivo); process.exit(1); }
+const cred = leidas.cred;
+
+const sb = createClient(url, anon, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+const { error: eLogin } = await sb.auth.signInWithPassword({
+  email: correo, password: clave,
+});
+if (eLogin) { console.error("✗ El robot no pudo entrar:", eLogin.message); process.exit(1); }
+
+/** Espera a que SUNAT tenga listo el archivo. */
+async function esperarTicket(periodo: string, ticket: string) {
+  const limite = Date.now() + 6 * 60 * 1000;
+  while (Date.now() < limite) {
+    await new Promise(r => setTimeout(r, 8000));
+    const t = await consultarTicket(cred, periodo, ticket);
+    if (!t) continue;
+    if (t.fallado) throw new Error(`SUNAT rechazó el proceso: ${t.descripcion}`);
+    if (t.terminado && t.archivo) {
+      return {
+        ...t.archivo,
+        periodo: t.archivo.periodo || periodo,
+        numTicket: t.archivo.numTicket || ticket,
+      };
+    }
+  }
+  throw new Error(`El ticket ${ticket} no terminó en seis minutos.`);
+}
+
+/**
+ * Pide la exportación, esperando si hay otra en curso.
+ *
+ * SUNAT admite un proceso a la vez por contribuyente. Al consultar varios
+ * meses seguidos, el siguiente llega antes de que el anterior termine de
+ * cerrarse del lado de ellos, y sin esto el período se perdía.
+ */
+async function pedirConPaciencia(periodo: string): Promise<string> {
+  const INTENTOS = 5;
+  const ESPERA_MS = 30000;
+
+  for (let i = 1; ; i++) {
+    try {
+      return await pedirExportacion(cred, periodo, "csv");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const enCurso = procesoEnCurso(msg);
+      if (!enCurso || i >= INTENTOS) throw e;
+      console.log(
+        `  SUNAT tiene otra exportación en curso${enCurso.ticket ? ` (ticket ${enCurso.ticket})` : ""}.`
+        + ` Esperando ${ESPERA_MS / 1000} s — intento ${i} de ${INTENTOS - 1}.`
+      );
+      await new Promise(r => setTimeout(r, ESPERA_MS));
+    }
+  }
+}
+
+async function consultar(periodo: string): Promise<boolean> {
+  const arranque = Date.now();
+  console.log(`\n── ${periodo} ──`);
+
+  const ticket = await pedirConPaciencia(periodo);
+  console.log(`  ticket ${ticket}`);
+
+  const archivo = await esperarTicket(periodo, ticket);
+  console.log(`  archivo ${archivo.nombre}`);
+
+  const dentro = leerZip(await bajarArchivo(cred, archivo));
+  if (dentro.length === 0) throw new Error("El archivo de SUNAT vino vacío.");
+  const reporte = dentro.reduce((a, b) => (b.contenido.length > a.contenido.length ? b : a));
+
+  const { filas, ...lectura } = leerPropuestaRce(reporte.contenido.toString("utf8"));
+  const identidad = revisarIdentidad(filas, cred.ruc);
+  if (!identidad.ok) console.error(`  ⚠ ${identidad.motivo}`);
+  console.log(`  ${filas.length} comprobantes leídos`);
+  if (lectura.rucSospechoso > 0) {
+    console.log(`  ⚠ ${lectura.rucSospechoso} fila(s) con algo sin forma de RUC/DNI: se guardaron sin proveedor.`);
+  }
+
+  const { data: g, error: eG } = await sb.rpc("guardar_comprobantes_sunat", {
+    p_empresa_ruc: cred.ruc, p_periodo: periodo, p_filas: filas,
+  });
+  if (eG) throw new Error(`No se pudieron guardar: ${eG.message}`);
+  const guardado = (Array.isArray(g) ? g[0] : g) ?? { nuevos: 0, cambiados: 0 };
+  console.log(`  ${guardado.nuevos} nuevos · ${guardado.cambiados} distintos de la última vez`);
+
+  const { error: eB } = await sb.rpc("registrar_consulta_sunat", {
+    p_empresa_ruc: cred.ruc, p_periodo: periodo,
+    p_ticket: ticket, p_archivo: reporte.nombre,
+    p_comprobantes_sunat: filas.length, p_comprobantes_nuestros: 0,
+    p_cuadran: 0, p_monto_distinto: 0, p_no_estan_en_sunat: 0,
+    p_no_comparables: 0, p_solo_en_sunat: 0, p_monto_solo_en_sunat: 0,
+    p_columnas_faltantes: lectura.faltantes,
+    // Para saber después si una columna viene vacía de verdad o si el
+    // lector no la encuentra, sin mirar la pantalla en el momento justo.
+    p_columnas_sin_usar: lectura.sinMapear,
+    p_identidad_sospechosa: identidad.ok ? null : identidad.motivo,
+    p_segundos: Math.round((Date.now() - arranque) / 1000),
+  });
+  if (eB) console.error(`  ⚠ No se pudo anotar en la bitácora: ${eB.message}`);
+
+  return guardado.cambiados > 0;
+}
+
+/**
+ * Deja la hoja de Contabilidad al día.
+ *
+ * Sin esto la hoja se congela hasta que alguien entre a la aplicación y le dé
+ * al botón, que es justo lo que se quería evitar al automatizar la consulta:
+ * quien la mira vería datos viejos sin ninguna señal de que lo son.
+ *
+ * Es opcional: si faltan las credenciales de Drive, la consulta igual sirvió
+ * y los datos quedaron guardados. Se avisa y se sigue.
+ */
+/** El histórico de comprobantes, período por período, en orden de fecha. Null (y avisa) si algo falla. */
+async function historicoPorPeriodo(): Promise<ComprobanteHistorico[] | null> {
+  const { data: periodos, error: eP } = await sb.rpc("periodos_comprobantes_sunat");
+  if (eP || !Array.isArray(periodos)) {
+    console.error("⚠ No se pudo leer el histórico para la hoja (períodos):", eP?.message);
+    return null;
+  }
+  const todo: ComprobanteHistorico[] = [];
+  for (const periodo of periodos as string[]) {
+    let ultimo: string | undefined;
+    for (let intento = 1; intento <= 3; intento++) {
+      const { data, error } = await sb.rpc("historico_comprobantes_sunat", { p_periodo: periodo });
+      if (!error && Array.isArray(data)) { todo.push(...(data as ComprobanteHistorico[])); ultimo = undefined; break; }
+      ultimo = error?.message ?? "respuesta inesperada";
+      await new Promise(r => setTimeout(r, 3000 * intento));
+    }
+    if (ultimo) {
+      console.error(`⚠ No se pudo leer el histórico para la hoja (${periodo}):`, ultimo);
+      return null;
+    }
+  }
+  const clave = (c: ComprobanteHistorico) => `${c.fechaEmision ?? ""}|${c.numero ?? ""}`;
+  return todo.sort((a, b) => clave(a).localeCompare(clave(b)));
+}
+
+async function publicarLaHoja(): Promise<void> {
+  if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
+    console.log("\nSin credenciales de Drive: no se actualiza la hoja de Contabilidad.");
+    return;
+  }
+
+  // De a un período: todo junto (~18 000 comprobantes, ~15 MB) pasaba los 8 s
+  // que la base le da a cada consulta y la hoja dejó de publicarse (02/10/2026).
+  const data = await historicoPorPeriodo();
+  if (!data) return;
+
+  // Quién rindió cada comprobante: es la columna que SUNAT no puede dar, y la
+  // que hace que esta hoja valga más que bajar el archivo del portal.
+  const gastos: Array<Record<string, unknown>> = [];
+  for (let desde = 0; ; desde += 1000) {
+    const { data: pagina } = await sb
+      .from("gastos")
+      .select("proveedor_ruc, tipo_comprobante, serie, numero, usuarios:usuario_id ( nombre )")
+      .eq("clase", "COMPROBANTE")
+      .not("numero", "is", null)
+      .range(desde, desde + 999);
+    if (!pagina?.length) break;
+    gastos.push(...pagina);
+    if (pagina.length < 1000) break;
+  }
+
+  const sinCeros = (v: string | null) => (v ?? "").replace(/^0+/, "") || "";
+  const llave = (r: string | null, t: string | null, se: string | null, n: string | null) =>
+    [r ?? "", t ?? "", (se ?? "").toUpperCase(), sinCeros(n)].join("|");
+
+  const quien = new Map<string, string>();
+  for (const g of gastos) {
+    const u = g.usuarios as { nombre?: string } | null;
+    if (u?.nombre) {
+      quien.set(llave(
+        g.proveedor_ruc as string | null, g.tipo_comprobante as string | null,
+        g.serie as string | null, g.numero as string | null,
+      ), u.nombre);
+    }
+  }
+
+  const aNum = (v: unknown) => (v == null || v === "" ? null : Number(v));
+
+  const historico = (data as ComprobanteHistorico[]).map(c => ({
+    ...c,
+    total: aNum(c.total),
+    base: aNum(c.base),
+    igv: aNum(c.igv),
+    detraccion: aNum(c.detraccion),
+    tipoCambio: aNum(c.tipoCambio),
+    rendidoPor: quien.get(llave(c.proveedorRuc, c.tipoComprobante, c.serie, c.numero)) ?? null,
+  }));
+
+  // La condición del RUC (Buen Contribuyente / Agente de Retención), de la
+  // tabla que llena el scraper de Playwright. Es chica —una fila por
+  // proveedor, no por comprobante— así que se trae entera de una vez.
+  const { data: padronCrudo } = await sb
+    .from("padron_ruc")
+    .select("ruc, condicion, buen_contribuyente, agente_retencion, agente_percepcion");
+  const padron = mapaPadronPorRuc((padronCrudo as Array<Record<string, unknown>>) ?? []);
+
+  const r = await publicarHojaPorAnio({
+    filas: filasComprobantesSunat(historico, padron),
+    nombre: "COMPROBANTES SUNAT",
+    carpetas: ["SUNAT"],
+    tipos: TIPOS_SUNAT,
+  });
+  console.log(`\nHoja al día: ${historico.length} comprobantes · ${r.url}`);
+  for (const a of r.anteriores) console.log(`Hoja aparte ${a.anio}: ${a.filas} filas · ${a.url}`);
+}
+
+const hoy = new Date();
+
+/**
+ * Qué períodos consultar.
+ *
+ * Por omisión, el mes en curso y el anterior: el anterior porque los
+ * proveedores siguen declarando después del cierre. Se puede pasar una lista
+ * para rellenar meses viejos, que es lo que hace falta cuando se agrega una
+ * columna nueva y los datos de antes la tienen vacía.
+ *
+ * Los inválidos se descartan con su motivo en vez de intentarlos: SUNAT
+ * limita cuántas exportaciones se encolan seguidas, y gastar una en un
+ * período mal escrito cuesta el siguiente.
+ */
+function periodosAConsultar(): string[] {
+  const pedidos = (process.env.PERIODOS ?? "")
+    .split(/[,\s]+/).map(p => p.trim()).filter(Boolean);
+
+  if (pedidos.length === 0) {
+    return [periodoDe(hoy), periodoCerradoAnterior(hoy)].filter(p => validarPeriodo(p, hoy).ok);
+  }
+
+  const buenos: string[] = [];
+  for (const p of pedidos) {
+    const v = validarPeriodo(p, hoy);
+    if (v.ok) buenos.push(v.periodo);
+    else console.error(`✗ Se descarta ${p}: ${v.motivo}`);
+  }
+  return buenos;
+}
+
+/**
+ * Rehacer la hoja sin volver a preguntarle a SUNAT.
+ *
+ * Hace falta cuando cambia la forma de la hoja —una columna nueva, un tipo de
+ * celda distinto— y los datos ya están guardados. Preguntar de nuevo no
+ * aportaría nada y costaría una de las pocas exportaciones que SUNAT deja
+ * encolar por día.
+ */
+if (process.env.SOLO_PUBLICAR === "1") {
+  await publicarLaHoja();
+  process.exit(0);
+}
+
+const periodos = periodosAConsultar();
+if (periodos.length === 0) {
+  console.error("✗ No quedó ningún período válido que consultar.");
+  process.exit(1);
+}
+console.log(`Períodos: ${periodos.join(", ")}`);
+
+// Entre un período y otro se espera: pedir seis seguidos ya devolvió un 429.
+const DESCANSO_MS = 20000;
+
+let hubo = false;
+const fallaron: string[] = [];
+
+for (const [i, p] of periodos.entries()) {
+  if (i > 0) await new Promise(r => setTimeout(r, DESCANSO_MS));
+  try {
+    if (await consultar(p)) hubo = true;
+  } catch (e) {
+    // Un período que falla no debe impedir el otro: SUNAT limita cuántas
+    // exportaciones se encolan seguidas, y perder los dos por eso sería
+    // perder el día entero.
+    const motivo = e instanceof Error ? e.message : String(e);
+    console.error(`  ✗ ${p}: ${motivo}`);
+    fallaron.push(`${p}: ${motivo}`);
+  }
+}
+
+console.log(`\n${hubo ? "⚠ Hubo comprobantes que cambiaron." : "Sin cambios."}`);
+
+// La hoja se actualiza aunque algún período haya fallado: lo que sí entró
+// merece quedar visible.
+try {
+  await publicarLaHoja();
+} catch (e) {
+  console.error("⚠ No se pudo actualizar la hoja:", e instanceof Error ? e.message : String(e));
+}
+
+if (fallaron.length === periodos.length) {
+  console.error("\n✗ Fallaron todos los períodos.");
+  process.exit(1);
+}
+if (fallaron.length) {
+  console.error(`\n⚠ Falló ${fallaron.length} de ${periodos.length}:\n  ${fallaron.join("\n  ")}`);
+}

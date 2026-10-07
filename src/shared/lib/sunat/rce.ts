@@ -1,0 +1,563 @@
+// Leer la propuesta del RCE
+//
+// Es el listado de lo que los proveedores le declararon a SUNAT a nombre de
+// la empresa durante un período. Llega como CSV dentro de un zip.
+//
+// Está escrito para un archivo que todavía no hemos visto en producción, y
+// eso manda sobre el diseño: en vez de fijar posiciones ("la columna 5 es la
+// serie") se guía por los títulos. Si SUNAT agrega una columna al medio, un
+// lector por posición empieza a leer mal sin avisar; uno por título sigue
+// funcionando o dice que no encontró la columna.
+//
+// Lo que no reconoce no lo tira: queda en `sinMapear` y la pantalla lo
+// muestra. Es la forma de aprender el formato real sin tener que adivinarlo.
+
+/** Un comprobante tal como SUNAT lo tiene registrado. */
+export interface FilaRce {
+  /**
+   * RUC del proveedor: quien emitió el comprobante.
+   *
+   * Sale de «Nro Doc Identidad», no de «RUC». El archivo empieza cada fila
+   * con el RUC del generador —la propia empresa, repetido 3163 veces en el
+   * período 202608— y recién más adelante trae la contraparte. Tomar el
+   * primero hacía que todo el registro de compras saliera a nombre de quien
+   * compra.
+   */
+  ruc: string | null;
+  razonSocial: string | null;
+  /** RUC de quien generó el registro, que es la propia empresa. */
+  rucGenerador: string | null;
+  razonGenerador: string | null;
+  /** Código SUNAT: 01 factura, 03 boleta, 07 nota de crédito... */
+  tipoComprobante: string | null;
+  serie: string | null;
+  numero: string | null;
+  /** yyyy-mm-dd */
+  fechaEmision: string | null;
+  total: number | null;
+  moneda: string | null;
+
+  /**
+   * Identificador que SUNAT le pone a cada comprobante.
+   *
+   * Es la llave estable para seguir uno a lo largo del tiempo: la serie y el
+   * número los pone el proveedor y se repiten entre proveedores distintos
+   * —E001-100 salió dos veces el mismo mes—, así que no sirven solos.
+   */
+  carSunat: string | null;
+
+  /** Estado del comprobante según SUNAT. Un comprobante anulado lo dice acá. */
+  estado: string | null;
+
+  /**
+   * A qué comprobante modifica este, cuando es una nota de crédito o débito.
+   *
+   * La nota llega como su propia fila apuntando a la factura que corrige. Es
+   * lo que permite avisar «la factura que rendiste ya no vale».
+   */
+  modifica: {
+    tipo: string | null;
+    serie: string | null;
+    numero: string | null;
+    fechaEmision: string | null;
+  } | null;
+
+  /** Tipo de nota (crédito o débito), cuando lo es. */
+  tipoNota: string | null;
+
+  /**
+   * Los impuestos, separados por destino de la compra.
+   *
+   * El archivo no trae un IGV sino tres, según a qué se destine: operaciones
+   * gravadas (DG), gravadas y no gravadas (DGNG) y no gravadas (DNG). La
+   * distinción decide la prorrata del crédito fiscal, así que se guardan
+   * separados aunque la hoja muestre la suma: juntarlos al leer perdería el
+   * dato para siempre, y separarlos después obligaría a volver a consultar
+   * todos los períodos.
+   */
+  impuestos: {
+    baseDg: number | null;
+    igvDg: number | null;
+    baseDgng: number | null;
+    igvDgng: number | null;
+    baseDng: number | null;
+    igvDng: number | null;
+  };
+
+  /** Lo que se detrae. En Perú decide si el crédito fiscal se puede usar. */
+  detraccion: number | null;
+
+  /** Para las facturas en moneda extranjera. */
+  tipoCambio: number | null;
+
+  /** La fila entera, por si hace falta mirarla. */
+  cruda: Record<string, string>;
+}
+
+/**
+ * Las columnas que se saben reconocer.
+ *
+ * Es una lista aparte de la forma de FilaRce a propósito: cuatro de estas
+ * columnas se juntan después en un solo objeto —a qué comprobante modifica
+ * una nota— y atar el mapeo a la forma final obligaba a aplanar la fila.
+ */
+export type Campo =
+  | "ruc" | "razonSocial" | "rucGenerador" | "razonGenerador"
+  | "tipoComprobante" | "serie" | "numero" | "fechaEmision" | "total" | "moneda"
+  | "carSunat" | "estado" | "tipoNota"
+  | "modificaTipo" | "modificaSerie" | "modificaNumero" | "modificaFecha"
+  | "baseDg" | "igvDg" | "baseDgng" | "igvDgng" | "baseDng" | "igvDng"
+  | "detraccion" | "tipoCambio";
+
+export interface LecturaRce {
+  filas: FilaRce[];
+  /** Títulos que sí se reconocieron, y con qué campo se emparejaron. */
+  mapeo: Array<{ titulo: string; campo: Campo }>;
+  /** Títulos que llegaron y no se supo qué eran. */
+  sinMapear: string[];
+  /**
+   * Títulos que apuntaban a un campo ya tomado por otra columna.
+   *
+   * El RCE trae dos identidades —la del generador y la del proveedor— y las
+   * dos encajan en «ruc» y «razón social». Quedarse con la primera y callar
+   * la segunda hizo que las 3163 filas del período 202608 salieran a nombre
+   * de la propia empresa. Ahora se listan, porque una columna descartada en
+   * silencio es un dato perdido que nadie va a buscar.
+   */
+  duplicadas: Array<{ titulo: string; campo: Campo }>;
+  /** Los títulos en el orden en que llegaron. */
+  titulos: string[];
+  /** La primera fila con datos, para ver qué hay en cada columna. */
+  ejemplo: string[];
+  /** Campos que esperábamos y no aparecieron en el archivo. */
+  faltantes: string[];
+  /** Filas que se descartaron por no tener nada aprovechable. */
+  descartadas: number;
+  /**
+   * Filas donde lo que venía en la columna del RUC no tenía forma de RUC ni
+   * de DNI. Se guarda el comprobante igual —el número y el total pueden
+   * seguir sirviendo—, pero sin proveedor: uno inventado es peor que uno
+   * vacío.
+   */
+  rucSospechoso: number;
+}
+
+/** Quita acentos, baja a minúsculas y junta espacios, para comparar títulos. */
+export function normalizar(s: string): string {
+  return s
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// Varias formas de llamar a lo mismo. SUNAT no es consistente entre
+// reportes, y estos títulos salen de su documentación y de sus ejemplos.
+const ALIAS: Array<{ campo: Campo; titulos: string[] }> = [
+  // La contraparte va primero en la lista para que gane cuando el archivo
+  // trae las dos identidades, que es el caso del RCE completo.
+  { campo: "ruc", titulos: [
+    "nro doc identidad", "numero documento identidad", "ruc proveedor",
+    "nro de documento de identidad", "documento identidad", "nro doc identidad proveedor",
+  ] },
+  { campo: "razonSocial", titulos: [
+    "apellidos nombres razon social", "apellidos nombres razon social denominacion",
+    "nombre proveedor", "razon social proveedor",
+  ] },
+  { campo: "rucGenerador", titulos: ["ruc", "ruc generador"] },
+  { campo: "razonGenerador", titulos: [
+    "apellidos y nombres o razon social", "razon social", "razon social nombres",
+    "apellidos nombres o razon social",
+  ] },
+  { campo: "tipoComprobante", titulos: [
+    "tipo cp doc", "tipo de cdp o documento", "tipo comprobante", "tipo cp",
+    "cod tipo cp", "tipo documento", "tipo de comprobante",
+  ] },
+  { campo: "serie", titulos: [
+    "serie del cdp", "serie", "nro serie cdp", "serie cdp", "serie comprobante",
+  ] },
+  { campo: "numero", titulos: [
+    "nro cp o doc nro inicial documento referencia", "nro cp", "numero cp",
+    "nro comprobante", "numero comprobante", "numero", "nro del cdp", "nro cdp",
+  ] },
+  { campo: "fechaEmision", titulos: [
+    "fecha de emision", "fecha emision", "fecha emision cp", "fec emision",
+    "fecha de emision del cp",
+  ] },
+  { campo: "total", titulos: [
+    "total cp", "importe total cp", "importe total", "total comprobante", "total",
+  ] },
+  { campo: "moneda", titulos: [
+    "moneda", "cod moneda", "codigo moneda", "tipo moneda",
+  ] },
+  { campo: "carSunat", titulos: ["car sunat", "car", "codigo car"] },
+  { campo: "estado", titulos: [
+    "est comp", "estado comprobante", "estado del comprobante", "est cp",
+  ] },
+  { campo: "tipoNota", titulos: ["tipo de nota", "tipo nota"] },
+  // Las del comprobante que una nota modifica. Antes caían como duplicadas
+  // de los campos del comprobante en sí, que era correcto no usarlas para el
+  // cruce pero significaba tirarlas.
+  { campo: "modificaTipo", titulos: ["tipo cp modificado", "tipo cp modificado ref"] },
+  { campo: "modificaSerie", titulos: ["serie cp modificado"] },
+  { campo: "modificaNumero", titulos: ["nro cp modificado", "numero cp modificado"] },
+  { campo: "modificaFecha", titulos: [
+    "fecha emision doc modificado", "fecha emision cp modificado",
+  ] },
+
+  // Los más largos van primero: la segunda vuelta del emparejado busca por
+  // contenido, y «igv ipm dg» está dentro de «igv ipm dgng». Con la exacta
+  // bastaría, pero el orden lo hace correcto también sin ella.
+  { campo: "baseDgng", titulos: ["bi gravado dgng"] },
+  { campo: "igvDgng", titulos: ["igv ipm dgng"] },
+  { campo: "baseDng", titulos: ["bi gravado dng"] },
+  { campo: "igvDng", titulos: ["igv ipm dng"] },
+  { campo: "baseDg", titulos: ["bi gravado dg", "base imponible"] },
+  { campo: "igvDg", titulos: ["igv ipm dg", "igv"] },
+
+  { campo: "detraccion", titulos: ["detraccion", "monto detraccion"] },
+  { campo: "tipoCambio", titulos: ["tipo de cambio", "tipo cambio"] },
+];
+
+const ESPERADOS: Array<Campo> = [
+  "ruc", "tipoComprobante", "serie", "numero", "fechaEmision", "total",
+];
+
+function campoDe(titulo: string): Campo | null {
+  const n = normalizar(titulo);
+  if (!n) return null;
+  for (const a of ALIAS) {
+    if (a.titulos.some(t => t === n)) return a.campo;
+  }
+  // Segunda vuelta, más laxa: el título contiene al alias. Se hace después
+  // para que una coincidencia exacta siempre gane a una parcial.
+  for (const a of ALIAS) {
+    if (a.titulos.some(t => n.includes(t))) return a.campo;
+  }
+  return null;
+}
+
+/**
+ * Parte el archivo entero en registros, respetando las comillas.
+ *
+ * Cortar primero por saltos de línea y después por el separador parece lo
+ * mismo y no lo es: un campo entrecomillado puede contener un salto, y
+ * entonces un registro se parte en dos y las dos mitades salen corridas.
+ * Pasó de verdad —dos filas de marzo de 2026 quedaron con la fecha en la
+ * columna del CAR, el nombre del proveedor en la del RUC y una serie en la
+ * del tipo— y no lo notó nadie hasta mirar qué tipos de comprobante había.
+ *
+ * Se recorre carácter por carácter llevando la cuenta de si se está dentro
+ * de comillas. Es la única forma de que un salto adentro no corte nada.
+ */
+export function partirCsv(texto: string, sep: string): string[][] {
+  const registros: string[][] = [];
+  let fila: string[] = [];
+  let campo = "";
+  let enComillas = false;
+
+  const cerrarFila = () => {
+    fila.push(campo.trim());
+    campo = "";
+    // Una línea en blanco no es un registro vacío: es una línea en blanco.
+    if (fila.length > 1 || fila[0] !== "") registros.push(fila);
+    fila = [];
+  };
+
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+
+    if (enComillas) {
+      if (c === '"') {
+        if (texto[i + 1] === '"') { campo += '"'; i++; }
+        else enComillas = false;
+      } else campo += c;
+      continue;
+    }
+
+    if (c === '"') { enComillas = true; continue; }
+    if (c === sep) { fila.push(campo.trim()); campo = ""; continue; }
+
+    if (c === "\n" || c === "\r") {
+      if (c === "\r" && texto[i + 1] === "\n") i++;
+      cerrarFila();
+      continue;
+    }
+
+    campo += c;
+  }
+
+  cerrarFila();
+  return registros;
+}
+
+/** Parte una línea suelta de CSV respetando las comillas. */
+export function partirLinea(linea: string, sep: string): string[] {
+  const out: string[] = [];
+  let actual = "";
+  let enComillas = false;
+
+  for (let i = 0; i < linea.length; i++) {
+    const c = linea[i];
+    if (enComillas) {
+      if (c === '"') {
+        if (linea[i + 1] === '"') { actual += '"'; i++; }
+        else enComillas = false;
+      } else actual += c;
+    } else if (c === '"') {
+      enComillas = true;
+    } else if (c === sep) {
+      out.push(actual); actual = "";
+    } else actual += c;
+  }
+  out.push(actual);
+  return out.map(s => s.trim());
+}
+
+/**
+ * Adivina el separador mirando la primera línea.
+ *
+ * SUNAT usa punto y coma en sus reportes, pero también aparecen pipes. Se
+ * elige el que más columnas produzca en vez de fijarlo: equivocarse aquí
+ * deja una sola columna con toda la fila dentro, que es un fallo silencioso.
+ */
+export function separadorDe(primeraLinea: string): string {
+  const candidatos = ["|", ";", "\t", ","];
+  let mejor = ";";
+  let max = 0;
+  for (const c of candidatos) {
+    const n = partirLinea(primeraLinea, c).length;
+    if (n > max) { max = n; mejor = c; }
+  }
+  return mejor;
+}
+
+/** Un número como lo escribe SUNAT. */
+export function aNumero(v: string): number | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  // Puede venir "1,234.56" o "1234,56". Si hay coma y punto, la coma
+  // separa miles; si solo hay coma, es el decimal.
+  let limpio = s.replace(/\s/g, "");
+  if (limpio.includes(",") && limpio.includes(".")) limpio = limpio.replace(/,/g, "");
+  else if (limpio.includes(",")) limpio = limpio.replace(",", ".");
+  const n = Number(limpio);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Una fecha como la escribe SUNAT, devuelta siempre como yyyy-mm-dd. */
+export function aFecha(v: string): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  // dd/mm/yyyy y dd-mm-yyyy, que es lo habitual en los reportes de SUNAT.
+  m = /^(\d{2})[/-](\d{2})[/-](\d{4})$/.exec(s);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+
+  return null;
+}
+
+/**
+ * El código de tipo de comprobante, a dos dígitos.
+ *
+ * SUNAT lo escribe unas veces como "1" y otras como "01". Se rellena para
+ * poder compararlo — cuidando que un valor vacío quede en null y no se
+ * convierta en el código "00", que existe y significa otra cosa.
+ */
+export function codigoTipo(v: string): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  return /^\d{1,2}$/.test(s) ? s.padStart(2, "0") : s.toUpperCase();
+}
+
+/**
+ * Si algo con forma de RUC o DNI de verdad.
+ *
+ * Solo dígitos, ocho (DNI) u once (RUC). Existe porque una fila puede llegar
+ * con las columnas corridas —pasó de verdad: un separador suelto dentro de
+ * un campo de texto sin comillas, que ningún lector de CSV puede distinguir
+ * de un límite de columna real— y entonces lo que cae en "ruc" es cualquier
+ * cosa: un "6", un código de dos letras. Usar eso como si fuera un RUC deja
+ * un comprobante a nombre de un proveedor que no existe.
+ */
+export function pareceIdentidad(v: string | null): boolean {
+  return v != null && /^\d{8}$|^\d{11}$/.test(v);
+}
+
+/** Deja el número del comprobante comparable: sin ceros a la izquierda. */
+export function normalizarNumero(v: string | null): string | null {
+  if (v == null) return null;
+  const s = v.trim().replace(/^0+/, "");
+  return s === "" ? (v.trim() === "" ? null : "0") : s;
+}
+
+/**
+ * A qué comprobante apunta una nota, si es que apunta a alguno.
+ *
+ * Devuelve null cuando no hay nada: una factura normal trae estas columnas
+ * vacías, y un objeto con cuatro nulos dentro se lee como «modifica algo»
+ * cuando no modifica nada.
+ */
+function modificaDe(
+  celdas: string[], dame: (c: string[], campo: Campo) => string
+): FilaRce["modifica"] {
+  const tipo = codigoTipo(dame(celdas, "modificaTipo"));
+  const serie = dame(celdas, "modificaSerie").trim().toUpperCase() || null;
+  const numero = normalizarNumero(dame(celdas, "modificaNumero"));
+  const fechaEmision = aFecha(dame(celdas, "modificaFecha"));
+  if (!tipo && !serie && !numero && !fechaEmision) return null;
+  return { tipo, serie, numero, fechaEmision };
+}
+
+/**
+ * Lee el CSV de la propuesta.
+ *
+ * No lanza si el archivo viene raro: devuelve qué entendió y qué no, para
+ * que la pantalla pueda mostrarlo. Un error aquí significaría no poder ver
+ * el archivo que justamente hace falta mirar para arreglarlo.
+ */
+export function leerPropuestaRce(texto: string): LecturaRce {
+  const limpio = texto.replace(/^﻿/, "");
+  const primeraLinea = limpio.split(/\r?\n/, 1)[0] ?? "";
+
+  if (primeraLinea.trim() === "") {
+    return {
+      filas: [], mapeo: [], sinMapear: [], duplicadas: [], titulos: [], ejemplo: [],
+      faltantes: [...ESPERADOS], descartadas: 0, rucSospechoso: 0,
+    };
+  }
+
+  const sep = separadorDe(primeraLinea);
+  const registros = partirCsv(limpio, sep);
+  const titulos = registros[0] ?? [];
+
+  const mapeo: LecturaRce["mapeo"] = [];
+  const sinMapear: string[] = [];
+  const porCampo = new Map<Campo, number>();
+
+  const duplicadas: LecturaRce["duplicadas"] = [];
+
+  titulos.forEach((titulo, i) => {
+    const campo = campoDe(titulo);
+    if (campo && !porCampo.has(campo)) {
+      porCampo.set(campo, i);
+      mapeo.push({ titulo, campo });
+    } else if (campo) {
+      // Ya había otra columna para ese campo. Antes esto se descartaba sin
+      // decir nada; ahora se dice, porque puede ser la columna correcta.
+      duplicadas.push({ titulo, campo });
+    } else if (titulo) {
+      sinMapear.push(titulo);
+    }
+  });
+
+  const dame = (celdas: string[], campo: Campo): string => {
+    const i = porCampo.get(campo);
+    return i == null ? "" : (celdas[i] ?? "");
+  };
+
+  const filas: FilaRce[] = [];
+  let descartadas = 0;
+  let rucSospechoso = 0;
+
+  for (let i = 1; i < registros.length; i++) {
+    const celdas = registros[i];
+    const cruda: Record<string, string> = {};
+    titulos.forEach((t, j) => { if (t) cruda[t] = celdas[j] ?? ""; });
+
+    // Si el archivo trae una sola identidad —formatos más simples que el RCE
+    // completo— esa es la contraparte y se usa como tal.
+    let ruc = (dame(celdas, "ruc").trim() || dame(celdas, "rucGenerador").trim()) || null;
+    let razonSocial = (dame(celdas, "razonSocial").trim() || dame(celdas, "razonGenerador").trim()) || null;
+    if (ruc && !pareceIdentidad(ruc)) {
+      rucSospechoso++;
+      ruc = null;
+      razonSocial = null;
+    }
+
+    const fila: FilaRce = {
+      ruc,
+      razonSocial,
+      rucGenerador: dame(celdas, "rucGenerador").trim() || null,
+      razonGenerador: dame(celdas, "razonGenerador").trim() || null,
+      tipoComprobante: codigoTipo(dame(celdas, "tipoComprobante")),
+      serie: dame(celdas, "serie").trim().toUpperCase() || null,
+      numero: normalizarNumero(dame(celdas, "numero")),
+      fechaEmision: aFecha(dame(celdas, "fechaEmision")),
+      total: aNumero(dame(celdas, "total")),
+      cruda,
+      moneda: dame(celdas, "moneda").trim().toUpperCase() || null,
+      carSunat: dame(celdas, "carSunat").trim() || null,
+      estado: dame(celdas, "estado").trim() || null,
+      tipoNota: dame(celdas, "tipoNota").trim() || null,
+      modifica: modificaDe(celdas, dame),
+      impuestos: {
+        baseDg: aNumero(dame(celdas, "baseDg")),
+        igvDg: aNumero(dame(celdas, "igvDg")),
+        baseDgng: aNumero(dame(celdas, "baseDgng")),
+        igvDgng: aNumero(dame(celdas, "igvDgng")),
+        baseDng: aNumero(dame(celdas, "baseDng")),
+        igvDng: aNumero(dame(celdas, "igvDng")),
+      },
+      detraccion: aNumero(dame(celdas, "detraccion")),
+      tipoCambio: aNumero(dame(celdas, "tipoCambio")),
+    };
+
+    // Una fila sin RUC y sin número no sirve para cruzar contra nada. Suele
+    // ser un pie de página con totales.
+    if (!fila.ruc && !fila.numero) { descartadas++; continue; }
+    filas.push(fila);
+  }
+
+  return {
+    filas,
+    mapeo,
+    sinMapear,
+    duplicadas,
+    titulos,
+    ejemplo: registros[1] ?? [],
+    // La identidad del generador sirve de respaldo cuando el archivo trae
+    // una sola: no hay que reportarla como faltante si está cubierta.
+    faltantes: ESPERADOS.filter(c => {
+      if (porCampo.has(c)) return false;
+      if (c === "ruc") return !porCampo.has("rucGenerador");
+      return true;
+    }),
+    descartadas,
+    rucSospechoso,
+  };
+}
+
+/**
+ * Comprueba que la identidad leída sea la del proveedor y no la de la empresa.
+ *
+ * Un registro de COMPRAS no puede tener comprobantes emitidos por quien
+ * compra. Si casi todas las filas traen el RUC de la propia empresa, la
+ * columna elegida es la equivocada — que es exactamente lo que pasó con el
+ * período 202608: 3163 filas a nombre de INROPRIN.
+ *
+ * Existe para que el error se denuncie solo. La forma del archivo se dedujo
+ * de una muestra; si SUNAT la cambia, o si otra empresa recibe otro formato,
+ * esto lo dice en vez de devolver un cruce que no significa nada.
+ */
+export function revisarIdentidad(
+  filas: FilaRce[], rucEmpresa: string
+): { ok: true } | { ok: false; motivo: string; cuantas: number; total: number } {
+  const conRuc = filas.filter(f => f.ruc);
+  if (conRuc.length === 0) return { ok: true };
+
+  const propias = conRuc.filter(f => f.ruc === rucEmpresa.trim()).length;
+  // Un puñado puede ser legítimo: hay comprobantes que una empresa se emite a
+  // sí misma. Que lo sean casi todos no.
+  if (propias / conRuc.length < 0.9) return { ok: true };
+
+  return {
+    ok: false,
+    cuantas: propias,
+    total: conRuc.length,
+    motivo: `${propias} de ${conRuc.length} comprobantes salen a nombre de la propia empresa `
+      + `(RUC ${rucEmpresa}). En un registro de compras eso es imposible: se está leyendo la `
+      + `columna del generador y no la del proveedor. Los conteos de este cruce no valen.`,
+  };
+}

@@ -1,0 +1,4 @@
+node_modules
+scripts/out
+secrets
+docs/database/database.full.sql

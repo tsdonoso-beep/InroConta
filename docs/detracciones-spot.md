@@ -31,9 +31,8 @@
 
 ## 3. Dónde se corre
 
-1. **Primero, por GitHub Actions** (workflow manual, en modo reconocimiento:
-   no guarda nada, solo deja capturas y HTML de cada pantalla en el artefacto).
-   Las corridas las lanza el usuario desde la pestaña Actions.
+1. **Primero, por GitHub Actions**, en modo reconocimiento (§7). Las
+   corridas las lanza el usuario desde la pestaña Actions.
 2. **Cuando el recorrido esté claro**, en una laptop (más rápido, para el
    atrasado), con el mismo script.
 3. Al final, la corrida diaria en Actions.
@@ -122,6 +121,41 @@ que `vinculos_oc()` con `comprobantes_sunat`.
 - Sin fechas y por período, sí deja (07/10/2026). Falta ver: las otras
   opciones de «Tipo de Cuenta» y «Pagos», y si la tabla se pagina. El
   reconocimiento lo anota solo (lista las opciones y captura la página entera).
-- La constancia es **HTML**: ¿se guarda así, o además una copia en PDF
-  (la imprime el mismo navegador), que Drive sí muestra como documento?
+- ~~¿HTML o PDF?~~ **Decidido (07/10/2026): los dos.** El HTML original de
+  SUNAT y un PDF impreso por el mismo navegador, que Drive muestra como
+  documento. Carpeta propuesta: `Detracciones/AAAA-MM` (por período tributario).
 - ¿Carpeta de Drive propia o, además, una copia en la carpeta de la OC?
+
+## 7. El reconocimiento (`scripts/local/detracciones/`)
+
+Corrida de prueba que **no guarda nada** en la base ni en Drive: recorre la
+ruta de §4 y deja la evidencia para armar el script de verdad.
+
+| Archivo | Qué hace |
+|---|---|
+| `reconocer.mts` | El principal: login, menú, filtros, tabla, constancias de prueba, `resumen.json` |
+| `spot.mts` | La ruta del menú nuevo y la pantalla SPOT (filtros, tabla, modal, «Guardar»): se reusará en el script de verdad |
+| `red.mts` | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
+
+El login es el de siempre (`sol/sesion.mts` → `entrar()`), pero entrando
+**directo al menú nuevo** (`MenuInternetPlataforma.htm`): entrar al de los
+XML y navegar después cerraría la sesión.
+
+**En GitHub:** Actions → **SUNAT detracciones (reconocimiento)** → Run
+workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,
+bajar el artefacto `bitacoras-detracciones-reconocer`.
+
+**En una laptop:** `npm run detracciones:reconocer`; para ver el navegador,
+`HEADLESS=0` (en PowerShell `$env:HEADLESS="0"; npm run detracciones:reconocer`;
+sin ventana no se imprime el PDF).
+
+Qué mirar en `scripts/out/logs/detracciones-reconocer-<fecha>/`:
+
+| Archivo | Para qué |
+|---|---|
+| `resumen.json` | Lo encontrado: URL de la consulta, opciones de los desplegables, filas, constancias bajadas, señales de paginación |
+| `capturas/` | Una imagen por paso; si algo falló, `errores/` tiene captura + HTML |
+| `controles-antes.json` / `-despues.json` | Los ids reales de cada campo, para fijar los selectores |
+| `resultado.html` / `.txt` | La página con la tabla |
+| `constancias/` | `constancia_dtr_<número>.html`, su `.pdf` y el texto del modal |
+| `red.jsonl`, `red/` | ¿Hay una API? Si la tabla o la constancia llegan como JSON, se pide directo, sin pantallas |

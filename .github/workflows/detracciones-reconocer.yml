@@ -1,0 +1,86 @@
+# Reconocimiento de la consulta SPOT de SOL (constancias de detracción)
+#
+# Primer paso para bajar las constancias de depósito de detracción
+# (docs/detracciones-spot.md). Entra a SOL por el menú NUEVO
+# (MenuInternetPlataforma.htm), recorre Opciones → Mis declaraciones y pagos →
+# Consultas → Consultas de Presentación y Pago → Consulta de Pago de
+# Detracciones, consulta un período con las fechas vacías, abre las primeras
+# constancias y baja su HTML («Guardar») y un PDF de ese HTML.
+#
+# NO guarda nada en la base ni en Drive: deja capturas, el HTML de cada
+# pantalla, las opciones reales de los desplegables y lo que la página pide
+# por debajo (¿hay una API que se pueda llamar directo?) en el artefacto
+# `bitacoras-detracciones-reconocer`. Con eso se arma el script de verdad.
+# Es el mismo script que se corre en local: `npm run detracciones:reconocer`.
+
+name: SUNAT detracciones (reconocimiento)
+
+on:
+  workflow_dispatch:
+    inputs:
+      periodo:
+        description: "Período tributario aaaamm. Vacío = mes anterior."
+        required: false
+        default: ""
+      constancias:
+        description: "Cuántas constancias abrir y bajar como prueba."
+        required: false
+        default: "3"
+      tipo_cuenta:
+        description: "Texto del «Tipo de Cuenta» a elegir."
+        required: false
+        default: "Convencional"
+      menu_url:
+        description: "Página de entrada a SOL. Vacío = el menú nuevo (MenuInternetPlataforma.htm)."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# El MISMO grupo que los demás que usan la cuenta secundaria de SOL: dos
+# sesiones a la vez pueden hacer que SUNAT cierre una. La segunda espera.
+concurrency:
+  group: consultar-cpe-individual
+  cancel-in-progress: false
+
+jobs:
+  reconocer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Recorrer la consulta SPOT y bajar constancias de prueba (sin guardar)
+        env:
+          SUNAT_RUC: ${{ secrets.SUNAT_RUC }}
+          SUNAT_SOL_USUARIO: ${{ secrets.SUNAT_SOL_USUARIO }}
+          SUNAT_SOL_CLAVE: ${{ secrets.SUNAT_SOL_CLAVE }}
+          SUNAT_INROPRIN_USUARIO: ${{ secrets.SUNAT_INROPRIN_USUARIO }}
+          SUNAT_INROPRIN_CLAVE: ${{ secrets.SUNAT_INROPRIN_CLAVE }}
+          PERIODO: ${{ inputs.periodo }}
+          CONSTANCIAS: ${{ inputs.constancias }}
+          TIPO_CUENTA: ${{ inputs.tipo_cuenta }}
+          MENU_URL: ${{ inputs.menu_url }}
+        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/detracciones/reconocer.mts
+
+      # Capturas, HTML, constancias de prueba y registro de red: es la evidencia
+      # para armar el script de verdad. Sin claves ni tokens (red.mts los quita).
+      - name: Subir bitácoras
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitacoras-detracciones-reconocer
+          path: scripts/out/logs/
+          if-no-files-found: warn
+          retention-days: 7

@@ -42,11 +42,15 @@ export async function irConReintento(b: Bitacora, page: Page, url: string, quien
  * Login en SOL. Si la sesión del contexto ya está viva, el menú aparece sin
  * formulario de ingreso: eso también cuenta como «entró» (el re-login de la
  * primera versión esperaba #txtRuc 60 s y fallaba justamente por eso).
+ *
+ * `menu`: a qué menú se entra. Por omisión el de siempre (`MenuInternet.htm`,
+ * «Empresas»); las detracciones están en el nuevo (`MenuInternetPlataforma.htm`).
+ * Se entra DIRECTO al que se va a usar: salir del menú después cierra la sesión.
  */
-export async function entrar(b: Bitacora, page: Page, quien: string): Promise<void> {
+export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGIN_URL): Promise<void> {
   const { usuario, clave } = credencialesSol();
   b.log("info", quien, `entrando a SOL como ${RUC} / ${usuario}`);
-  await irConReintento(b, page, LOGIN_URL, quien);
+  await irConReintento(b, page, menu, quien);
   const hay = await page
     .waitForSelector("#txtRuc", { timeout: 20000 })
     .then(() => true)
@@ -85,7 +89,7 @@ export async function entrar(b: Bitacora, page: Page, quien: string): Promise<vo
       if (vueltas >= VUELTAS_PORTADA) break;
       vueltas++;
       b.log("aviso", quien, `la autenticación quedó en la portada de SUNAT; se pide el menú de nuevo (${vueltas}/${VUELTAS_PORTADA})`);
-      await irConReintento(b, page, LOGIN_URL, quien).catch(() => {});
+      await irConReintento(b, page, menu, quien).catch(() => {});
       ultimaAccion = Date.now();
       continue;
     }

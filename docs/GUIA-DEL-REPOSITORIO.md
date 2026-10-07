@@ -40,7 +40,7 @@ Empresa: **INDUSTRIAS ROLAND PRINT S.A.C. — INROPRIN**, RUC `20512201611`.
 ## 2. Mapa de carpetas
 
 ```
-.github/workflows/        Los 9 workflows (sección 4)
+.github/workflows/        Los 10 workflows (sección 4)
 src/                      Google Apps Script: los .gs y .html que se pegan en
                           el libro y las hojas (sección 10)
   shared/lib/             Lógica compartida que usan los scripts (sección 9)
@@ -51,6 +51,8 @@ src/                      Google Apps Script: los .gs y .html que se pegan en
 scripts/                  Lo que corren los workflows (Node + Playwright)
   local/                  Pipeline de CPE por la API de SUNAT y utilidades de laptop
                           (docs/pipeline-cpe-local.md)
+    detracciones/         Constancias de detracción (SPOT); hoy, el reconocimiento
+                          (docs/detracciones-spot.md)
   out/                    Resultados de cada corrida: logs/, salida/, capturas/
                           (fuera de git; en Actions se suben como artefactos)
 docs/                     Documentos de detalle (sección 13)
@@ -96,6 +98,7 @@ que es la evidencia para diagnosticar cuando algo falla.
 | 08:30 | **SUNAT CPE por API** | Baja XML y PDF de los **no-E001** directo de la API de SUNAT (mes anterior + actual, todos los pendientes) |
 | 09:00 | **SUNAT padrón de RUC** | Consulta la condición de los RUC nuevos o vencidos |
 | —     | *(a mano)* consultar CPE individual | Respaldo por pantallas, sin cron desde el 30/09/2026 |
+| —     | *(a mano)* SUNAT detracciones (reconocimiento) | Prueba del recorrido SPOT, sin guardar (en construcción) |
 
 ### 4.2 Ficha de cada workflow
 
@@ -258,6 +261,19 @@ que es la evidencia para diagnosticar cuando algo falla.
   contando como incompleta hasta que el documento esté en la carpeta.
 - **Local:** `npm run fuentes:local` (con `FUENTES_JSON=archivo.json` lee
   las pestañas de un archivo en vez de la hoja; `DEBUG=1` no sube nada).
+
+#### SUNAT detracciones (reconocimiento) — `detracciones-reconocer.yml` → `scripts/local/detracciones/reconocer.mts`
+- **En construcción** (desde el 07/10/2026). Primer paso para bajar las
+  **constancias de depósito de detracción** del menú SPOT de SOL.
+- **Qué hace:** entra al menú nuevo de SOL, llega a «Consulta de Pago de
+  Detracciones», consulta un período, abre las primeras constancias y baja
+  su HTML («Guardar») y un PDF. **No guarda nada** en la base ni en Drive:
+  deja capturas, HTML, opciones de los filtros y lo que la página pide por
+  debajo en el artefacto `bitacoras-detracciones-reconocer` (7 días).
+- **Cuándo:** solo manual (`periodo`, `constancias`, `tipo_cuenta`,
+  `menu_url`). Tope 20 min. Comparte `concurrency` con los de la cuenta de SOL.
+- **Local:** `npm run detracciones:reconocer`.
+- Detalle: **`docs/detracciones-spot.md`**.
 
 #### Otros scripts
 - `scripts/sire.mts`: prueba la cadena del SIRE **desde una máquina local**

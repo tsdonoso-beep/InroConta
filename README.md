@@ -29,6 +29,7 @@ npm ci
 npm run cpe:local           # comprobantes por la API de SUNAT
 npm run carpetas:local      # carpetas de OC (docs/carpetas-oc-local.md)
 npm run hojas:detalle       # republicar COMPROBANTES SUNAT - DETALLE
+npm run detracciones:reconocer  # prueba del recorrido de detracciones (docs/detracciones-spot.md)
 ```
 
 En PowerShell las variables van antes con `$env:`, por ejemplo

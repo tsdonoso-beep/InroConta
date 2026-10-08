@@ -336,3 +336,23 @@ facturas sin XML quedan en la base y en Drive.
 
 **Migración 066 aplicada el 08/10/2026** (por el conector de Supabase). La
 función del detalle de siempre quedó igual (se comprobó con su huella md5).
+
+## 10. Primera carga (08/10/2026)
+
+Prueba con 5 (run 37852656407) y carga completa por fecha de pago del
+01/01/2026 al 08/10/2026 (run 37854130482, 42 min, 0 fallidas):
+
+| | Constancias | Depositado | Con PDF y HTML | Con XML (en el DETALLE) | Revisar monto | XML sin detracción | Pagadas en un mes posterior al período |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Compras | 564 | S/ 604 392 | 564 | 531 | 23 | 50 | 199 |
+| Ventas | 70 | S/ 545 678 | 70 | 31 | 0 | — | 67 |
+
+- 1 258 archivos en Drive (PDF + HTML), 0 fallidos; 30 consultas; 0 pagos masivos.
+- El período más antiguo depositado en 2026 es **202506** (compras) y
+  **202510** (ventas): confirma que conviene buscar por fecha de pago.
+- **Facturas con detracción en el XML y sin constancia** (desde 202601):
+  recibidas 106 de enero a agosto (S/ 131 629) y 11 de set-oct, aún en plazo;
+  emitidas 18 de enero a agosto (S/ 88 895) y 1 de set-oct. A revisar con
+  Contabilidad (¿depósito en otra cuenta, por pago masivo, en 2025, o falta?).
+- Las constancias de facturas sin XML (33 compras, 39 ventas) están en la
+  base y en Drive, pero no en el DETALLE (la hoja es del XML).

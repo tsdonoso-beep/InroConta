@@ -48,7 +48,7 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
 - [x] Domicilio en la pestaña PADRÓN RUC (y la pestaña ya trae todos los RUC, no solo 1000).
 
 **Siguiente trabajo pedido**
-- [ ] **Detracciones** (`docs/detracciones-spot.md` §9; workflow «SUNAT detracciones» desde el 08/10/2026): migración 066 aplicada y primera carga hecha el 08/10/2026: 634 constancias, §10; falta mostrarlas en la vista de Apps Script y confirmar con Contabilidad el criterio (fecha de pago, pagos masivos, ventas). Extraer las constancias de depósito del menú SPOT de SUNAT SOL. El usuario va a mandar
+- [ ] **Detracciones** (`docs/detracciones-spot.md` §9; workflow «SUNAT detracciones» desde el 08/10/2026): migración 066 aplicada y primera carga hecha el 08/10/2026: 634 constancias, §10; en la vista de Apps Script desde el 08/10/2026 (sección Detracciones, §11); falta confirmar con Contabilidad el criterio (fecha de pago, pagos masivos, ventas). Extraer las constancias de depósito del menú SPOT de SUNAT SOL. El usuario va a mandar
       pantallazos del recorrido (menú → filtros → resultado → descarga → constancia). Analizar cada uno antes de
       programar. Reusar el login de `scripts/local/sol/sesion.mts`. Preguntar si el objetivo es el PDF junto a la
       factura (legajo) o la tabla de cruce factura ↔ depósito.

@@ -152,6 +152,8 @@
   .kpi-riesgo { border-color: #F2C9C9; background: linear-gradient(180deg, #FFF 0%, #FFF7F7 100%); }
   .kpi-riesgo .kpi-valor { color: var(--danger); }
   .kpi-anillo { display: flex; align-items: center; gap: 14px; }
+  .kpi-anillo svg { flex: none; }
+  .kpi-anillo .kpi-extra { white-space: normal; min-width: 0; }
   .chispa { display: block; margin-top: 10px; max-width: 100%; height: auto; }
   .variacion { font-weight: 700; }
   .sube { color: var(--danger); } .baja { color: var(--ok); } .igual { color: var(--text3); }
@@ -159,6 +161,7 @@
   /* ── Tarjetas ── */
   .grilla { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; margin-bottom: 14px; }
   .grilla-igual { grid-template-columns: 1fr 1fr; }
+  .grilla-tres { grid-template-columns: 1fr 1fr 1fr; }
   .tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: var(--sombra); min-width: 0; }
   .tarjeta-ancha { margin-bottom: 14px; }
   /* Detracciones a revisar: empieza cerrada, una línea; se abre con un clic. */
@@ -185,6 +188,17 @@
   .mes.atenuado .mes-barra { opacity: .3; }
   .mes-etq { font-size: 12px; color: var(--text2); white-space: nowrap; }
   .mes.activo .mes-etq { color: var(--text); font-weight: 700; }
+  /* Detracciones: barras apiladas (compras abajo, ventas arriba) */
+  .mes-pila { width: 70%; max-width: 46px; display: flex; flex-direction: column-reverse; border-radius: 7px 7px 3px 3px; overflow: hidden; min-height: 3px; transition: opacity .12s; }
+  .mes-pila > span { display: block; min-height: 2px; }
+  .mes:hover .mes-pila { opacity: .8; }
+  .mes.atenuado .mes-pila { opacity: .3; }
+  .leyenda-mini { display: flex; gap: 14px; font-size: 12px; color: var(--text2); margin-top: 8px; flex-wrap: wrap; }
+  .leyenda-mini i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .fila-barra.elegida { background: var(--accent-suave); }
+  .fb-desc { font-size: 11.5px; color: var(--text3); margin: -2px 0 5px; }
+  .dif { color: var(--danger); font-weight: 700; }
+  .tabla .acciones { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 
   /* Dona */
   .dona { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
@@ -276,7 +290,7 @@
     .factura > :nth-child(1), .factura > :nth-child(5) { display: none; }
   }
   /* Las tablas anchas se desplazan dentro de su tarjeta (en el celular), sin mover toda la página. */
-  #lTabla, #sTabla, #detLista, #cLista { overflow-x: auto; }
+  #lTabla, #sTabla, #detLista, #cLista, #dTabla, #dSin { overflow-x: auto; }
   @media (max-width: 560px) {
     .kpis { grid-template-columns: 1fr; }
     .segmento { max-width: 100%; overflow-x: auto; }
@@ -329,6 +343,7 @@
       <nav class="nav" id="nav">
       <button data-vista="resumen" class="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Resumen</span></button>
       <button data-vista="impuestos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span>Impuestos</span><span class="insignia" id="insigniaImpuestos" style="display:none"></span></button>
+      <button data-vista="detracciones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9.5 10v8"/><path d="M14.5 10v8"/><path d="M19 10v8"/><path d="M3 21h18"/><path d="m12 3 9 5H3z"/></svg><span>Detracciones</span><span class="insignia" id="insigniaDetr" style="display:none"></span></button>
       <button data-vista="factura"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="m13.5 16.5 2 2"/></svg><span>Buscar factura</span></button>
       <button data-vista="precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><span>Precios</span></button>
       <button data-vista="proveedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg><span>Proveedores</span></button>
@@ -393,6 +408,56 @@
         <div id="detLista"></div>
       </details>
       <p class="vacio" id="detVacio" style="display:none">Ninguna detracción a revisar con este filtro: todas usan el % de su código de bien o servicio.</p>
+    </section>
+
+    <section class="vista" data-vista="detracciones">
+      <div class="base-estado" data-base></div>
+      <div data-con-base style="display:none">
+        <div class="barra-filtros">
+          <div class="segmento" id="dSentido"><button data-v="0" class="activo">Compras</button><button data-v="1">Ventas</button><button data-v="">Compras y ventas</button></div>
+          <select id="dMes" aria-label="Mes"></select>
+          <select id="dCaso" aria-label="Caso"></select>
+          <input class="buscador" id="dBuscar" type="search" placeholder="Proveedor, cliente, RUC, constancia, F001-123 o N.° de operación">
+          <button class="limpiar" id="dLimpiar">Quitar filtros</button>
+        </div>
+        <div id="dAviso"></div>
+        <div class="kpis" id="dKpis"></div>
+        <div class="grilla">
+          <div class="tarjeta">
+            <div class="tarjeta-cab"><h2>Depósitos por mes de pago</h2><span class="nota">Constancias del SPOT (Banco de la Nación) · clic en un mes para filtrar</span></div>
+            <div class="meses" id="dMeses"></div>
+            <div class="leyenda-mini" id="dLeyenda"></div>
+          </div>
+          <div class="tarjeta">
+            <div class="tarjeta-cab"><h2>Por caso</h2><span class="nota">Clic en un caso para ver sus constancias</span></div>
+            <div id="dCasos"></div>
+          </div>
+        </div>
+        <div class="grilla grilla-tres">
+          <div class="tarjeta">
+            <div class="tarjeta-cab"><h2>¿Cuándo se depositó?</h2><span class="nota">Meses entre el período de la factura y el pago</span></div>
+            <div id="dPlazo"></div>
+          </div>
+          <div class="tarjeta">
+            <div class="tarjeta-cab"><h2 id="dTituloTop">Proveedores con más detracción</h2><span class="nota">Monto depositado</span></div>
+            <div id="dTop"></div>
+          </div>
+          <div class="tarjeta">
+            <div class="tarjeta-cab"><h2>Por bien o servicio</h2><span class="nota">Código del anexo de la R.S. 183-2004/SUNAT</span></div>
+            <div id="dCodigos"></div>
+          </div>
+        </div>
+        <div class="tarjeta tarjeta-ancha">
+          <div class="tarjeta-cab"><h2>Constancias de detracción</h2><span class="nota" id="dNota"></span></div>
+          <div id="dTabla"></div>
+          <button class="limpiar mas" id="dMas" style="display:none">Ver más</button>
+        </div>
+        <div class="tarjeta tarjeta-ancha">
+          <div class="tarjeta-cab"><h2>Facturas con detracción sin constancia</h2><span class="nota" id="dSinNota"></span></div>
+          <div id="dSin"></div>
+          <button class="limpiar mas" id="dSinMas" style="display:none">Ver más</button>
+        </div>
+      </div>
     </section>
 
     <section class="vista" data-vista="factura">
@@ -728,6 +793,7 @@
     insignia('insigniaSinOc', alta, alta + ' facturas que aparentan no tener OC (ALTA)');
     insignia('insigniaCambios', recientes, recientes + ' cambios en la última lectura del robot');
     pintarLegajo(); pintarSinOc(); pintarCambios(); pintarCuadre();
+    iniciarDetracciones(d);
     // La ficha de SUNAT de cada proveedor llega con la base: se repinta lo que ya estaba a la vista.
     var inF = document.getElementById('buscarFactura');
     if (D && BASE.rucs && BASE.rucs.length) { pintar(); if (inF && inF.value.trim()) buscarFacturas(inF.value); }
@@ -1050,6 +1116,246 @@
     document.getElementById('cLista').innerHTML = lista.length ? html + '</tbody></table>' : '<p class="vacio">Sin cambios con este filtro. El robot los anota desde el 02/10/2026.</p>';
   }
 
+  // ══ Detracciones: las constancias del SPOT (detracciones_hoja y detracciones_sin_constancia, migración 067) ══
+  // Fila de constancia (BASE.detracciones): [0 caso, 1 período, 2 sentido 0 compra / 1 venta, 3 fecha de pago aaaa-mm-dd,
+  //   4 meses entre período y pago, 5 constancia, 6 tipo, 7 serie, 8 número, 9 RUC proveedor, 10 proveedor,
+  //   11 doc. adquiriente, 12 adquiriente, 13 bien o servicio, 14 depositado, 15 detracción de la factura, 16 factura en,
+  //   17 total factura, 18 moneda, 19 cuenta BN, 20 cuenta del XML, 21 N.° de operación, 22 PDF constancia,
+  //   23 HTML constancia, 24 PDF factura, 25 fecha y hora de pago]
+  // Fila sin constancia (BASE.detSinConstancia): [0 sentido, 1 período, 2 emisión, 3 meses desde la emisión, 4 RUC,
+  //   5 nombre, 6 tipo, 7 serie, 8 número, 9 total, 10 moneda, 11 detracción, 12 según, 13 PDF factura]
+  var DT = { sentido: '0', mes: '', caso: '', texto: '', cuantos: 25, cuantosSin: 25 };
+  var DET_DESDE = '202601';   // desde cuándo se buscan las facturas sin constancia (p_desde de la migración 067)
+  // Los casos, en el orden de la base (el primero que calza), con su color y qué quiere decir.
+  var CASOS_DET = [
+    ['Revisar monto', '#C62828', 'Lo depositado difiere en más de S/ 1 de la detracción de la factura'],
+    ['Factura de', '#006DB1', 'Depósito de una factura de un año anterior'],
+    ['Sin factura', '#C62828', 'La factura no está ni en el SIRE ni en los XML'],
+    ['Sin XML', '#A15C07', 'Está en el SIRE, pero falta su XML (no sale en el DETALLE)'],
+    ['XML no declara detracción', '#A15C07', 'Hay XML, pero no trae la detracción'],
+    ['Pago 2+ meses después', '#A15C07', 'Se depositó dos meses o más después del período'],
+    ['Normal', '#1E7F4F', 'Todo cuadra']
+  ];
+  function casoDet(c) { for (var i = 0; i < CASOS_DET.length; i++) if (c.indexOf(CASOS_DET[i][0]) === 0) return CASOS_DET[i].concat([i]); return [c, '#8494A8', '', 99]; }
+  var chipCaso = function (c) {
+    var k = casoDet(c), clase = k[1] === '#1E7F4F' ? 'chip-ok' : k[1] === '#C62828' ? 'chip-rojo' : k[1] === '#006DB1' ? 'chip-azul' : 'chip-warn';
+    return '<span class="chip ' + clase + '" title="' + esc(k[2]) + '">' + esc(c) + '</span>';
+  };
+  // Bienes y servicios sujetos al SPOT (anexos de la R.S. 183-2004/SUNAT, como en la migración 053).
+  var BIENES_DET = { '001': 'Azúcar y melaza de caña', '003': 'Alcohol etílico', '004': 'Recursos hidrobiológicos', '005': 'Maíz amarillo duro',
+    '007': 'Caña de azúcar', '008': 'Madera', '009': 'Arena y piedra', '010': 'Residuos, subproductos, desechos', '011': 'Bienes gravados por renuncia a la exoneración',
+    '012': 'Intermediación laboral y tercerización', '014': 'Carnes y despojos comestibles', '016': 'Aceite de pescado', '017': 'Harina, polvo y pellets de pescado',
+    '019': 'Arrendamiento de bienes muebles', '020': 'Mantenimiento y reparación de bienes muebles', '021': 'Movimiento de carga', '022': 'Otros servicios empresariales',
+    '024': 'Comisión mercantil', '025': 'Fabricación de bienes por encargo', '026': 'Transporte de personas', '027': 'Transporte de carga', '030': 'Contratos de construcción',
+    '031': 'Oro gravado con el IGV', '032': 'Páprika y otros capsicum', '034': 'Minerales metálicos no auríferos', '035': 'Bienes exonerados del IGV',
+    '036': 'Oro y minerales exonerados del IGV', '037': 'Demás servicios gravados con el IGV', '039': 'Minerales no metálicos', '040': 'Bien inmueble gravado con el IGV', '041': 'Plomo' };
+  var bienDet = function (c) { c = String(c || ''); if (/^\d+$/.test(c)) c = ('00' + c).slice(-3); return c ? c + ' · ' + (BIENES_DET[c] || 'otro') : '—'; };
+  var soles = function (n) { return montoCod(Number(n) || 0, 'PEN'); };
+  var mesPago = function (x) { return x[3] ? x[3].slice(0, 4) + x[3].slice(5, 7) : ''; };
+  var contraparte = function (x) { return x[2] ? [x[11], x[12] || x[11]] : [x[9], x[10] || x[9]]; };
+  var compDet = function (serie, numero) { return String(serie || '').toUpperCase() + '-' + String(numero || '').replace(/^0+(?=\d)/, ''); };
+  var drive = function (id, texto) { return id ? '<a class="abrir" href="https://drive.google.com/file/d/' + esc(id) + '/view" target="_blank" rel="noopener">' + texto + '</a>' : ''; };
+  var textoDet = function (x) { return x.texto || (x.texto = plano([x[5], x[9], x[10], x[11], x[12], compDet(x[7], x[8]), x[21], x[0]].join(' '))); };
+  var textoSin = function (x) { return x.texto || (x.texto = plano([x[4], x[5], compDet(x[7], x[8])].join(' '))); };
+
+  function iniciarDetracciones(d) {
+    var filas = d.detracciones || [], sin = d.detSinConstancia || [];
+    // Mes: el de pago (lo que muestra el gráfico) o el período de la factura (el del Registro de Compras).
+    var pagos = Array.from(new Set(filas.map(mesPago).filter(Boolean))).sort().reverse();
+    var periodos = Array.from(new Set(filas.map(function (x) { return x[1]; }).concat(sin.map(function (x) { return x[1]; })).filter(function (p) { return /^\d{6}$/.test(p); }))).sort().reverse();
+    var selM = document.getElementById('dMes');
+    selM.innerHTML = '<option value="">Todos los meses</option>' +
+      '<optgroup label="Mes de pago">' + pagos.map(function (m) { return '<option value="p' + m + '">Pagadas en ' + etqMes(m) + '</option>'; }).join('') + '</optgroup>' +
+      '<optgroup label="Período de la factura">' + periodos.map(function (m) { return '<option value="t' + m + '">Período ' + etqMes(m) + '</option>'; }).join('') + '</optgroup>';
+    selM.onchange = function () { DT.mes = this.value; DT.cuantos = 25; DT.cuantosSin = 25; pintarDetr(); };
+    document.getElementById('dCaso').onchange = function () { DT.caso = this.value; DT.cuantos = 25; pintarDetr(); };
+    segmento('dSentido', function (v) { DT.sentido = v; DT.cuantos = 25; DT.cuantosSin = 25; pintarDetr(); });
+    var t4; document.getElementById('dBuscar').oninput = function () { var v = this.value; clearTimeout(t4); t4 = setTimeout(function () { DT.texto = v; DT.cuantos = 25; DT.cuantosSin = 25; pintarDetr(); }, 150); };
+    document.getElementById('dMas').onclick = function () { DT.cuantos += 25; pintarDetr(); };
+    document.getElementById('dSinMas').onclick = function () { DT.cuantosSin += 25; pintarDetr(); };
+    document.getElementById('dLimpiar').onclick = function () {
+      DT.mes = ''; DT.caso = ''; DT.texto = ''; DT.cuantos = 25; DT.cuantosSin = 25;
+      selM.value = ''; document.getElementById('dBuscar').value = ''; pintarDetr();
+    };
+    document.getElementById('dMeses').onclick = function (e) {
+      var m = e.target.closest('.mes'); if (!m) return;
+      var v = 'p' + m.getAttribute('data-m'); DT.mes = DT.mes === v ? '' : v; selM.value = DT.mes; DT.cuantos = 25; pintarDetr();
+    };
+    document.getElementById('dCasos').onclick = function (e) {
+      var f = e.target.closest('[data-caso]'); if (!f) return;
+      var v = f.getAttribute('data-caso'); DT.caso = DT.caso === v ? '' : v; DT.cuantos = 25; pintarDetr();
+    };
+    // Lo que pide corrección: depósitos que no cuadran con su factura y depósitos sin factura.
+    var malas = filas.filter(function (x) { return x[0] === 'Revisar monto' || x[0] === 'Sin factura'; }).length;
+    var ins = document.getElementById('insigniaDetr');
+    ins.textContent = miles(malas); ins.style.display = malas ? '' : 'none';
+    ins.title = malas + ' constancias para corregir (el monto no cuadra con la factura, o no hay factura)';
+    pintarDetr();
+  }
+
+  function pintarDetr() {
+    if (!BASE) return;
+    var todas = BASE.detracciones || [], sinTodas = BASE.detSinConstancia || [];
+    document.getElementById('dAviso').innerHTML = BASE.detError
+      ? '<div class="tarjeta tarjeta-ancha"><h2>Detracciones: sin datos de la base</h2><p class="linea">' + esc(BASE.detError) + '</p></div>' : '';
+    var palabras = plano(DT.texto).split(/\s+/).filter(function (w) { return w.length > 1; });
+    var pasaTexto = function (t) { return palabras.every(function (w) { return t.indexOf(w) !== -1; }); };
+    var tipoMes = DT.mes.charAt(0), mes = DT.mes.slice(1);
+    var pasaSentido = function (x, i) { return DT.sentido === '' || String(x[i]) === DT.sentido; };
+    // Sin el filtro de caso (para el gráfico de casos) y sin el de mes (para el gráfico de meses).
+    var sinMes = todas.filter(function (x) { return pasaSentido(x, 2) && pasaTexto(textoDet(x)); });
+    var base_ = sinMes.filter(function (x) { return !DT.mes || (tipoMes === 'p' ? mesPago(x) === mes : x[1] === mes); });
+    var lista = base_.filter(function (x) { return !DT.caso || x[0] === DT.caso; });
+    var sin = sinTodas.filter(function (x) { return pasaSentido(x, 0) && pasaTexto(textoSin(x)) && (tipoMes !== 't' || x[1] === mes); });
+
+    // Casos (para el filtro), con cuántas constancias hay en lo filtrado.
+    var cuenta = {}; base_.forEach(function (x) { cuenta[x[0]] = (cuenta[x[0]] || 0) + 1; });
+    var casos = Object.keys(cuenta).sort(function (a, b) { return casoDet(a)[3] - casoDet(b)[3] || a.localeCompare(b); });
+    if (DT.caso && !cuenta[DT.caso]) casos.push(DT.caso);
+    var selC = document.getElementById('dCaso');
+    selC.innerHTML = '<option value="">Todos los casos</option>' + casos.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + ' (' + miles(cuenta[c] || 0) + ')</option>'; }).join('');
+    selC.value = DT.caso;
+
+    pintarDetrKpis(lista, sin);
+    pintarDetrMeses(sinMes.filter(function (x) { return !DT.caso || x[0] === DT.caso; }));
+    pintarDetrCasos(base_);
+    pintarDetrPlazo(lista);
+    pintarDetrTop(lista);
+    pintarDetrCodigos(lista);
+    pintarDetrTabla(lista);
+    pintarDetrSin(sin, tipoMes === 'p');
+  }
+
+  function pintarDetrKpis(lista, sin) {
+    var total = lista.reduce(function (a, x) { return a + (x[14] || 0); }, 0);
+    var contrapartes = new Set(lista.map(function (x) { return contraparte(x)[0]; })).size;
+    var compras = lista.filter(function (x) { return !x[2]; }), ventas = lista.filter(function (x) { return x[2]; });
+    var raras = lista.filter(function (x) { return x[0] !== 'Normal'; });
+    var malas = lista.filter(function (x) { return x[0] === 'Revisar monto' || x[0] === 'Sin factura'; });
+    var porCaso = {}; raras.forEach(function (x) { var k = casoDet(x[0])[0]; porCaso[k] = (porCaso[k] || 0) + 1; });
+    var sinMonto = sin.reduce(function (a, x) { return a + (x[11] || 0); }, 0);
+    var viejas = sin.filter(function (x) { return x[3] >= 2; }).length;
+    // Cobertura: de las facturas con detracción desde enero, cuántas ya tienen su constancia.
+    var con = lista.filter(function (x) { return x[1] >= DET_DESDE; }).length;
+    var cob = pct(con, con + sin.length);
+    var conPlazo = lista.filter(function (x) { return x[4] != null; }), aTiempo = conPlazo.filter(function (x) { return x[4] <= 1; }).length;
+    document.getElementById('dKpis').innerHTML =
+      kpi('Detracción depositada', total >= 1e5 ? '<span title="' + soles(total) + '">' + montoCorto(total) + '</span>' : soles(total), '<div class="kpi-extra">' + (total >= 1e5 ? soles(total) + '<br>' : '') + miles(lista.length) + ' constancias · ' + miles(contrapartes) + (DT.sentido === '1' ? ' clientes' : DT.sentido === '0' ? ' proveedores' : ' proveedores y clientes') +
+        (DT.sentido === '' ? '<br>compras ' + soles(compras.reduce(function (a, x) { return a + x[14]; }, 0)) + ' · ventas ' + soles(ventas.reduce(function (a, x) { return a + x[14]; }, 0)) : '') + '</div>') +
+      kpi('Con su constancia', '<div class="kpi-anillo">' + anillo(cob, cob >= 90 ? '#1E7F4F' : cob >= 70 ? '#00A298' : '#A15C07') + '<div class="kpi-extra" style="margin:0">' + miles(con) + ' de ' + miles(con + sin.length) +
+        '<br>facturas con detracción desde ' + etqMes(DET_DESDE) + '</div></div>') +
+      kpi('Casos atípicos', miles(raras.length), '<div class="kpi-extra">' + (Object.keys(porCaso).sort(function (a, b) { return porCaso[b] - porCaso[a]; }).slice(0, 3)
+        .map(function (k) { return esc(k === 'Factura de' ? 'de otro año' : k.toLowerCase()) + ': ' + porCaso[k]; }).join(' · ') || 'ninguno: todo cuadra') +
+        (malas.length ? '<br><span class="variacion sube">' + malas.length + ' para corregir</span>' : '') + '</div>', malas.length ? 'kpi-riesgo' : '') +
+      kpi('Sin constancia', miles(sin.length), '<div class="kpi-extra">' + soles(sinMonto) + ' de detracción sin depositar' +
+        (viejas ? '<br><span class="variacion sube">' + viejas + ' con 2+ meses desde la emisión</span>' : '') + '</div>', viejas ? 'kpi-riesgo' : '') +
+      kpi('Pagadas a tiempo', '<div class="kpi-anillo">' + anillo(pct(aTiempo, conPlazo.length), '#006DB1') + '<div class="kpi-extra" style="margin:0">' + miles(aTiempo) + ' de ' + miles(conPlazo.length) +
+        '<br>en el mes o el mes siguiente</div></div>');
+  }
+
+  function pintarDetrMeses(filas) {
+    var g = {};
+    filas.forEach(function (x) { var m = mesPago(x); if (!m) return; var o = g[m] || (g[m] = { c: 0, v: 0, n: 0, raras: 0 }); o[x[2] ? 'v' : 'c'] += x[14] || 0; o.n++; if (x[0] !== 'Normal') o.raras++; });
+    var meses = Object.keys(g).sort().slice(-14);
+    var max = Math.max.apply(null, meses.map(function (m) { return g[m].c + g[m].v; }).concat([1]));
+    var sel = DT.mes.charAt(0) === 'p' ? DT.mes.slice(1) : '';
+    document.getElementById('dMeses').innerHTML = meses.length ? meses.map(function (m) {
+      var o = g[m], t = o.c + o.v, h = Math.max(3, t / max * 150);
+      return '<div class="mes' + (sel === m ? ' activo' : sel ? ' atenuado' : '') + '" data-m="' + m + '" title="' + esc(etqMes(m) + ': ' + soles(t) + ' · ' + o.n + ' constancias' +
+          (o.c && o.v ? ' (compras ' + soles(o.c) + ', ventas ' + soles(o.v) + ')' : '') + (o.raras ? ' · ' + o.raras + ' atípicas' : '')) + '">' +
+        '<span class="mes-cifra">' + esc(montoCorto(t)) + '</span>' +
+        '<div class="mes-pila" style="height:' + h + 'px">' + (o.c ? '<span style="flex:' + o.c + ';background:#00A298"></span>' : '') + (o.v ? '<span style="flex:' + o.v + ';background:#006DB1"></span>' : '') + '</div>' +
+        '<span class="mes-etq">' + etqMes(m) + '</span></div>';
+    }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
+    document.getElementById('dLeyenda').innerHTML = DT.sentido === '' ? '<span><i style="background:#00A298"></i>Compras (pagamos al proveedor)</span><span><i style="background:#006DB1"></i>Ventas (nos depositó el cliente)</span>'
+      : '<span><i style="background:' + (DT.sentido === '1' ? '#006DB1' : '#00A298') + '"></i>' + (DT.sentido === '1' ? 'Ventas: lo que depositaron los clientes en nuestra cuenta' : 'Compras: lo que depositamos en la cuenta del proveedor') + '</span>';
+  }
+  function montoCorto(n) { var a = Math.abs(n); return a >= 1e6 ? 'S/ ' + (a / 1e6).toFixed(1) + ' M' : a >= 1e4 ? 'S/ ' + Math.round(a / 1e3) + ' mil' : soles(n).replace(/\.\d\d$/, ''); }
+
+  function filaBarra(etq, cifras, p, color, attrs, desc, elegida) {
+    return '<div class="fila-barra' + (elegida ? ' elegida' : '') + '"' + (attrs || '') + '><div class="fb-cab"><span class="fb-etq">' + etq + '</span><span class="fb-cifras">' + cifras + '</span></div>' +
+      (desc ? '<div class="fb-desc">' + esc(desc) + '</div>' : '') +
+      '<div class="fb-pista"><span style="width:' + Math.max(2, p) + '%;background:' + color + '"></span></div></div>';
+  }
+  function pintarDetrCasos(filas) {
+    var g = {};
+    filas.forEach(function (x) { var o = g[x[0]] || (g[x[0]] = { n: 0, v: 0 }); o.n++; o.v += x[14] || 0; });
+    var claves = Object.keys(g).sort(function (a, b) { return casoDet(a)[3] - casoDet(b)[3] || a.localeCompare(b); });
+    var max = Math.max.apply(null, claves.map(function (k) { return g[k].n; }).concat([1]));
+    document.getElementById('dCasos').innerHTML = claves.length ? claves.map(function (k) {
+      var c = casoDet(k);
+      return filaBarra(esc(k), '<b>' + miles(g[k].n) + '</b> · ' + soles(g[k].v), 100 * g[k].n / max, c[1],
+        ' data-caso="' + esc(k) + '" style="cursor:pointer" title="' + esc(c[2]) + '"', c[2], DT.caso === k);
+    }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
+  }
+  function pintarDetrPlazo(lista) {
+    var cubos = [['En el mismo mes', function (m) { return m <= 0; }, '#00A298'], ['El mes siguiente (lo normal)', function (m) { return m === 1; }, '#1E7F4F'],
+      ['2 meses después', function (m) { return m === 2; }, '#A15C07'], ['3 meses o más', function (m) { return m >= 3; }, '#C62828']];
+    var conDato = lista.filter(function (x) { return x[4] != null; });
+    document.getElementById('dPlazo').innerHTML = conDato.length ? cubos.map(function (c) {
+      var l = conDato.filter(function (x) { return c[1](x[4]); });
+      return filaBarra(c[0], '<b>' + miles(l.length) + '</b> · ' + pct(l.length, conDato.length) + '%', pct(l.length, conDato.length), c[2]);
+    }).join('') + '<p class="nota" style="margin:4px 0 0">El depósito vence hasta el 5.° día hábil del mes siguiente a la anotación de la factura en el Registro de Compras.</p>'
+      : '<p class="vacio">Sin constancias con este filtro.</p>';
+  }
+  function pintarDetrTop(lista) {
+    var g = {};
+    lista.forEach(function (x) { var c = contraparte(x), o = g[c[0]] || (g[c[0]] = { n: c[1], v: 0, k: 0 }); o.v += x[14] || 0; o.k++; });
+    var claves = Object.keys(g).sort(function (a, b) { return g[b].v - g[a].v; }).slice(0, 8);
+    var total = lista.reduce(function (a, x) { return a + (x[14] || 0); }, 0), max = claves.length ? g[claves[0]].v : 1;
+    document.getElementById('dTituloTop').textContent = DT.sentido === '1' ? 'Clientes que más nos depositaron' : DT.sentido === '0' ? 'Proveedores con más detracción' : 'Proveedores y clientes';
+    document.getElementById('dTop').innerHTML = claves.length ? claves.map(function (k) {
+      return filaBarra(esc(g[k].n), '<b>' + montoCorto(g[k].v) + '</b> · ' + pct(g[k].v, total) + '%', 100 * g[k].v / max, '#00A298', ' title="' + esc(k + ' · ' + g[k].k + ' constancias') + '" data-ruc="' + esc(k) + '"');
+    }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
+  }
+  function pintarDetrCodigos(lista) {
+    var g = {};
+    lista.forEach(function (x) { var k = bienDet(x[13]), o = g[k] || (g[k] = { v: 0, n: 0 }); o.v += x[14] || 0; o.n++; });
+    var claves = Object.keys(g).sort(function (a, b) { return g[b].v - g[a].v; }).slice(0, 8);
+    var max = claves.length ? g[claves[0]].v : 1;
+    document.getElementById('dCodigos').innerHTML = claves.length ? claves.map(function (k) {
+      return filaBarra(esc(k), '<b>' + montoCorto(g[k].v) + '</b> · ' + miles(g[k].n), 100 * g[k].v / max, '#006DB1', ' title="' + esc(k) + '"');
+    }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
+  }
+
+  function pintarDetrTabla(lista) {
+    var total = lista.reduce(function (a, x) { return a + (x[14] || 0); }, 0);
+    document.getElementById('dNota').textContent = miles(lista.length) + ' constancias · ' + soles(total) + ' · las más recientes primero';
+    var orden = lista.slice().sort(function (a, b) { return a[3] < b[3] ? 1 : a[3] > b[3] ? -1 : 0; });
+    document.getElementById('dTabla').innerHTML = orden.length ? '<table class="tabla"><thead><tr><th>Caso</th><th>Pago</th><th>' + (DT.sentido === '1' ? 'Cliente' : DT.sentido === '0' ? 'Proveedor' : 'Proveedor / cliente') + '</th>' +
+      '<th>Comprobante</th><th>Bien o servicio</th><th class="num">Depositado</th><th class="num">De la factura</th><th>Constancia</th></tr></thead><tbody>' +
+      orden.slice(0, DT.cuantos).map(function (x) {
+        var c = contraparte(x), dif = x[15] != null && x[15] > 0 ? x[14] - x[15] : null;
+        return '<tr><td>' + chipCaso(x[0]) + '<div class="sub">' + (x[2] ? 'Venta' : 'Compra') + '</div></td>' +
+          '<td style="white-space:nowrap">' + esc(fechaIso(x[3])) + '<div class="sub">período ' + esc(etqMes(x[1])) + (x[4] >= 2 ? ' · <span class="dif">' + x[4] + ' meses después</span>' : '') + '</div></td>' +
+          '<td>' + esc(c[1]) + '<div class="sub">' + esc(c[0]) + '</div></td>' +
+          '<td style="white-space:nowrap">' + (x[24] ? '<a href="https://drive.google.com/file/d/' + esc(x[24]) + '/view" target="_blank" rel="noopener">' + esc(compDet(x[7], x[8])) + '</a>' : '<b>' + esc(compDet(x[7], x[8])) + '</b>') +
+            '<div class="sub">' + esc(x[16] === 'No encontrada' ? 'factura no encontrada' : 'en ' + x[16]) + (x[17] != null ? ' · ' + montoCod(x[17], x[18] === 'USD' ? 'USD' : x[18] === 'EUR' ? 'EUR' : 'PEN') : '') + '</div></td>' +
+          '<td><div class="sub" style="margin:0" title="' + esc(bienDet(x[13])) + '">' + esc(bienDet(x[13])) + '</div></td>' +
+          '<td class="num"><b>' + soles(x[14]) + '</b>' + (x[21] ? '<div class="sub">op. ' + esc(x[21]) + '</div>' : '') + '</td>' +
+          '<td class="num">' + (x[15] != null && x[15] > 0 ? soles(x[15]) + (Math.abs(dif) > 1 ? '<div class="sub dif">dif. ' + (dif > 0 ? '+' : '') + soles(dif) + '</div>' : '') : '<span class="nota">no declara</span>') + '</td>' +
+          '<td><div class="acciones">' + drive(x[22], 'PDF ↗') + drive(x[23], 'HTML ↗') + '</div><div class="sub" style="text-align:right">N.° ' + esc(x[5]) + '</div></td></tr>';
+      }).join('') + '</tbody></table>' : '<p class="vacio">Ninguna constancia con este filtro.</p>';
+    document.getElementById('dMas').style.display = orden.length > DT.cuantos ? '' : 'none';
+  }
+
+  function pintarDetrSin(sin, porPago) {
+    var monto = sin.reduce(function (a, x) { return a + (x[11] || 0); }, 0);
+    document.getElementById('dSinNota').textContent = miles(sin.length) + ' facturas · ' + soles(monto) + ' de detracción · desde ' + etqMes(DET_DESDE) +
+      (porPago ? ' · el mes de pago no aplica: no hay pago' : '') + ' · las más antiguas primero';
+    document.getElementById('dSin').innerHTML = sin.length ? '<table class="tabla"><thead><tr><th>Emisión</th><th>' + (DT.sentido === '1' ? 'Cliente' : DT.sentido === '0' ? 'Proveedor' : 'Proveedor / cliente') + '</th>' +
+      '<th>Comprobante</th><th class="num">Total</th><th class="num">Detracción</th><th>Antigüedad</th><th>Según</th></tr></thead><tbody>' +
+      sin.slice(0, DT.cuantosSin).map(function (x) {
+        var m = x[3], chip = m == null ? '' : m >= 2 ? '<span class="chip chip-rojo">' + m + ' meses</span>' : m === 1 ? '<span class="chip chip-warn">el mes pasado</span>' : '<span class="chip chip-gris">este mes</span>';
+        return '<tr><td style="white-space:nowrap">' + esc(fechaIso(x[2])) + '<div class="sub">período ' + esc(etqMes(x[1])) + ' · ' + (x[0] ? 'Venta' : 'Compra') + '</div></td>' +
+          '<td>' + esc(x[5] || x[4]) + '<div class="sub">' + esc(x[4]) + '</div></td>' +
+          '<td style="white-space:nowrap">' + (x[13] ? '<a href="https://drive.google.com/file/d/' + esc(x[13]) + '/view" target="_blank" rel="noopener">' + esc(compDet(x[7], x[8])) + '</a>' : '<b>' + esc(compDet(x[7], x[8])) + '</b>') + '</td>' +
+          '<td class="num">' + montoCod(x[9] || 0, x[10] === 'USD' ? 'USD' : x[10] === 'EUR' ? 'EUR' : 'PEN') + '</td>' +
+          '<td class="num"><b>' + soles(x[11]) + '</b></td><td>' + chip + '</td><td><span class="nota">' + esc(x[12]) + '</span></td></tr>';
+      }).join('') + '</tbody></table>' : '<p class="vacio">Todas las facturas con detracción de este filtro tienen su constancia.</p>';
+    document.getElementById('dSinMas').style.display = sin.length > DT.cuantosSin ? '' : 'none';
+  }
+
   var SECCIONES_CON_FILTRO = ['resumen', 'impuestos', 'proveedores', 'oc'];
   function mostrarSeccion(k) {
     Array.prototype.forEach.call(document.querySelectorAll('.vista'), function (v) { v.classList.toggle('activa', v.getAttribute('data-vista') === k); });
@@ -1144,9 +1450,13 @@
       }
     }
     var revisar = docs.filter(function (x) { return x[18]; }).length;
+    var conConst = det.filter(function (x) { return x[20] && x[20][0]; }).length;
+    var faltaConst = det.filter(function (x) { return x[20] && x[20][5] === 'Falta constancia'; }).length;
     var kNotas = kpi('Notas de crédito', dinero(suma(notas, 5)), '<div class="kpi-extra">' + notas.length + ' notas · ya restadas del total</div>', notas.length ? 'kpi-riesgo' : '');
     var kDet = kpi('Detracción', dinero(suma(det, 6), idxPen()), '<div class="kpi-extra">' + det.length + ' comprobantes con detracción' +
-        (revisar ? ' · <span class="variacion sube">' + revisar + ' a revisar</span>' : '') + '</div>', revisar ? 'kpi-riesgo' : '');
+        (revisar ? ' · <span class="variacion sube">' + revisar + ' a revisar</span>' : '') + '</div>' +
+        (conConst || faltaConst ? '<div class="kpi-extra">' + conConst + ' con su constancia' + (faltaConst ? ' · <span class="variacion sube">' + faltaConst + ' sin constancia</span>' : '') +
+          ' · <button class="limpiar" style="padding:0" onclick="mostrarSeccion(\'detracciones\')">ver Detracciones →</button></div>' : ''), revisar ? 'kpi-riesgo' : '');
     var igv = kpiIgv(docs);
     // Resumen: lo principal. Impuestos: IGV, no gravado, notas y detracción. OC: el vínculo con la orden de compra.
     document.getElementById('kpis').innerHTML =
@@ -1364,8 +1674,18 @@
           '<div class="f-total' + (x[5] < 0 ? ' sube' : '') + '">' + dinero(x[5], x[4]) + '</div>' +
           '<div>' + (oc ? '<span class="chip chip-azul">OC ' + esc(oc[0]) + '</span>' : '<span class="nota">sin OC</span>') + '</div>' +
           '<div class="f-acc">' + (x[12] ? '<a href="https://drive.google.com/file/d/' + esc(x[12]) + '/view" target="_blank" rel="noopener">PDF ↗</a>' : '') +
-          (x[13] ? '<a href="https://drive.google.com/file/d/' + esc(x[13]) + '/view" target="_blank" rel="noopener">XML ↗</a>' : '') + '</div></div>';
+          (x[13] ? '<a href="https://drive.google.com/file/d/' + esc(x[13]) + '/view" target="_blank" rel="noopener">XML ↗</a>' : '') +
+          (x[20] && x[20][3] ? '<a href="https://drive.google.com/file/d/' + esc(x[20][3]) + '/view" target="_blank" rel="noopener" title="Constancia de detracción N.° ' + esc(x[20][0]) + '">Detracción ↗</a>' : '') + '</div></div>';
       }).join('') : '<p class="vacio" style="padding:10px 4px">No hay comprobantes con «' + esc(q) + '». Prueba solo con el número o con el RUC. Para buscar por producto (lo que dice dentro de la factura), usa el buscador de compras de más abajo.</p>');
+  }
+  // La constancia de detracción de la factura (columnas de la migración 066 en el DETALLE): N.°, pago, depositado y su estado.
+  function constanciaDe(x) {
+    var k = x[20]; if (!k) return '';
+    var clase = k[5] === 'Con constancia' ? 'chip-ok' : k[5] === 'Revisar monto' ? 'chip-rojo' : 'chip-warn';
+    return (k[5] ? '<span class="chip ' + clase + '">' + esc(k[5]) + '</span>' : '') +
+      (k[0] ? '<span>Constancia: <b>' + esc(k[0]) + '</b>' + (k[1] ? ' · pagada el ' + esc(k[1]) : '') + (k[2] != null ? ' · depositado ' + montoCod(k[2], 'PEN') : '') + '</span>' : '') +
+      (k[3] ? '<a href="https://drive.google.com/file/d/' + esc(k[3]) + '/view" target="_blank" rel="noopener"><b>Constancia PDF ↗</b></a>' : '') +
+      (k[4] ? '<a href="https://drive.google.com/file/d/' + esc(k[4]) + '/view" target="_blank" rel="noopener"><b>Constancia HTML ↗</b></a>' : '');
   }
   function abrirFactura(fila) {
     var sig = fila.nextElementSibling;
@@ -1384,6 +1704,7 @@
         (r.guia ? '<span>Guía: <b>' + esc(r.guia) + '</b></span>' : '') +
         (r.ocProveedor ? '<span>OC que cita el proveedor: <b>' + esc(r.ocProveedor) + '</b></span>' : '') +
         (r.detraccion ? '<span>Detracción: <b>' + dinero(r.detraccion, x[4]) + '</b></span>' : '') +
+        constanciaDe(x) +
         (oc ? '<span>OC: <b>' + esc(oc[0]) + '</b>' + (oc[2] ? ' · ' + esc(oc[2]) : '') + '</span>' : '') +
         (r.cc ? '<span>Centro de costo: <b>' + esc(r.cc) + '</b></span>' : '') +
         (function (f) {

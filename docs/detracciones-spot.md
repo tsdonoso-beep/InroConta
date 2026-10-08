@@ -381,3 +381,27 @@ Prueba con 5 (run 37852656407) y carga completa por fecha de pago del
   Contabilidad (¿depósito en otra cuenta, por pago masivo, en 2025, o falta?).
 - Las constancias de facturas sin XML (33 compras, 39 ventas) están en la
   base y en Drive, pero no en el DETALLE (la hoja es del XML).
+
+## 11. En la vista INROCONTA (Apps Script)
+
+Sección **Detracciones** del menú (`src/VistaEjecutiva.gs` + `src/VistaEjecutivaPagina.html`).
+Lee directo de la base `detracciones_hoja` y `detracciones_sin_constancia` (migración 067), en
+páginas de 1000 filas (hasta 3000 constancias; `VISTA_DET_PAGINAS`), junto con lo demás de la base.
+
+- Filtros: compras / ventas / las dos, mes (de pago o período de la factura), caso y buscador
+  (proveedor, cliente, RUC, constancia, serie-número, N.° de operación).
+- Indicadores: depositado, % de facturas con detracción (desde 202601) que ya tienen constancia,
+  casos atípicos (y cuántos para corregir: «Revisar monto» y «Sin factura»), sin constancia (y cuántas
+  con 2+ meses desde la emisión) y % pagado a tiempo (en el mes o el mes siguiente).
+- Gráficos: depósitos por mes de pago (compras y ventas apiladas; clic filtra), por caso (clic filtra),
+  cuándo se depositó (meses entre período y pago), proveedores / clientes y bien o servicio (código SPOT).
+- Tablas: las constancias (PDF y HTML de la constancia, PDF de la factura, diferencia con la factura)
+  y las facturas con detracción sin constancia, con su antigüedad.
+- La insignia roja del menú cuenta las constancias para corregir.
+- Además, en **Buscar factura** cada comprobante con constancia trae el botón «Detracción ↗» y, al
+  abrirlo, el N.° de constancia, la fecha de pago, lo depositado y el estado (columnas de la
+  migración 066 en el DETALLE). El indicador «Detracción» de Resumen e Impuestos dice cuántas tienen
+  constancia y cuántas no.
+
+Para verla: pegar los dos archivos en el Apps Script del libro → Gestionar implementaciones → lápiz →
+Versión «Nueva» → Implementar; después «↻ Actualizar» en la vista (o esperar la hora).

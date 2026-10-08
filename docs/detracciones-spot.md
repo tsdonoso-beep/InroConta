@@ -116,8 +116,8 @@ que `vinculos_oc()` con `comprobantes_sunat`.
 
 ## 6. Preguntas abiertas
 
-- ¿La pantalla llama por debajo a una API (como «Nueva Consulta» a
-  `api-cpe`)? Si la hay, se baja directo, sin pantallas.
+- ~~¿La pantalla llama por debajo a una API?~~ **Sí** (5.ª corrida,
+  08/10/2026): ver §8.
 - Sin fechas y por período, sí deja (07/10/2026). Falta ver: las otras
   opciones de «Tipo de Cuenta» y «Pagos», y si la tabla se pagina. El
   reconocimiento lo anota solo (lista las opciones y captura la página entera).
@@ -135,6 +135,7 @@ ruta de §4 y deja la evidencia para armar el script de verdad.
 |---|---|
 | `reconocer.mts` | El principal: login, menú, filtros, tabla, constancias de prueba, `resumen.json` |
 | `menu.mts` | Del menú nuevo a la consulta SPOT: la opción por código y, de respaldo, el árbol o el buscador |
+| `api.mts` | La API de la consulta (§8), llamada desde la misma página: consultar y descargar la constancia |
 | `spot.mts` | La pantalla SPOT ya abierta: filtros, tabla, modal, «Guardar». Se reusará en el script de verdad |
 | `red.mts` | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
 
@@ -200,3 +201,51 @@ Qué mirar en `scripts/out/logs/detracciones-reconocer-<fecha>/`:
 | `resultado.html` / `.txt` | La página con la tabla |
 | `constancias/` | `constancia_dtr_<número>.html`, su `.pdf` y el texto del modal |
 | `red.jsonl`, `red/` | ¿Hay una API? Si la tabla o la constancia llegan como JSON, se pide directo, sin pantallas |
+
+**Quinta corrida (08/10/2026, run 37812238507):** la opción por código
+**abrió la consulta SPOT** (con la tabla de los últimos días cargada), pero el
+script no la reconoció: buscaba el texto «Periodo Tributario» y el primero que
+encontraba estaba oculto. Ahora la reconoce por sus campos (`#periodo`,
+`#tipoCuenta`) en el recuadro de `e-plataformaunica`. El registro de red
+mostró la API de §8: desde entonces el reconocimiento consulta y baja las
+constancias **por la API**, y la pantalla (filtros, tabla, modal) queda de
+respaldo.
+
+## 8. La API de la consulta SPOT
+
+La pantalla es una fachada, como la de los XML: la consulta vive en un
+recuadro de `https://e-plataformaunica.sunat.gob.pe/app/recaudacion/tributaria/internet/html/carrito.html`
+(abierto por `servletAcceso?…&idFormulario=55.2.1.1.4`), que carga
+`fconsultaDetracciones.html` y llama a esta API. Las rutas están en su código
+público (`constantes-fconsultaDetracciones.js`, `fconsultaDetracciones.service.js`):
+
+| Qué | Pedido | Respuesta |
+|---|---|---|
+| Consultar | `GET /v1/recaudacion/tributaria/declapago/detracciones/t/consultar?&fechaInicio=&fechaFin=&tipoCuenta=1&tipoConsulta=pagosIndividuales&periodo=202609` | `{ cod: 200, msg, resultado: [ … ] }`: una fila por depósito |
+| Descargar la constancia («Guardar») | `POST …/t/descargarconstancia?numeroConstancia={n}`, cuerpo `""` | El HTML `constancia_dtr_{n}.html` |
+| Ver la constancia (modal) | `GET …/e/obtenerconstancia?indice={i}&numeroConstancia={n}` | JSON |
+| Exportar la tabla | `POST …/t/descargararchivoexcel` · `…/t/descargararchivotexto` | `.csv` · `.txt` |
+| Parámetros | `GET …/t/obtenervaloresparametrosiniciales` | Catálogos: tipos de documento, bienes y servicios… |
+
+- **Cabeceras:** `IdCache: <sessionStorage.token de la página>` e
+  `IdFormulario: *MENU*`. El script llama **desde la misma página**
+  (`frame.evaluate`), con sus cookies y su token: el token no sale de ahí.
+- **Filtros:** `tipoCuenta` 1 Convencional · 2 Especial IVAP · 3 Ley N° 30737;
+  `tipoConsulta` `pagosIndividuales` · `pagosMasivos` · `pagosTransPasajeros`.
+  Al abrirse, la página consulta sola los últimos 3 días.
+- **Una fila de `resultado`** (constancia 317505340, una venta):
+
+  | Campo | Ejemplo | Campo | Ejemplo |
+  |---|---|---|---|
+  | `num_constancia` | 317505340 | `num_ruc_proveedor` | 20512201611 |
+  | `num_cuenta` | 00002003147 | `des_prov` | INDUSTRIAS ROLAND PRINT S.A.C - INR |
+  | `cod_tipcta` | 1 | `tip_doc_adq` / `num_doc_adq` | 06 / 20604269009 |
+  | `fec_pago_desc` | 2026-10-07 | `des_adq` | CHINA CIVIL ENGINEERING CONSTRUCTIO |
+  | `per_tributario` | 202608 | `tip_operacion` | 01 |
+  | `cod_tipcomprobante` | 01 | `tip_bien` | 037 |
+  | `num_serie` / `num_comprobante` | E001 / 00002283 | `mto_deposito` | 9406.0 |
+  | `num_pres` | 7847239999 (n.° de operación) | `origen_desc` | WEB SUNAT |
+  | `cod_usuario_sol` | CCECCPER | `num_npd` | *(vacío)* |
+
+  Si `num_ruc_proveedor` es nuestro RUC, es una **venta** (el cliente nos
+  depositó); si no, una **compra**.

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import type { BrowserContext, Response } from "playwright";
 import type { Bitacora } from "../comun/bitacora.mts";
 
-const SENSIBLE = /token|auth|state|code|session|clave|pass|contrasena|jwt|cookie/i;
+const SENSIBLE = /token|auth|state|code|session|clave|pass|contrasena|jwt|cookie|idcache/i;
 const MAX_CUERPO = 20000;
 
 /** La URL sin los valores de parámetros sensibles. */
@@ -18,7 +18,8 @@ export function limpiarUrl(url: string): string {
   try {
     const u = new URL(url);
     for (const k of [...u.searchParams.keys()]) if (SENSIBLE.test(k)) u.searchParams.set(k, "***");
-    return u.toString();
+    // Un JWT en cualquier parámetro (p. ej. idCache=eyJ…, que iba entero a red.jsonl el 08/10/2026).
+    return limpiarTexto(u.toString());
   } catch {
     return url.slice(0, 300);
   }

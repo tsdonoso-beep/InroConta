@@ -40,7 +40,7 @@ Empresa: **INDUSTRIAS ROLAND PRINT S.A.C. — INROPRIN**, RUC `20512201611`.
 ## 2. Mapa de carpetas
 
 ```
-.github/workflows/        Los 10 workflows (sección 4)
+.github/workflows/        Los 11 workflows (sección 4)
 src/                      Google Apps Script: los .gs y .html que se pegan en
                           el libro y las hojas (sección 10)
   shared/lib/             Lógica compartida que usan los scripts (sección 9)
@@ -51,8 +51,8 @@ src/                      Google Apps Script: los .gs y .html que se pegan en
 scripts/                  Lo que corren los workflows (Node + Playwright)
   local/                  Pipeline de CPE por la API de SUNAT y utilidades de laptop
                           (docs/pipeline-cpe-local.md)
-    detracciones/         Constancias de detracción (SPOT); hoy, el reconocimiento
-                          (docs/detracciones-spot.md)
+    detracciones/         Constancias de detracción (SPOT): la corrida diaria y el
+                          reconocimiento (docs/detracciones-spot.md)
   out/                    Resultados de cada corrida: logs/, salida/, capturas/
                           (fuera de git; en Actions se suben como artefactos)
 docs/                     Documentos de detalle (sección 13)
@@ -97,8 +97,9 @@ que es la evidencia para diagnosticar cuando algo falla.
 | 08:00 | **SUNAT descargar XML** | Baja XML/PDF de serie **E001** de ayer y hoy |
 | 08:30 | **SUNAT CPE por API** | Baja XML y PDF de los **no-E001** directo de la API de SUNAT (mes anterior + actual, todos los pendientes) |
 | 09:00 | **SUNAT padrón de RUC** | Consulta la condición de los RUC nuevos o vencidos |
+| 09:30 | **SUNAT detracciones** | Baja las constancias de depósito de detracción pagadas en los últimos 10 días, las archiva en Drive y las cruza con las facturas |
 | —     | *(a mano)* consultar CPE individual | Respaldo por pantallas, sin cron desde el 30/09/2026 |
-| —     | *(a mano)* SUNAT detracciones (reconocimiento) | Prueba del recorrido SPOT, sin guardar (en construcción) |
+| —     | *(a mano)* SUNAT detracciones (reconocimiento) | Prueba del recorrido SPOT, sin guardar |
 
 ### 4.2 Ficha de cada workflow
 
@@ -262,9 +263,25 @@ que es la evidencia para diagnosticar cuando algo falla.
 - **Local:** `npm run fuentes:local` (con `FUENTES_JSON=archivo.json` lee
   las pestañas de un archivo en vez de la hoja; `DEBUG=1` no sube nada).
 
+#### SUNAT detracciones — `sunat-detracciones.yml` → `scripts/local/detracciones/detracciones.mts`
+- **Qué hace:** entra a SOL por el menú nuevo, abre «Consulta de Pago de
+  Detracciones» y, por la API que esa pantalla usa por debajo, pide los
+  depósitos por **fecha de pago**. De cada constancia nueva baja el HTML de
+  SUNAT (lo mismo que «Guardar») y un PDF, y los archiva en Drive en
+  `SUNAT_DRIVE_FOLDER/Detracciones/Compras|Ventas/AAAA-MM` (por período
+  tributario), con el nombre `RUC-tipo-serie-número_DTR-constancia`. Guarda
+  cada una en `detraccion_constancia` (migración 066) y publica las pestañas
+  **DETRACCIONES** y **DETRACCIONES SIN CONSTANCIA** del libro INROCONTA.
+- **Por fecha de pago, no por período:** un depósito puede llegar meses
+  después de la factura. Lo ya guardado no se vuelve a bajar.
+- **Cuándo:** cron 09:30 (últimos 10 días) + manual (`desde`, `hasta`, `dias`,
+  `guardar`, `limite`). Primera carga: `desde` = 01/01/2026. Tope 90 min.
+  Comparte `concurrency` con los de la cuenta de SOL.
+- **Local:** `npm run detracciones:local` (`DESDE=01/01/2026`, `GUARDAR=0` para probar).
+- Detalle: **`docs/detracciones-spot.md`**.
+
 #### SUNAT detracciones (reconocimiento) — `detracciones-reconocer.yml` → `scripts/local/detracciones/reconocer.mts`
-- **En construcción** (desde el 07/10/2026). Primer paso para bajar las
-  **constancias de depósito de detracción** del menú SPOT de SOL.
+- Prueba del recorrido, con la que se armó la corrida de arriba (07-08/10/2026).
 - **Qué hace:** entra a SOL por el menú nuevo (tiene su propio login),
   llega a «Consulta de Pago de
   Detracciones», consulta un período, abre las primeras constancias y baja
@@ -350,6 +367,7 @@ Apps Script entran como el usuario robot; la app, como la persona.
 | `cpe_item` | 7 576 | **Detalle de ítems** de cada comprobante | descargar, individual |
 | `cpe_cuota` | 209 | Cuotas de pago a crédito | descargar, individual |
 | `padron_ruc` | 1 586 | Condición de cada RUC proveedor | padrón |
+| `detraccion_constancia` | — | Una fila por constancia de depósito de detracción, con enlace a su PDF y su HTML en Drive | detracciones |
 
 **Órdenes de compra (OC)**
 
@@ -390,6 +408,8 @@ Apps Script entran como el usuario robot; la app, como la persona.
 | `facturas_sin_oc(p_empresa_ruc, p_desde)` | Facturas recibidas sin OC unida, con señal ALTA (el proveedor trabaja con OC) o MEDIA (monto alto, no es gasto típico sin OC). Pestaña FACTURAS SIN OC de GENERAL. Ojo: la base corta a los 8 s cada consulta del robot; 058 la bajó de ~6 s a ~1,3 s | 052, 058 |
 | `vinculos_oc()` | Cruza comprobantes con archivos de las carpetas de OC | 039, 040, 042, 045, 046, 048, 049, 050 |
 | `cargar_captura_oc(...)` | Recibe la captura de OC desde Apps Script | 039, 042 |
+| `guardar_detracciones(p_empresa_ruc, p_filas)` | Guarda constancias de detracción (idempotente; no pisa enlaces con vacío) | 066 |
+| `detracciones_hoja(p_empresa_ruc)` / `detracciones_sin_constancia(…)` | Las pestañas DETRACCIONES (constancia + su factura del SIRE y del XML, con estado) y DETRACCIONES SIN CONSTANCIA (compras del SIRE con detracción y sin constancia) | 066 |
 
 La versión vigente de cada función es la de la **última** migración que la toca.
 
@@ -412,6 +432,8 @@ tocan.
 | **COMPROBANTES SUNAT** | comprobante (SIRE) | sunat-diario, app | montos, condición del RUC, OC, centro de costo, código CONCAR, alertas, archivo que confirma la OC |
 | **COMPROBANTES SUNAT - DETALLE** | ítem (XML) | descargar, individual, app | descripción, cantidad, precio, enlaces a PDF/XML, forma de pago, detracción, OC, archivo que confirma la OC |
 | **… DETALLE AAAA-MM a AAAA-MM** | ítem | extraer rango | solo los meses pedidos |
+| **DETRACCIONES** | constancia de detracción | detracciones | sentido, fecha de pago, comprobante, monto, cuenta, estado del cruce, enlace al PDF |
+| **DETRACCIONES SIN CONSTANCIA** | factura de compra con detracción | detracciones | lo que falta depositar o bajar |
 
 Las columnas se definen en `src/shared/lib/export/comprobantes-sunat.ts` y
 `src/shared/lib/export/items-sunat.ts`. Las nuevas se agregan **siempre al

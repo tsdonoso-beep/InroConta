@@ -1,0 +1,113 @@
+# Constancias de depósito de detracción (SPOT): bajarlas de SOL y archivarlas
+#
+# Entra a SOL por el menú nuevo, abre «Consulta de Pago de Detracciones» y,
+# por la API que esa pantalla usa por debajo (docs/detracciones-spot.md §8),
+# pide los depósitos por FECHA DE PAGO. De cada constancia nueva baja el HTML
+# de SUNAT (lo mismo que «Guardar») y lo imprime a PDF; los dos van a Drive,
+# a Detracciones/Compras|Ventas/AAAA-MM (por período tributario), al lado de
+# Recibidas/ y Emitidas/ de los XML. Guarda cada constancia en la base
+# (detraccion_constancia, migración 066) y publica las pestañas DETRACCIONES
+# y DETRACCIONES SIN CONSTANCIA del libro INROCONTA.
+#
+# Por fecha de pago y no por período: un depósito puede llegar meses después
+# de su factura (el 07/10/2026 se pagó una de 202608). El cron mira los
+# últimos 10 días; las constancias ya guardadas no se vuelven a bajar, así
+# que repetir días no duplica nada. La primera carga se pide a mano
+# (desde = 01/01/2026). Es el mismo script que se corre en local:
+# `npm run detracciones:local` (scripts/local/detracciones/detracciones.mts).
+
+name: SUNAT detracciones
+
+on:
+  schedule:
+    # 09:30 en Lima (UTC-5): después de «SUNAT CPE por API» (08:30) y del padrón (09:00).
+    - cron: "30 14 * * *"
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: "Fecha de pago desde (dd/mm/aaaa). Vacío = hace «dias» días. Primera carga: 01/01/2026."
+        required: false
+        default: ""
+      hasta:
+        description: "Fecha de pago hasta (dd/mm/aaaa). Vacío = hoy en Lima."
+        required: false
+        default: ""
+      dias:
+        description: "Si no hay «desde»: cuántos días hacia atrás."
+        required: false
+        default: "10"
+      guardar:
+        description: "Subir a Drive y guardar en la base. Desmarcado = prueba (solo disco)."
+        type: boolean
+        required: false
+        default: true
+      limite:
+        description: "Cuántas constancias bajar como máximo (0 = todas)."
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+# El MISMO grupo que los demás que usan la cuenta secundaria de SOL: dos
+# sesiones a la vez pueden hacer que SUNAT cierre una. La segunda espera.
+concurrency:
+  group: consultar-cpe-individual
+  cancel-in-progress: false
+
+jobs:
+  detracciones:
+    runs-on: ubuntu-latest
+    # Un mes son unos segundos de SUNAT; lo lento es Drive. La primera carga
+    # (enero a octubre) entra con holgura.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Bajar las constancias, archivarlas en Drive y guardarlas en la base
+        env:
+          SUNAT_RUC: ${{ secrets.SUNAT_RUC }}
+          SUNAT_SOL_USUARIO: ${{ secrets.SUNAT_SOL_USUARIO }}
+          SUNAT_SOL_CLAVE: ${{ secrets.SUNAT_SOL_CLAVE }}
+          SUNAT_INROPRIN_USUARIO: ${{ secrets.SUNAT_INROPRIN_USUARIO }}
+          SUNAT_INROPRIN_CLAVE: ${{ secrets.SUNAT_INROPRIN_CLAVE }}
+          SUNAT_DRIVE_FOLDER: ${{ secrets.SUNAT_DRIVE_FOLDER }}
+          GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
+          GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          PROJECT_URL: ${{ secrets.PROJECT_URL }}
+          ANON_KEY: ${{ secrets.ANON_KEY }}
+          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
+          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          # En una corrida por cron los inputs vienen vacíos: se usan los valores por omisión.
+          DESDE: ${{ inputs.desde }}
+          HASTA: ${{ inputs.hasta }}
+          DIAS: ${{ inputs.dias || '10' }}
+          # Solo una corrida a mano con «guardar» desmarcado es de prueba (en el cron el input viene vacío,
+          # y vacío == false en las expresiones de GitHub: por eso se mira el evento).
+          GUARDAR: ${{ github.event_name == 'workflow_dispatch' && !inputs.guardar && '0' || '1' }}
+          LIMITE: ${{ inputs.limite || '0' }}
+        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/detracciones/detracciones.mts
+
+      # Solo las bitácoras: las constancias ya quedaron en Drive, y si alguna
+      # no subió, la próxima corrida la vuelve a bajar.
+      - name: Subir bitácoras
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitacoras-detracciones
+          path: scripts/out/logs/
+          if-no-files-found: warn
+          retention-days: 14

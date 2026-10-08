@@ -1,4 +1,4 @@
-# Constancias de detracción (SPOT) — en construcción
+# Constancias de detracción (SPOT)
 
 > Cómo se bajan de SUNAT SOL las **constancias de depósito de detracción**,
 > se archivan en Drive y se dejan sus datos en la base para cruzarlas con las
@@ -268,3 +268,62 @@ constancia, `obtenerconstancia` (cod 200) y `descargarconstancia` (HTTP 200,
 coinciden campo por campo con el modal de los pantallazos. `indice` es la
 **fila de la tabla empezando en 0** (respondió a la primera con 0, 1 y 2).
 Toda la corrida dura ~20 s, sin contar la instalación del navegador.
+
+## 9. La corrida de verdad (`detracciones.mts`, workflow «SUNAT detracciones»)
+
+Desde el 08/10/2026. Hace lo mismo que el reconocimiento, pero con todas las
+constancias, y las guarda.
+
+| Archivo | Qué hace |
+|---|---|
+| `detracciones.mts` | El principal: login, consulta por fecha de pago, cada constancia nueva, lote a la base, pestañas |
+| `registro.mts` | Lo puro: compra o venta, nombre del archivo, carpeta, tramos de fechas, la fila de la base |
+| `archivo.mts` | Copia en disco, PDF y subida a Drive sin repetir |
+| `guardar.mts` | La base (`guardar_detracciones`, de a 20) y las pestañas |
+
+**Cómo busca.** Por **fecha de pago**, mes calendario por mes calendario, en las
+tres cuentas (Convencional, IVAP, Ley 30737), en «Pagos individuales». El cron
+mira los últimos 10 días: entra todo lo depositado, sea del período que sea, y
+deja margen para un día en que GitHub no corra. Si SUNAT responde 5xx a un
+rango, se parte en dos hasta un día. Una respuesta «sin datos» se anota y se
+sigue. Los **pagos masivos** solo se cuentan y se anotan en `pagos-masivos.json`
+(su constancia es otra, en .txt): pregunta pendiente para Contabilidad.
+
+**Qué baja.** De cada constancia que no esté ya en la base con su PDF y su
+HTML: `obtenerconstancia` (con su fila de la consulta como `indice`) →
+`descargarconstancia` → PDF. Después la copia en
+`scripts/out/salida/detracciones/`, Drive y el lote.
+
+**Orden en Drive** (dentro de `SUNAT_DRIVE_FOLDER`, al lado de `Recibidas/` y `Emitidas/`):
+
+```
+Detracciones/
+├── Compras/AAAA-MM/   ← nosotros depositamos (somos el adquiriente)
+└── Ventas/AAAA-MM/    ← un cliente nos depositó (somos el proveedor)
+      <RUC proveedor>-<tipo>-<serie>-<número>_DTR-<constancia>.pdf
+      <RUC proveedor>-<tipo>-<serie>-<número>_DTR-<constancia>.html
+```
+
+- **El mes es el período tributario** (el de la factura), no el del pago.
+- **El nombre empieza como el XML de la factura**: buscar la factura en Drive
+  trae también su constancia.
+- **Nunca se repite un archivo:** cada carpeta se lista una vez y lo que ya
+  está no se vuelve a subir.
+
+**En la base:** `detraccion_constancia` (migración 066), una fila por
+constancia, reconocida por su número.
+
+**En el libro INROCONTA:**
+- **DETRACCIONES**: una fila por constancia, con su factura del SIRE y del XML.
+  Estado «Con factura», «Revisar monto» (difiere en más de S/ 1 de la
+  detracción del SIRE o del XML; SUNAT redondea el depósito a soles) o
+  «Sin factura».
+- **DETRACCIONES SIN CONSTANCIA**: compras del SIRE desde 202601 con
+  detracción y sin constancia guardada.
+
+**Primera carga:** Actions → **SUNAT detracciones** → Run workflow → `desde`
+`01/01/2026`. Para probar sin guardar: `guardar` desmarcado y `limite` 5.
+
+**Antes de la primera corrida hay que aplicar la migración 066** en el editor
+SQL de Supabase. Sin ella la corrida igual baja y archiva en Drive, pero no
+guarda en la base (el lote queda en la bitácora) ni publica las pestañas.

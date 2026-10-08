@@ -99,12 +99,23 @@ async function clicExacto(page: Page, texto: string, timeoutMs = 20000): Promise
 export async function marcoSpot(ctx: BrowserContext): Promise<Frame | null> {
   for (const p of ctx.pages())
     for (const f of p.frames()) {
+      // La consulta vive en un recuadro de e-plataformaunica (…/html/carrito.html#…). Buscar el TEXTO
+      // «Periodo Tributario» no bastó en la 5.ª corrida (08/10/2026): la pantalla estaba y no se reconoció.
+      // Se reconoce por sus campos (#periodo, #tipoCuenta de fconsultaDetracciones.html).
+      if (!/plataformaunica\.sunat\.gob\.pe/i.test(f.url())) continue;
       const ok = await f
-        .getByText("Periodo Tributario", { exact: false })
+        .locator("#periodo")
         .first()
         .isVisible()
         .catch(() => false);
-      if (ok) return f;
+      if (
+        ok &&
+        (await f
+          .locator("#tipoCuenta")
+          .count()
+          .catch(() => 0))
+      )
+        return f;
     }
   return null;
 }

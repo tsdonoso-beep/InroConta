@@ -17,10 +17,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Frame, Page } from "playwright";
-import { num, texto } from "../comun/config.mts";
+import { num, RUC, texto } from "../comun/config.mts";
 import { crearBitacora, primeraLinea, vigilarProceso } from "../comun/bitacora.mts";
 import { abrirNavegador, entrar, guardarEvidencia, nuevoContexto } from "../sol/sesion.mts";
-import { limpiarUrl, registrarRed } from "./red.mts";
+import { limpiarTexto, limpiarUrl, registrarRed } from "./red.mts";
+import { apiLista, consultar as consultarApi, descargarConstancia, valorTipoCuenta } from "./api.mts";
 import { MENU_PLATAFORMA, abrirConsultaSpot, abrirMenuNuevo } from "./menu.mts";
 import { cerrarConstancia, consultar, controles, enlacesConstancia, guardarConstancia, llenarFiltros, modalConstancia } from "./spot.mts";
 
@@ -95,6 +96,78 @@ try {
     .filter(c => c.tag === "select")
     .map(c => ({ etiqueta: c.etiqueta, opciones: c.opciones?.map(o => o.texto) }));
 
+  // Primero la API de la página (5.ª corrida: la tabla llega en JSON); si no responde, por pantalla.
+  if (!(await porApi(spot))) await porPantalla(spot);
+  resumen.pedidosDeRed = red.pedidos();
+} catch (e) {
+  resumen.error = primeraLinea(e);
+  b.log("error", "reconocer", primeraLinea(e));
+  for (const p of ctx.pages()) await guardarEvidencia(b, p, "fallo");
+} finally {
+  writeFileSync(join(b.dir, "resumen.json"), JSON.stringify(resumen, null, 2));
+  b.log("info", "resumen", JSON.stringify(resumen).slice(0, 1500));
+  await nav.close().catch(() => {});
+}
+process.exit(resumen.error ? 1 : 0);
+
+/**
+ * La consulta y las constancias por la API que usa la página (api.mts), desde la misma página.
+ * false = no había token o la consulta no devolvió filas: se sigue por pantalla.
+ */
+async function porApi(f: Frame): Promise<boolean> {
+  const fin = Date.now() + 20000;
+  while (!(await apiLista(f)) && Date.now() < fin) await f.page().waitForTimeout(500);
+  if (!(await apiLista(f))) {
+    b.log("aviso", "api", "la página no tiene su token (sessionStorage.token): se sigue por pantalla");
+    return false;
+  }
+  const q = { periodo: PERIODO, tipoCuenta: valorTipoCuenta(TIPO_CUENTA), tipoConsulta: "pagosIndividuales" };
+  const t0 = Date.now();
+  const r = await consultarApi(f, q);
+  resumen.api = { estado: r.estado, filas: r.filas?.length ?? null, ms: Date.now() - t0, filtros: q };
+  if (!r.filas) {
+    writeFileSync(join(b.dir, "api-consultar.txt"), limpiarTexto(r.texto.slice(0, 4000)));
+    b.log("aviso", "api", `consultar respondió ${r.estado} sin filas (api-consultar.txt): se sigue por pantalla`);
+    return false;
+  }
+  writeFileSync(join(b.dir, "resultado.json"), JSON.stringify(r.filas, null, 2));
+  const ventas = r.filas.filter(d => d.num_ruc_proveedor === RUC).length;
+  b.log(
+    "info",
+    "api",
+    `consultar ${PERIODO}: ${r.filas.length} depósito(s) · ${r.filas.length - ventas} compras · ${ventas} ventas · ${Date.now() - t0} ms`,
+  );
+  const constancias: Record<string, unknown>[] = [];
+  for (const d of r.filas.slice(0, CONSTANCIAS)) {
+    const numero = d.num_constancia.trim();
+    const c: Record<string, unknown> = {
+      numero,
+      comprobante: `${d.cod_tipcomprobante} ${d.num_serie}-${d.num_comprobante}`,
+      proveedor: d.num_ruc_proveedor,
+      monto: d.mto_deposito,
+    };
+    try {
+      const { estado, datos } = await descargarConstancia(f, numero);
+      Object.assign(c, { estado, bytes: datos.length });
+      if (estado === 200 && datos.length) {
+        const nombre = `constancia_dtr_${numero}.html`;
+        writeFileSync(join(dirConstancias, nombre), datos);
+        c.archivo = nombre;
+        c.pdf = await aPdf(datos, join(dirConstancias, `constancia_dtr_${numero}.pdf`));
+      }
+      b.log("info", "constancia", `${numero} (${c.comprobante}): HTTP ${estado} · ${datos.length} bytes · PDF ${c.pdf ?? "-"}`);
+    } catch (e) {
+      c.error = primeraLinea(e);
+      b.log("aviso", "constancia", `${numero}: ${c.error}`);
+    }
+    constancias.push(c);
+  }
+  resumen.constancias = constancias;
+  return true;
+}
+
+/** El camino por pantalla (respaldo): filtros, «Consultar», tabla y el modal de cada constancia. */
+async function porPantalla(spot: Frame): Promise<void> {
   await llenarFiltros(b, spot, PERIODO, TIPO_CUENTA);
   await captura(spot.page(), "filtros");
   writeFileSync(join(b.dir, "controles-despues.json"), JSON.stringify(await controles(spot), null, 2));
@@ -122,17 +195,7 @@ try {
   b.log("info", "resultado", `${filas} constancia(s) en pantalla · ${resumen.filasDeTabla} fila(s) · ${resumen.segundosConsulta} s`);
 
   resumen.constancias = await probarConstancias(spot, Math.min(CONSTANCIAS, filas));
-  resumen.pedidosDeRed = red.pedidos();
-} catch (e) {
-  resumen.error = primeraLinea(e);
-  b.log("error", "reconocer", primeraLinea(e));
-  for (const p of ctx.pages()) await guardarEvidencia(b, p, "fallo");
-} finally {
-  writeFileSync(join(b.dir, "resumen.json"), JSON.stringify(resumen, null, 2));
-  b.log("info", "resumen", JSON.stringify(resumen).slice(0, 1500));
-  await nav.close().catch(() => {});
 }
-process.exit(resumen.error ? 1 : 0);
 
 /** Espera la tabla (o el aviso de que no hay nada) hasta 90 s. Devuelve cuántas constancias se ven. */
 async function esperarResultado(f: Frame): Promise<number> {
@@ -172,7 +235,7 @@ async function probarConstancias(f: Frame, n: number) {
       const { nombre, datos } = await guardarConstancia(f);
       writeFileSync(join(dirConstancias, nombre), datos);
       Object.assign(r, { archivo: nombre, bytes: datos.length });
-      r.pdf = await aPdf(datos.toString("utf8"), join(dirConstancias, nombre.replace(/\.html?$/i, "") + ".pdf"));
+      r.pdf = await aPdf(datos, join(dirConstancias, nombre.replace(/\.html?$/i, "") + ".pdf"));
       b.log("info", "constancia", `${numero}: ${nombre} (${datos.length} bytes) · PDF ${r.pdf}`);
     } catch (e) {
       r.error = primeraLinea(e);
@@ -186,10 +249,10 @@ async function probarConstancias(f: Frame, n: number) {
 }
 
 /** El HTML de SUNAT impreso a PDF por el mismo navegador (solo funciona sin ventana: HEADLESS=1). */
-async function aPdf(html: string, archivo: string): Promise<string> {
+async function aPdf(datos: Buffer, archivo: string): Promise<string> {
   const p = await ctx.newPage();
   try {
-    await p.setContent(html, { waitUntil: "load", timeout: 30000 });
+    await p.setContent(decodificar(datos), { waitUntil: "load", timeout: 30000 });
     await p.pdf({
       path: archivo,
       format: "A4",
@@ -201,5 +264,14 @@ async function aPdf(html: string, archivo: string): Promise<string> {
     return `no: ${primeraLinea(e)}`;
   } finally {
     await p.close().catch(() => {});
+  }
+}
+
+/** UTF-8 si lo es; si no, latin1 (SUNAT mezcla las dos: «Espa�ol» en otra respuesta del 08/10/2026). */
+function decodificar(datos: Buffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(datos);
+  } catch {
+    return datos.toString("latin1");
   }
 }

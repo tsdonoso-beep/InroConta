@@ -12,7 +12,9 @@ import type { Bitacora } from "../comun/bitacora.mts";
  * (visto el 08/10/2026).
  */
 export function ocultarCodigos(t: string): string {
-  return t.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, "***").replace(/([?&](?:code|state)=)[^&#\s"']*/gi, "$1***");
+  // Solo valores largos: así un `state=` vacío se sigue viendo vacío, y el `code=…` del menú (el número de
+  // opción, p. ej. «code='+name» en el JavaScript de la página) no se toca.
+  return t.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, "***").replace(/([?&](?:code|state)=)[^&#\s"']{16,}/gi, "$1***");
 }
 
 /** A dónde debía volver la autenticación: `originalUrl` y `state` de la URL del formulario. */

@@ -21,18 +21,8 @@ import { num, texto } from "../comun/config.mts";
 import { crearBitacora, primeraLinea, vigilarProceso } from "../comun/bitacora.mts";
 import { abrirNavegador, entrar, guardarEvidencia, nuevoContexto } from "../sol/sesion.mts";
 import { limpiarUrl, registrarRed } from "./red.mts";
-import {
-  MENU_PLATAFORMA,
-  abrirConsultaSpot,
-  abrirMenuNuevo,
-  cerrarConstancia,
-  consultar,
-  controles,
-  enlacesConstancia,
-  guardarConstancia,
-  llenarFiltros,
-  modalConstancia,
-} from "./spot.mts";
+import { MENU_PLATAFORMA, abrirConsultaSpot, abrirMenuNuevo } from "./menu.mts";
+import { cerrarConstancia, consultar, controles, enlacesConstancia, guardarConstancia, llenarFiltros, modalConstancia } from "./spot.mts";
 
 function mesAnteriorLima(): string {
   const [a, m] = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 7).split("-").map(Number);

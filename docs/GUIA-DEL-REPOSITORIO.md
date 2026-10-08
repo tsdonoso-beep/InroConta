@@ -270,8 +270,10 @@ que es la evidencia para diagnosticar cuando algo falla.
   SUNAT (lo mismo que «Guardar») y un PDF, y los archiva en Drive en
   `SUNAT_DRIVE_FOLDER/Detracciones/Compras|Ventas/AAAA-MM` (por período
   tributario), con el nombre `RUC-tipo-serie-número_DTR-constancia`. Guarda
-  cada una en `detraccion_constancia` (migración 066) y publica las pestañas
-  **DETRACCIONES** y **DETRACCIONES SIN CONSTANCIA** del libro INROCONTA.
+  cada una en `detraccion_constancia` (migración 066) y, si bajó nuevas,
+  republica **COMPROBANTES SUNAT - DETALLE**: la detracción va en la misma
+  hoja que el resto de la extracción (seis columnas al final, con el enlace
+  al PDF y al HTML de la constancia), que es la que lee la vista de Apps Script.
 - **Por fecha de pago, no por período:** un depósito puede llegar meses
   después de la factura. Lo ya guardado no se vuelve a bajar.
 - **Cuándo:** cron 09:30 (últimos 10 días) + manual (`desde`, `hasta`, `dias`,
@@ -397,7 +399,7 @@ Apps Script entran como el usuario robot; la app, como la persona.
 | `detalle_cpe(p_periodo)` | Filas de la hoja **COMPROBANTES SUNAT - DETALLE** | 032 a 036, 039, 041, 042 |
 | `detalle_cpe_carpeta(p_periodo)` | `detalle_cpe` + proyecto, de dónde sale el centro de costo y documentos de la carpeta madre (lo que publica el DETALLE) | 051 |
 | `legajo_de_carpetas(p_empresa_ruc)` | Una fila por carpeta de OC de las carpetas madre, para la pestaña CARPETA MADRE de GENERAL (`CarpetaMadre.gs`) | 051 |
-| `detalle_cpe_hoja(p_periodo)` | Lo que publica la hoja **DETALLE**: `detalle_cpe_carpeta` + base gravada, IGV, no gravado (del SIRE o del XML), tipo de cambio, total en soles y detracción a revisar | 053 |
+| `detalle_cpe_hoja(p_periodo)` | La base de lo que publica la hoja **DETALLE** (ver `detalle_cpe_hoja_con_detraccion`): `detalle_cpe_carpeta` + base gravada, IGV, no gravado (del SIRE o del XML), tipo de cambio, total en soles y detracción a revisar | 053 |
 | `porcentaje_detraccion(p_codigo)` | El % de detracción de cada código de bien o servicio (anexos de la R.S. 183-2004/SUNAT) | 053 |
 | `detalle_de_carpeta(p_carpeta)` | El detalle de una carpeta de OC (archivos con su documento, datos de la OC, facturas unidas, cambios y lo que dicen Compras, COMEX y Almacén) para la vista | 055, 056, 057 |
 | `evidencias_de_fuentes(p_empresa_ruc)` | Por OC, los documentos que ya existen en otro lado: guía (Almacén), DAM y costeo (COMEX) | 057 |
@@ -409,7 +411,7 @@ Apps Script entran como el usuario robot; la app, como la persona.
 | `vinculos_oc()` | Cruza comprobantes con archivos de las carpetas de OC | 039, 040, 042, 045, 046, 048, 049, 050 |
 | `cargar_captura_oc(...)` | Recibe la captura de OC desde Apps Script | 039, 042 |
 | `guardar_detracciones(p_empresa_ruc, p_filas)` | Guarda constancias de detracción (idempotente; no pisa enlaces con vacío) | 066 |
-| `detracciones_hoja(p_empresa_ruc)` / `detracciones_sin_constancia(…)` | Las pestañas DETRACCIONES (constancia + su factura del SIRE y del XML, con estado) y DETRACCIONES SIN CONSTANCIA (compras del SIRE con detracción y sin constancia) | 066 |
+| `detalle_cpe_hoja_con_detraccion(p_periodo)` | Lo que publica la hoja **DETALLE**: `detalle_cpe_hoja` (sin tocar) + la constancia de detracción de cada comprobante (números, fecha de pago, depositado, PDF, HTML y estado) | 066 |
 
 La versión vigente de cada función es la de la **última** migración que la toca.
 
@@ -430,10 +432,8 @@ tocan.
 | Hoja | Una fila por | La publican | Columnas destacadas |
 |---|---|---|---|
 | **COMPROBANTES SUNAT** | comprobante (SIRE) | sunat-diario, app | montos, condición del RUC, OC, centro de costo, código CONCAR, alertas, archivo que confirma la OC |
-| **COMPROBANTES SUNAT - DETALLE** | ítem (XML) | descargar, individual, app | descripción, cantidad, precio, enlaces a PDF/XML, forma de pago, detracción, OC, archivo que confirma la OC |
+| **COMPROBANTES SUNAT - DETALLE** | ítem (XML) | descargar, individual, detracciones, app | descripción, cantidad, precio, enlaces a PDF/XML, forma de pago, detracción, OC, archivo que confirma la OC, constancia de detracción (PDF, HTML y estado) |
 | **… DETALLE AAAA-MM a AAAA-MM** | ítem | extraer rango | solo los meses pedidos |
-| **DETRACCIONES** | constancia de detracción | detracciones | sentido, fecha de pago, comprobante, monto, cuenta, estado del cruce, enlace al PDF |
-| **DETRACCIONES SIN CONSTANCIA** | factura de compra con detracción | detracciones | lo que falta depositar o bajar |
 
 Las columnas se definen en `src/shared/lib/export/comprobantes-sunat.ts` y
 `src/shared/lib/export/items-sunat.ts`. Las nuevas se agregan **siempre al

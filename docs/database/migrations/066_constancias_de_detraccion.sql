@@ -1,8 +1,13 @@
--- Las constancias de depósito de detracción (SPOT) y su cruce con las facturas
+-- Las constancias de depósito de detracción (SPOT), en el detalle de cada factura
 --
 -- Pedido de Contabilidad (07/10/2026): tener cada constancia de depósito de
 -- detracción como documento digital, en Drive, para contrastarla con su
--- factura. scripts/local/detracciones/detracciones.mts las baja de la consulta
+-- factura. La constancia entra en la MISMA hoja que el resto de la extracción
+-- (COMPROBANTES SUNAT - DETALLE, que lee la vista de Apps Script): seis
+-- columnas al final, con el enlace a su PDF y a su HTML, que agrega
+-- detalle_cpe_hoja_con_detraccion() sobre detalle_cpe_hoja() (que no se toca).
+--
+-- scripts/local/detracciones/detracciones.mts las baja de la consulta
 -- «Consulta de Pago de Detracciones» de SOL (por la API de la página, ver
 -- docs/detracciones-spot.md §8), sube el HTML de SUNAT y un PDF a Drive
 -- (Detracciones/Compras|Ventas/AAAA-MM) y guarda aquí una fila por constancia.
@@ -66,7 +71,9 @@ alter table detraccion_constancia enable row level security;
 create policy detraccion_constancia_lectura on detraccion_constancia for select using (seguridad.puede_ver_todo());
 
 revoke all on detraccion_constancia from anon;
-revoke insert, update, delete, truncate, references, trigger on detraccion_constancia from authenticated;
+-- Solo leer: lo escriben las funciones de abajo (security definer). Equivale a quitarle todo menos select.
+revoke all on detraccion_constancia from authenticated;
+grant select on detraccion_constancia to authenticated;
 
 -- Guarda un lote de constancias (idempotente).
 create or replace function guardar_detracciones(p_empresa_ruc text, p_filas jsonb)
@@ -148,92 +155,69 @@ language sql
 immutable
 as $$ select coalesce(nullif(ltrim(coalesce(p, ''), '0'), ''), '0') $$;
 
--- Una fila por constancia, con su factura: la del SIRE (compras) y la del XML
--- (compras y ventas). Lo que publica la pestaña DETRACCIONES.
---   estado: «Con factura», «Revisar monto» (difiere en más de S/ 1 de la
---   detracción del SIRE o del XML; SUNAT redondea el depósito a soles) o
---   «Sin factura» (no está en el SIRE ni en los XML).
-create or replace function detracciones_hoja(p_empresa_ruc text)
+-- detalle_cpe_hoja_con_detraccion(): detalle_cpe_hoja() (migración 053, sin
+-- tocar) con seis columnas más AL FINAL, de las constancias de cada
+-- comprobante. Es la que publica la hoja COMPROBANTES SUNAT - DETALLE. Si hay
+-- más de una constancia —depósitos parciales—, van todas:
+--   detraccion_constancia         los números, separados por « / »
+--   detraccion_fecha_pago         la del último depósito
+--   detraccion_depositado         la suma de los depósitos (SUNAT los redondea a soles)
+--   detraccion_pdf / _html        el enlace a la constancia en Drive (la del último depósito)
+--   detraccion_constancia_estado  «Con constancia», «Revisar monto» (lo depositado difiere en
+--                                 más de S/ 1 de la detracción del XML), «Falta constancia» (el
+--                                 XML dice que tiene detracción y no hay constancia) o vacío.
+-- Función nueva y no detalle_cpe_hoja() rehecha: cambiar lo que devuelve obliga
+-- a borrarla y crearla, y así lo que ya funciona queda igual.
+create or replace function detalle_cpe_hoja_con_detraccion(p_periodo text default null)
 returns table (
-  periodo text, sentido text, fecha_pago date, numero_constancia text,
-  tipo_comprobante text, serie text, numero text,
-  proveedor_ruc text, proveedor_nombre text, adquiriente_numero text, adquiriente_nombre text,
-  codigo_bien_servicio text, monto numeric, numero_cuenta text, numero_operacion text,
-  estado text, total_factura numeric, detraccion_sire numeric, detraccion_xml numeric,
-  cuenta_xml text, pdf_constancia text, pdf_factura text, fecha_hora_pago text
+  periodo text, origen text, proveedor_ruc text, proveedor_nombre text, tipo_comprobante text, serie text,
+  numero text, fecha_emision date, moneda text, linea integer, descripcion text, cantidad numeric, unidad text,
+  precio_unitario numeric, importe numeric, total_comprobante numeric, enlace_xml text, enlace_pdf text,
+  forma_pago text, guia_remision text, orden_compra text, detraccion_porcentaje numeric, detraccion_monto numeric,
+  detraccion_cuenta_banco text, detraccion_codigo_bien_servicio text, anticipo_aplicado numeric,
+  documento_relacionado text, tipo_documento_relacionado text, oc_carpeta text, centro_costo_cg text,
+  codigo_concar text, archivo_oc text, archivo_oc_url text, situacion_pago_oc text, comprador_oc text,
+  area_oc text, legajo_oc text, carpeta_oc_url text,
+  proyecto_oc text, centro_costo_segun text, documentos_oc text,
+  base_gravada numeric, igv_comprobante numeric, no_gravado numeric, desglose_segun text,
+  tipo_cambio numeric, total_soles numeric, detraccion_revisar text,
+  detraccion_constancia text, detraccion_fecha_pago date, detraccion_depositado numeric,
+  detraccion_pdf text, detraccion_html text, detraccion_constancia_estado text
 )
 language sql
 stable
 security definer
-set search_path = public, seguridad, pg_temp
+set search_path = public, pg_temp
 as $$
-  select d.periodo, d.sentido, d.fecha_pago, d.numero_constancia,
-         d.tipo_comprobante, d.serie, d.numero,
-         d.proveedor_ruc, d.proveedor_nombre, d.adquiriente_numero, d.adquiriente_nombre,
-         d.codigo_bien_servicio, d.monto, d.numero_cuenta, d.numero_operacion,
-         case
-           when s.id is null and c.id is null then 'Sin factura'
-           when (s.detraccion is not null and abs(s.detraccion - d.monto) > 1)
-             or (c.detraccion_monto is not null and abs(c.detraccion_monto - d.monto) > 1) then 'Revisar monto'
-           else 'Con factura'
-         end,
-         coalesce(s.total, c.total), s.detraccion, c.detraccion_monto,
-         c.detraccion_cuenta_banco, d.pdf_drive_url, c.pdf_drive_url,
-         to_char(d.fecha_hora_pago at time zone 'America/Lima', 'DD/MM/YYYY HH24:MI:SS')
-    from detraccion_constancia d
-    left join lateral (
-      select x.id, x.total, x.detraccion
-        from comprobantes_sunat x
-       where d.sentido = 'COMPRA' and x.empresa_ruc = d.empresa_ruc and x.proveedor_ruc = d.proveedor_ruc
-         and x.tipo_comprobante = d.tipo_comprobante and upper(x.serie) = upper(d.serie)
-         and numero_comparable(x.numero) = numero_comparable(d.numero)
-       order by x.ultima_vez desc
-       limit 1
-    ) s on true
-    left join lateral (
-      select y.id, y.total, y.detraccion_monto, y.detraccion_cuenta_banco, y.pdf_drive_url
-        from cpe_comprobante y
-       where y.empresa_ruc = d.empresa_ruc and y.proveedor_ruc = d.proveedor_ruc
-         and y.tipo_comprobante = d.tipo_comprobante and upper(y.serie) = upper(d.serie)
-         and numero_comparable(y.numero) = numero_comparable(d.numero)
-       limit 1
-    ) c on true
-   where d.empresa_ruc = p_empresa_ruc and (select seguridad.puede_ver_todo())
-   order by d.periodo desc, d.fecha_pago desc, d.numero_constancia;
-$$;
-
--- Facturas de compra del SIRE con detracción y sin constancia guardada: lo que
--- falta depositar (o la constancia que falta bajar). Desde 202601, como la hoja
--- principal. Lo que publica la pestaña DETRACCIONES SIN CONSTANCIA.
-create or replace function detracciones_sin_constancia(p_empresa_ruc text, p_desde text default '202601')
-returns table (
-  periodo text, fecha_emision date, proveedor_ruc text, proveedor_nombre text,
-  tipo_comprobante text, serie text, numero text, total numeric, moneda text, detraccion numeric
-)
-language sql
-stable
-security definer
-set search_path = public, seguridad, pg_temp
-as $$
-  select s.periodo, s.fecha_emision, s.proveedor_ruc, s.proveedor_nombre,
-         s.tipo_comprobante, s.serie, s.numero, s.total, s.moneda, s.detraccion
-    from comprobantes_sunat s
-   where s.empresa_ruc = p_empresa_ruc and s.periodo >= p_desde and coalesce(s.detraccion, 0) > 0
-     and (select seguridad.puede_ver_todo())
-     and not exists (
-       select 1 from detraccion_constancia d
-        where d.empresa_ruc = s.empresa_ruc and d.sentido = 'COMPRA' and d.proveedor_ruc = s.proveedor_ruc
-          and d.tipo_comprobante = s.tipo_comprobante and upper(d.serie) = upper(s.serie)
-          and numero_comparable(d.numero) = numero_comparable(s.numero)
-     )
-   order by s.periodo desc, s.fecha_emision desc, s.proveedor_ruc;
+  with h as materialized (
+    select * from detalle_cpe_hoja(p_periodo)
+  ),
+  dtr as (
+    select x.proveedor_ruc, x.tipo_comprobante, upper(x.serie) serie, numero_comparable(x.numero) numero,
+           string_agg(x.numero_constancia, ' / ' order by x.fecha_pago, x.numero_constancia) constancias,
+           max(x.fecha_pago) fecha_pago, sum(x.monto) depositado,
+           (array_agg(x.pdf_drive_url order by x.fecha_pago desc, x.numero_constancia desc) filter (where x.pdf_drive_url is not null))[1] pdf,
+           (array_agg(x.html_drive_url order by x.fecha_pago desc, x.numero_constancia desc) filter (where x.html_drive_url is not null))[1] html
+      from detraccion_constancia x
+     where x.empresa_ruc = '20512201611' and (select seguridad.puede_ver_todo())
+     group by 1, 2, 3, 4
+  )
+  select h.*,
+         t.constancias, t.fecha_pago, t.depositado, t.pdf, t.html,
+         case when t.constancias is not null and coalesce(h.detraccion_monto, 0) > 0 and abs(t.depositado - h.detraccion_monto) > 1
+                then 'Revisar monto'
+              when t.constancias is not null then 'Con constancia'
+              when coalesce(h.detraccion_monto, 0) > 0 or coalesce(h.detraccion_porcentaje, 0) > 0 then 'Falta constancia'
+              else '' end
+    from h
+    left join dtr t on t.proveedor_ruc = h.proveedor_ruc and t.tipo_comprobante = h.tipo_comprobante
+                   and t.serie = upper(h.serie) and t.numero = numero_comparable(h.numero)
+   order by h.fecha_emision, h.serie, h.numero, h.linea;
 $$;
 
 revoke execute on function guardar_detracciones(text, jsonb) from public, anon;
 grant execute on function guardar_detracciones(text, jsonb) to authenticated;
 revoke execute on function detracciones_guardadas(text) from public, anon;
 grant execute on function detracciones_guardadas(text) to authenticated;
-revoke execute on function detracciones_hoja(text) from public, anon;
-grant execute on function detracciones_hoja(text) to authenticated;
-revoke execute on function detracciones_sin_constancia(text, text) from public, anon;
-grant execute on function detracciones_sin_constancia(text, text) to authenticated;
+revoke execute on function detalle_cpe_hoja_con_detraccion(text) from public, anon;
+grant execute on function detalle_cpe_hoja_con_detraccion(text) to authenticated;

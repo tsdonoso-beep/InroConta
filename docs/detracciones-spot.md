@@ -223,7 +223,7 @@ público (`constantes-fconsultaDetracciones.js`, `fconsultaDetracciones.service.
 |---|---|---|
 | Consultar | `GET /v1/recaudacion/tributaria/declapago/detracciones/t/consultar?&fechaInicio=&fechaFin=&tipoCuenta=1&tipoConsulta=pagosIndividuales&periodo=202609` | `{ cod: 200, msg, resultado: [ … ] }`: una fila por depósito |
 | Descargar la constancia («Guardar») | `POST …/t/descargarconstancia?numeroConstancia={n}`, cuerpo `""` | El HTML `constancia_dtr_{n}.html` |
-| Ver la constancia (modal) | `GET …/e/obtenerconstancia?indice={i}&numeroConstancia={n}` | JSON |
+| Ver la constancia (modal) | `GET …/e/obtenerconstancia?indice={i}&numeroConstancia={n}` | JSON. **Va antes de descargar**: sin él, `descargarconstancia` responde 500 |
 | Exportar la tabla | `POST …/t/descargararchivoexcel` · `…/t/descargararchivotexto` | `.csv` · `.txt` |
 | Parámetros | `GET …/t/obtenervaloresparametrosiniciales` | Catálogos: tipos de documento, bienes y servicios… |
 
@@ -249,3 +249,14 @@ público (`constantes-fconsultaDetracciones.js`, `fconsultaDetracciones.service.
 
   Si `num_ruc_proveedor` es nuestro RUC, es una **venta** (el cliente nos
   depositó); si no, una **compra**.
+
+**Sexta y séptima corridas (08/10/2026, runs 37816113939 y 37820519336):**
+✅ en verde. Login, menú y consulta, sin tropiezos: **`consultar` 202609 →
+17 depósitos (todos compras) en ~1,5 s**, con `resultado.json`. Las 3
+constancias, en cambio, dieron **HTTP 500 «Request failed»** en
+`descargarconstancia`. En la página, el clic en el número azul llama primero a
+`constancia(numero, indice)` → `obtenerconstancia` (llena el modal), y recién
+después «Guardar» descarga: SUNAT deja la constancia en la sesión en ese
+primer paso. Desde entonces el reconocimiento llama a `obtenerconstancia`
+antes de descargar. Prueba `indice` desde 0 y desde 1, y guarda el JSON del
+modal y, si falla, el cuerpo del error.

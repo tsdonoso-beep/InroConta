@@ -21,7 +21,7 @@ import { num, RUC, texto } from "../comun/config.mts";
 import { crearBitacora, primeraLinea, vigilarProceso } from "../comun/bitacora.mts";
 import { abrirNavegador, entrar, guardarEvidencia, nuevoContexto } from "../sol/sesion.mts";
 import { limpiarTexto, limpiarUrl, registrarRed } from "./red.mts";
-import { apiLista, consultar as consultarApi, descargarConstancia, valorTipoCuenta } from "./api.mts";
+import { apiLista, consultar as consultarApi, descargarConstancia, obtenerConstancia, valorTipoCuenta } from "./api.mts";
 import { MENU_PLATAFORMA, abrirConsultaSpot, abrirMenuNuevo } from "./menu.mts";
 import { cerrarConstancia, consultar, controles, enlacesConstancia, guardarConstancia, llenarFiltros, modalConstancia } from "./spot.mts";
 
@@ -138,7 +138,7 @@ async function porApi(f: Frame): Promise<boolean> {
     `consultar ${PERIODO}: ${r.filas.length} depósito(s) · ${r.filas.length - ventas} compras · ${ventas} ventas · ${Date.now() - t0} ms`,
   );
   const constancias: Record<string, unknown>[] = [];
-  for (const d of r.filas.slice(0, CONSTANCIAS)) {
+  for (const [fila, d] of r.filas.slice(0, CONSTANCIAS).entries()) {
     const numero = d.num_constancia.trim();
     const c: Record<string, unknown> = {
       numero,
@@ -147,6 +147,17 @@ async function porApi(f: Frame): Promise<boolean> {
       monto: d.mto_deposito,
     };
     try {
+      // Como el clic en el número azul: primero «obtener» (llena el modal y deja la constancia en la sesión).
+      for (const indice of [fila, fila + 1]) {
+        const o = await obtenerConstancia(f, numero, indice);
+        const cod = (o.json as { cod?: number } | null)?.cod;
+        c.obtener = { indice, estado: o.estado, cod };
+        if (o.estado === 200 && cod === 200) {
+          writeFileSync(join(dirConstancias, `constancia_${numero}-modal.json`), JSON.stringify(o.json, null, 2));
+          break;
+        }
+        writeFileSync(join(dirConstancias, `constancia_${numero}-obtener-${indice}.txt`), limpiarTexto(o.texto.slice(0, 4000)));
+      }
       const { estado, datos } = await descargarConstancia(f, numero);
       Object.assign(c, { estado, bytes: datos.length });
       if (estado === 200 && datos.length) {
@@ -155,7 +166,16 @@ async function porApi(f: Frame): Promise<boolean> {
         c.archivo = nombre;
         c.pdf = await aPdf(datos, join(dirConstancias, `constancia_dtr_${numero}.pdf`));
       }
-      b.log("info", "constancia", `${numero} (${c.comprobante}): HTTP ${estado} · ${datos.length} bytes · PDF ${c.pdf ?? "-"}`);
+      if (estado !== 200)
+        writeFileSync(
+          join(dirConstancias, `constancia_${numero}-error-${estado}.txt`),
+          limpiarTexto(datos.toString("utf8").slice(0, 4000)),
+        );
+      b.log(
+        "info",
+        "constancia",
+        `${numero} (${c.comprobante}): obtener ${JSON.stringify(c.obtener)} · descargar HTTP ${estado} · ${datos.length} bytes · PDF ${c.pdf ?? "-"}`,
+      );
     } catch (e) {
       c.error = primeraLinea(e);
       b.log("aviso", "constancia", `${numero}: ${c.error}`);

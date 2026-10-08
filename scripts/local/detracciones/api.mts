@@ -97,6 +97,38 @@ export async function consultar(f: Frame, q: Filtros): Promise<{ estado: number;
   return { ...r, filas };
 }
 
+/**
+ * Lo que muestra el modal de la constancia. La página lo pide al hacer clic en el número azul
+ * (`constancia(numero, indice)`) y recién después «Guardar» baja el HTML: sin este paso,
+ * `descargarconstancia` responde 500 «Request failed» (6.ª y 7.ª corridas, 08/10/2026), así que
+ * SUNAT debe dejar la constancia en la sesión aquí. `indice`: la fila en la tabla (a probar si
+ * empieza en 0 o en 1).
+ */
+export async function obtenerConstancia(
+  f: Frame,
+  numero: string,
+  indice: number,
+): Promise<{ estado: number; json: unknown; texto: string }> {
+  const r = await f.evaluate(
+    async ({ base, numero, indice }) => {
+      const url = `${base}/e/obtenerconstancia?indice=${indice}&numeroConstancia=${encodeURIComponent(numero)}&_=${Date.now()}`;
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: { IdCache: sessionStorage.getItem("token") ?? "", IdFormulario: "*MENU*", "Content-Type": "application/json" },
+      });
+      return { estado: res.status, texto: await res.text() };
+    },
+    { base: BASE, numero, indice },
+  );
+  let json: unknown = null;
+  try {
+    json = JSON.parse(r.texto);
+  } catch {
+    /* no era JSON */
+  }
+  return { ...r, json };
+}
+
 /** El HTML de la constancia, el mismo que baja «Guardar», con sus bytes tal cual (sin adivinar la codificación). */
 export async function descargarConstancia(f: Frame, numero: string): Promise<{ estado: number; datos: Buffer }> {
   const r = await f.evaluate(

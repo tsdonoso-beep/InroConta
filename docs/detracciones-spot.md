@@ -50,7 +50,7 @@ Pantallazos del usuario del 07/10/2026.
 | 1 | `sunat.gob.pe/sol.html` | «Ingresar» del recuadro **MIS DECLARACIONES Y PAGOS** (no el de Trámites y consultas) | El script no necesita esta página: va directo al menú (paso 2) |
 | 2 | Ingreso (`api-seguridad.sunat.gob.pe/…/loginMenuSol?…&state=…`) | RUC + usuario + clave, «Iniciar sesión» | Mismo formulario que ya llena `entrar()` (`#txtRuc`, `#txtUsuario`, `#txtContrasena`). El `state` del enlace es **temporal**: no se guarda; se pide el menú y SUNAT redirige al ingreso con uno nuevo. Usuario: el **ampliado** (`SUNAT_SOL_USUARIO`), no el del SIRE |
 | 3 | Menú nuevo (`e-menu.sunat.gob.pe/cl-ti-itmenu2/MenuInternetPlataforma.htm?pestana=*&agrupacion=*`) | Clic en «Opciones»: el árbol aparece recién ahí | Es **otro menú** que el de los XML (`cl-ti-itmenu/MenuInternet.htm` → «Empresas»). «Bienvenido,» también aparece, así que `menuVisible()` sirve |
-| 4 | Árbol del menú | Mis declaraciones y pagos → Consultas → Consultas de Presentación y Pago → **Consulta de Pago de Detracciones** | Cada nivel se despliega con un clic. Anotar la URL o el código de opción (`exe=…`) que abre: quizá se pueda ir directo |
+| 4 | Árbol del menú | Mis declaraciones y pagos → Consultas → Consultas de Presentación y Pago → **Consulta de Pago de Detracciones** | Cada nivel se despliega con un clic. La opción es el código **`55.2.1.1.4`** (`#nivel4_55_2_1_1_4`), y el script la elige por código (§7) |
 | 5 | «Consulta - Sistema de Pago de Obligaciones Tributarias (SPOT)» | Filtros y «Consultar» → tabla | Ver §4.1 y §4.2 |
 | 6 | Constancia (ventana encima de la tabla) | Clic en el **número azul** de la columna «Constancia» | Abre un modal «CONSTANCIA DE DEPÓSITO — SISTEMA DE PAGO DE OBLIGACIONES TRIBUTARIAS D.LEG. 940», con botones Imprimir, Guardar y E-mail. Datos en §5 |
 | 7 | Descarga | «Guardar» | Baja **`constancia_dtr_<número>.html`** (~5 KB). Es un **HTML, no un PDF**. En Playwright: `page.waitForEvent("download")` antes del clic. Después cerrar el modal (×) y seguir con la fila siguiente |
@@ -134,7 +134,8 @@ ruta de §4 y deja la evidencia para armar el script de verdad.
 | Archivo | Qué hace |
 |---|---|
 | `reconocer.mts` | El principal: login, menú, filtros, tabla, constancias de prueba, `resumen.json` |
-| `spot.mts` | La ruta del menú nuevo y la pantalla SPOT (filtros, tabla, modal, «Guardar»): se reusará en el script de verdad |
+| `menu.mts` | Del menú nuevo a la consulta SPOT: la opción por código y, de respaldo, el árbol o el buscador |
+| `spot.mts` | La pantalla SPOT ya abierta: filtros, tabla, modal, «Guardar». Se reusará en el script de verdad |
 | `red.mts` | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
 
 **Cómo entra** (`ENTRADA`, input `entrada` del workflow):
@@ -163,6 +164,23 @@ antes de llenarlo y, si cae en la portada, llevar el `code` al menú. Ver
 siempre entró **al primer intento** («sesión abierta en 0 s»; la URL del
 formulario traía `state`). El menú nuevo, en otra pestaña, pidió ingresar de
 nuevo (su propio cliente): por eso `directo` pasó a ser lo normal.
+
+**Cuarta corrida (08/10/2026, run 37811142126):** `directo` entró **al primer
+intento** al menú nuevo. Falló el árbol: el clic en «Opciones» no desplegó
+nada, probablemente porque llegó antes de que la página enganchara sus
+eventos. Lo que se aprendió del HTML del menú:
+
+- La página trae en `var opciones` lo que el usuario puede abrir. El
+  secundario **solo tiene esta opción**: `55.2.1.1.4` «Consulta de Pago de
+  Detracciones», `url: /plataforma/fConsultaDetracciones.html`.
+- El clic en una opción llama a
+  `logoutAndLoad('MenuInternetPlataforma.htm?action=execute&code=55.2.1.1.4')`.
+- Con `?exe=55.2.1.1.4` en la URL, la misma página hace ese clic por código
+  (jQuery `trigger("click")` en `#nivel4_55_2_1_1_4` y sus padres).
+
+Desde entonces `menu.mts` espera a que la página quede quieta (`networkidle`)
+y elige la opción **igual que la página** (`porCodigo`). Los clics por texto
+(`porArbol`) y el buscador quedan de respaldo.
 
 **En GitHub:** Actions → **SUNAT detracciones (reconocimiento)** → Run
 workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,

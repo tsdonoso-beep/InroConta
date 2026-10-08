@@ -260,3 +260,11 @@ después «Guardar» descarga: SUNAT deja la constancia en la sesión en ese
 primer paso. Desde entonces el reconocimiento llama a `obtenerconstancia`
 antes de descargar. Prueba `indice` desde 0 y desde 1, y guarda el JSON del
 modal y, si falla, el cuerpo del error.
+
+**Octava corrida (08/10/2026, run 37825881312): ✅ funciona de punta a punta.**
+Login → menú → consulta (202609: 17 depósitos en 1,4 s) → por cada
+constancia, `obtenerconstancia` (cod 200) y `descargarconstancia` (HTTP 200,
+~5,3 KB, el mismo HTML que baja «Guardar» a mano) → PDF. Las 3 de prueba
+coinciden campo por campo con el modal de los pantallazos. `indice` es la
+**fila de la tabla empezando en 0** (respondió a la primera con 0, 1 y 2).
+Toda la corrida dura ~20 s, sin contar la instalación del navegador.

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page, type Frame } from "playwright";
 import { credencialesSol, HEADLESS, LOGIN_URL, RUC } from "../comun/config.mts";
 import { dormir, primeraLinea, type Bitacora } from "../comun/bitacora.mts";
+import { llenarIngreso, ocultarCodigos, rescatarPortada, vueltaDe, type Vuelta } from "./ingreso.mts";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
@@ -60,12 +61,11 @@ export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGI
       b.log("info", quien, "la sesión ya estaba abierta");
       return;
     }
-    throw new ErrorSesion(`sin formulario de ingreso ni menú en ${page.url()}`);
+    throw new ErrorSesion(`sin formulario de ingreso ni menú en ${ocultarCodigos(page.url())}`);
   }
-  await page.fill("#txtRuc", RUC);
-  await page.fill("#txtUsuario", usuario);
-  await page.fill("#txtContrasena", clave);
-  await page.click((await page.$("#btnAceptar")) ? "#btnAceptar" : "text=Iniciar sesión");
+  let vuelta: Vuelta | null = vueltaDe(page.url());
+  b.log("info", quien, `formulario de ingreso (la URL ${vuelta?.state ? "trae" : "NO trae"} state)`);
+  await llenarIngreso(page, usuario, clave);
   // Se espera a VER el menú, no a que la URL cambie: esperar la URL espera
   // además el «load» completo, que en GitHub Actions tardaba 64 s.
   //
@@ -75,32 +75,44 @@ export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGI
   // de nuevo y, si vuelve el formulario de ingreso, se llena otra vez. El
   // 04/10/2026 la segunda vuelta TAMBIÉN cayó en la portada y, como solo se
   // manejaba una, la corrida murió: ahora se repite hasta VUELTAS_PORTADA veces.
+  // El 08/10/2026 cayó en la portada 6 de 6 veces: antes de cada vuelta se
+  // prueba llevar el `code` al menú (rescatarPortada), una vez por vuelta.
   const VUELTAS_PORTADA = 3;
   const t0 = Date.now();
   let ultimaAccion = Date.now();
   let vueltas = 0;
-  let llenadoEnVuelta = 0;
-  while (Date.now() - t0 < 150000) {
+  // Tras pedir el menú de nuevo (o llevar el code) puede volver el formulario: se llena una vez cada vez.
+  let puedeLlenar = false;
+  let rescateEnVuelta = -1;
+  // 240 s: cada vuelta espera ahora a que cargue el formulario (llenarIngreso) y prueba el rescate.
+  while (Date.now() - t0 < 240000) {
     if (await menuVisible(page)) {
       b.log("info", quien, `sesión abierta en ${((Date.now() - t0) / 1000).toFixed(0)} s` + (vueltas ? ` (tras ${vueltas} vuelta(s) por la portada)` : ""));
       return;
     }
     if (Date.now() - ultimaAccion > 5000 && ES_PORTADA_SEGURIDAD.test(page.url())) {
+      if (rescateEnVuelta < vueltas) {
+        rescateEnVuelta = vueltas;
+        if (await rescatarPortada(b, page, vuelta, quien)) {
+          puedeLlenar = true;
+          ultimaAccion = Date.now();
+          continue;
+        }
+      }
       if (vueltas >= VUELTAS_PORTADA) break;
       vueltas++;
       b.log("aviso", quien, `la autenticación quedó en la portada de SUNAT; se pide el menú de nuevo (${vueltas}/${VUELTAS_PORTADA})`);
       await irConReintento(b, page, menu, quien).catch(() => {});
+      puedeLlenar = true;
       ultimaAccion = Date.now();
       continue;
     }
     // Si al pedir el menú vuelve el formulario de ingreso, se llena una vez por vuelta.
-    if (vueltas > llenadoEnVuelta && (await ingresoVisible(page))) {
-      llenadoEnVuelta = vueltas;
-      b.log("aviso", quien, "volvió el formulario de ingreso; se ingresa otra vez");
-      await page.fill("#txtRuc", RUC);
-      await page.fill("#txtUsuario", usuario);
-      await page.fill("#txtContrasena", clave);
-      await page.click((await page.$("#btnAceptar")) ? "#btnAceptar" : "text=Iniciar sesión");
+    if (puedeLlenar && (await ingresoVisible(page))) {
+      puedeLlenar = false;
+      vuelta = vueltaDe(page.url()) ?? vuelta;
+      b.log("aviso", quien, `volvió el formulario de ingreso (la URL ${vuelta?.state ? "trae" : "NO trae"} state); se ingresa otra vez`);
+      await llenarIngreso(page, usuario, clave);
       ultimaAccion = Date.now();
       continue;
     }
@@ -120,7 +132,7 @@ export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGI
     await page.waitForTimeout(500);
   }
   await guardarEvidencia(b, page, "login-sin-menu");
-  throw new ErrorSesion(`después del login no apareció el menú (${vueltas} vuelta(s) por la portada; ${page.url().slice(0, 120)})`);
+  throw new ErrorSesion(`después del login no apareció el menú (${vueltas} vuelta(s) por la portada; ${ocultarCodigos(page.url()).slice(0, 120)})`);
 }
 
 /** La portada del servicio de autenticación de SUNAT (a veces el login termina ahí en vez de en el menú). */
@@ -160,12 +172,12 @@ export async function guardarEvidencia(b: Bitacora, page: Page, nombre: string):
   const base = join(b.dir, "errores", `${nombre}-${Date.now()}`);
   await page.screenshot({ path: `${base}.png`, fullPage: true, timeout: 15000 }).catch(() => {});
   try {
-    writeFileSync(`${base}.html`, await page.content());
-    writeFileSync(`${base}.txt`, [page.url(), ...page.frames().map(fr => `  frame: ${fr.url()}`)].join("\n"));
+    writeFileSync(`${base}.html`, ocultarCodigos(await page.content()));
+    writeFileSync(`${base}.txt`, ocultarCodigos([page.url(), ...page.frames().map(fr => `  frame: ${fr.url()}`)].join("\n")));
   } catch {
     /* la evidencia nunca tumba la corrida */
   }
-  b.log("aviso", "evidencia", `captura y HTML en ${base}.png/.html (url: ${page.url().slice(0, 120)})`);
+  b.log("aviso", "evidencia", `captura y HTML en ${base}.png/.html (url: ${ocultarCodigos(page.url()).slice(0, 120)})`);
 }
 
 /** ¿La pestaña quedó fuera de SOL? (formulario de ingreso o «Usted esta saliendo del Menú SOL»). */

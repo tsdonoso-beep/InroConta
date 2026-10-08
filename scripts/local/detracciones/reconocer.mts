@@ -11,7 +11,7 @@
 // Uso:  npm run detracciones:reconocer
 //       PERIODO=202609 CONSTANCIAS=3 HEADLESS=0 npm run detracciones:reconocer
 // Variables: PERIODO (aaaamm; por omisión el mes anterior) · TIPO_CUENTA (Convencional) · CONSTANCIAS (3) · HEADLESS (1)
-//   MENU_URL (por omisión el menú nuevo, MenuInternetPlataforma.htm: por si SUNAT no redirige de ahí al ingreso)
+//   ENTRADA (antiguo: login por el menú de siempre y el nuevo en otra pestaña · directo: login en el menú nuevo)
 // Detalle del recorrido: docs/detracciones-spot.md. Nunca a la vez que otra corrida con la misma cuenta de SOL.
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -24,6 +24,7 @@ import { limpiarUrl, registrarRed } from "./red.mts";
 import {
   MENU_PLATAFORMA,
   abrirConsultaSpot,
+  abrirMenuNuevo,
   cerrarConstancia,
   consultar,
   controles,
@@ -41,7 +42,8 @@ function mesAnteriorLima(): string {
 const PERIODO = texto("PERIODO", mesAnteriorLima()).split(",")[0].trim();
 const TIPO_CUENTA = texto("TIPO_CUENTA", "Convencional");
 const CONSTANCIAS = Math.max(0, num("CONSTANCIAS", 3));
-const MENU_URL = texto("MENU_URL", MENU_PLATAFORMA);
+// «directo» falló el 08/10/2026: la autenticación quedó en la portada de SUNAT (ver abrirMenuNuevo).
+const ENTRADA = texto("ENTRADA", "antiguo") === "directo" ? "directo" : "antiguo";
 
 const b = crearBitacora("detracciones-reconocer");
 vigilarProceso(b);
@@ -52,7 +54,7 @@ mkdirSync(dirConstancias, { recursive: true });
 b.log(
   "info",
   "inicio",
-  `reconocimiento SPOT · período ${PERIODO} · cuenta «${TIPO_CUENTA}» · ${CONSTANCIAS} constancia(s) · logs en ${b.dir}`,
+  `reconocimiento SPOT · período ${PERIODO} · cuenta «${TIPO_CUENTA}» · ${CONSTANCIAS} constancia(s) · entrada ${ENTRADA} · logs en ${b.dir}`,
 );
 
 let paso = 0;
@@ -61,7 +63,7 @@ async function captura(page: Page, nombre: string): Promise<void> {
   await page.screenshot({ path: archivo, fullPage: true, timeout: 20000 }).catch(e => b.log("aviso", "captura", primeraLinea(e)));
 }
 
-const resumen: Record<string, unknown> = { periodo: PERIODO, tipoCuenta: TIPO_CUENTA };
+const resumen: Record<string, unknown> = { periodo: PERIODO, tipoCuenta: TIPO_CUENTA, entrada: ENTRADA };
 const nav = await abrirNavegador();
 const ctx = await nuevoContexto(nav);
 const page = await ctx.newPage();
@@ -70,16 +72,29 @@ page.on("dialog", d => {
   d.accept().catch(() => {});
 });
 ctx.on("page", p => b.log("info", "pestaña", `se abrió una pestaña nueva: ${limpiarUrl(p.url())}`));
+// Por qué páginas pasa el login (sin state ni code): si vuelve a quedarse en la portada, se ve dónde.
+const anotarRuta = (p: Page) =>
+  p.on("framenavigated", f => {
+    if (f === p.mainFrame()) b.log("info", "ruta", limpiarUrl(f.url()).slice(0, 200));
+  });
+anotarRuta(page);
+ctx.on("page", anotarRuta);
 
 try {
-  // Directo al menú nuevo: entrar al de siempre y navegar después cerraría la sesión.
-  await entrar(b, page, "login", MENU_URL);
-  await captura(page, "menu");
+  let menu = page;
+  if (ENTRADA === "directo") await entrar(b, page, "login", MENU_PLATAFORMA);
+  else {
+    // El login de siempre (el que usan los XML) y el menú nuevo en otra pestaña; esta queda abierta.
+    await entrar(b, page, "login");
+    await captura(page, "menu-de-siempre");
+    menu = await abrirMenuNuevo(b, ctx);
+  }
+  await captura(menu, "menu-nuevo");
   const red = registrarRed(b, ctx);
 
-  const spot = await abrirConsultaSpot(b, page);
+  const spot = await abrirConsultaSpot(b, menu);
   resumen.urlConsulta = limpiarUrl(spot.url());
-  resumen.enPestanaNueva = spot.page() !== page;
+  resumen.enPestanaNueva = spot.page() !== menu;
   b.log("info", "spot", `consulta abierta en ${resumen.urlConsulta}${resumen.enPestanaNueva ? " (pestaña nueva)" : ""}`);
   await captura(spot.page(), "consulta-spot");
   const antes = await controles(spot);

@@ -1,14 +1,14 @@
 // La consulta SPOT de SOL («Consulta de Pago de Detracciones»): menú nuevo, filtros, tabla y constancia.
 //
 // Recorrido (pantallazos del 07/10/2026, docs/detracciones-spot.md §4):
-//   login por el menú de siempre → MenuInternetPlataforma.htm en otra pestaña → «Opciones» → Mis declaraciones y pagos → Consultas
+//   login en MenuInternetPlataforma.htm (el menú nuevo, con su propio login) → «Opciones» → Mis declaraciones y pagos → Consultas
 //   → Consultas de Presentación y Pago → Consulta de Pago de Detracciones
 //   → filtros (fechas vacías, tipo de cuenta, período) → «Consultar» → tabla
 //   → número azul de «Constancia» → modal → «Guardar» → constancia_dtr_<número>.html
 
 import type { BrowserContext, Download, Frame, Page } from "playwright";
 import type { Bitacora } from "../comun/bitacora.mts";
-import { ErrorSesion, guardarEvidencia, irConReintento, menuVisible } from "../sol/sesion.mts";
+import { ErrorSesion, entrar, guardarEvidencia, irConReintento, menuVisible } from "../sol/sesion.mts";
 
 /** El menú nuevo de SOL. Sin sesión, SUNAT redirige al ingreso (con un `state` nuevo cada vez). */
 export const MENU_PLATAFORMA = "https://e-menu.sunat.gob.pe/cl-ti-itmenu2/MenuInternetPlataforma.htm?pestana=*&agrupacion=*";
@@ -19,10 +19,11 @@ const RUTA = ["Opciones", "Mis declaraciones y pagos", "Consultas", "Consultas d
 const OPCION = RUTA[RUTA.length - 1];
 
 /**
- * El menú nuevo en una pestaña APARTE, con la sesión ya abierta por el menú de
- * siempre (`entrar()` sin `menu`). Entrar directo al menú nuevo dejó la
- * autenticación en la portada de SUNAT («?state=&code=…», sin a dónde volver)
- * las 3 veces de la primera corrida (08/10/2026). La pestaña del menú de
+ * ENTRADA=antiguo: el menú nuevo en una pestaña APARTE, después del login por
+ * el menú de siempre. El menú nuevo tiene su propio cliente en api-seguridad
+ * (59d39217-…) y NO toma esa sesión: pide ingresar otra vez (3.ª corrida,
+ * 08/10/2026), y se ingresa ahí también. Son dos logins seguidos —puede pedir
+ * captcha—: por eso lo normal es ENTRADA=directo. La pestaña del menú de
  * siempre NO se cierra ni se navega: salir de ella cierra la sesión.
  */
 export async function abrirMenuNuevo(b: Bitacora, ctx: BrowserContext): Promise<Page> {
@@ -44,8 +45,9 @@ export async function abrirMenuNuevo(b: Bitacora, ctx: BrowserContext): Promise<
         .isVisible()
         .catch(() => false)
     ) {
-      await guardarEvidencia(b, p, "menu-nuevo-pide-ingreso");
-      throw new ErrorSesion("el menú nuevo pidió ingresar otra vez (no tomó la sesión del menú de siempre)");
+      b.log("aviso", "menu-nuevo", "el menú nuevo pide ingresar otra vez (tiene su propio login): se ingresa");
+      await entrar(b, p, "login-menu-nuevo", MENU_PLATAFORMA);
+      return p;
     }
     await p.waitForTimeout(500);
   }

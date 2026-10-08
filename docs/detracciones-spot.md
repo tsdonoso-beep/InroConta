@@ -139,15 +139,15 @@ ruta de §4 y deja la evidencia para armar el script de verdad.
 
 **Cómo entra** (`ENTRADA`, input `entrada` del workflow):
 
-- **`antiguo` (por omisión, desde el 08/10/2026):** el login de siempre
-  (`sol/sesion.mts` → `entrar()`, el que usan los XML) y el menú nuevo en
-  **otra pestaña** del mismo navegador, con la misma sesión. La pestaña del
-  menú de siempre queda abierta: navegarla o cerrarla cierra la sesión.
-- **`directo`:** login en el menú nuevo. **Falló en la primera corrida
-  (08/10/2026, run 37808718099):** las claves pasaron (SUNAT devolvió un
-  `code`), pero la autenticación quedó 3 de 3 veces en la portada de
-  `api-seguridad.sunat.gob.pe/?state=&code=…`, con el `state` vacío: SUNAT no
-  supo a qué menú volver.
+- **`directo` (por omisión):** login en el menú nuevo, con el mismo
+  `entrar()` de siempre. En la 1.ª corrida (08/10/2026, run 37808718099)
+  quedó 3 de 3 veces en la portada `api-seguridad.sunat.gob.pe/?state=&code=…`:
+  era el formulario apurado, que también tumbaba el menú de siempre (abajo).
+- **`antiguo`:** login por el menú de siempre y el menú nuevo en **otra
+  pestaña**. El menú nuevo tiene **su propio cliente** en api-seguridad
+  (`59d39217-…`; el de siempre es `4f3b88b3-…`) y no toma esa sesión: pide
+  ingresar otra vez (3.ª corrida, run 37810466261), y se ingresa ahí. Son dos
+  logins seguidos (puede pedir captcha): queda de respaldo.
 
 La bitácora anota cada página por la que pasa el login (`[ruta]`, sin `state`
 ni `code`), para ver dónde se queda si vuelve a fallar.
@@ -158,6 +158,11 @@ en la portada, 3 de 3: el problema es el **login mismo**, no el menú nuevo
 usan todos los scripts de `scripts/local/`: esperar a que cargue el formulario
 antes de llenarlo y, si cae en la portada, llevar el `code` al menú. Ver
 `docs/pipeline-cpe-local.md` §9 («Aprendido… sobre el login»).
+
+**Tercera corrida (08/10/2026, run 37810466261):** con ese arreglo el login de
+siempre entró **al primer intento** («sesión abierta en 0 s»; la URL del
+formulario traía `state`). El menú nuevo, en otra pestaña, pidió ingresar de
+nuevo (su propio cliente): por eso `directo` pasó a ser lo normal.
 
 **En GitHub:** Actions → **SUNAT detracciones (reconocimiento)** → Run
 workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,

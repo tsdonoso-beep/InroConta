@@ -11,7 +11,7 @@
 // Uso:  npm run detracciones:reconocer
 //       PERIODO=202609 CONSTANCIAS=3 HEADLESS=0 npm run detracciones:reconocer
 // Variables: PERIODO (aaaamm; por omisión el mes anterior) · TIPO_CUENTA (Convencional) · CONSTANCIAS (3) · HEADLESS (1)
-//   ENTRADA (antiguo: login por el menú de siempre y el nuevo en otra pestaña · directo: login en el menú nuevo)
+//   ENTRADA (directo: login en el menú nuevo · antiguo: login por el menú de siempre y el nuevo en otra pestaña)
 // Detalle del recorrido: docs/detracciones-spot.md. Nunca a la vez que otra corrida con la misma cuenta de SOL.
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -42,8 +42,10 @@ function mesAnteriorLima(): string {
 const PERIODO = texto("PERIODO", mesAnteriorLima()).split(",")[0].trim();
 const TIPO_CUENTA = texto("TIPO_CUENTA", "Convencional");
 const CONSTANCIAS = Math.max(0, num("CONSTANCIAS", 3));
-// «directo» falló el 08/10/2026: la autenticación quedó en la portada de SUNAT (ver abrirMenuNuevo).
-const ENTRADA = texto("ENTRADA", "antiguo") === "directo" ? "directo" : "antiguo";
+// «directo» por omisión: el menú nuevo tiene su propio login (otro cliente de api-seguridad) y no toma la
+// sesión del de siempre (3.ª corrida, 08/10/2026). Su falla de la 1.ª corrida era la del formulario apurado
+// (sol/ingreso.mts), igual que la del menú de siempre.
+const ENTRADA = texto("ENTRADA", "directo") === "antiguo" ? "antiguo" : "directo";
 
 const b = crearBitacora("detracciones-reconocer");
 vigilarProceso(b);

@@ -281,6 +281,8 @@ cron con pendientes (el de prueba solo tenía comprobantes del BCP).
 - Recargar o salir del menú cierra la sesión (`…?logout`): el formulario se abre sin salir del menú, y para renovar el token se recarga solo su recuadro.
 - Se espera a VER el menú («Bienvenido,» / «Empresas»), no la URL (esperar la URL tardaba 64 s en GitHub).
 - A veces la autenticación termina en la portada de `api-seguridad` («Bienvenidos a SUNAT»): se pide el menú de nuevo y, si vuelve el formulario, se ingresa otra vez.
+- El 08/10/2026 cayó en esa portada **6 de 6 veces** (dos corridas del reconocimiento de detracciones), con el `state` vacío en `?state=&code=…`: las claves pasaban, se perdía a dónde volver. El robot llenaba el formulario en menos de 1 s; a mano entra. Desde entonces (`sol/ingreso.mts`): se espera a que el formulario termine de cargar (`ESPERA_INGRESO_S`, 2 s después de `networkidle`), y si igual cae en la portada se lleva el `code` a `originalUrl` con el `state` del formulario antes de pedir el menú de nuevo. La bitácora dice si la URL del formulario traía `state`.
+- El `code` de esa portada es un JWT de 5 minutos con el RUC y el usuario: `ocultarCodigos()` lo tapa en la bitácora y en la evidencia (iba entero al artefacto).
 - Un segundo login seguido puede pedir captcha (en GitHub): por eso se evita.
 - Si el login o el menú fallan, captura + HTML en `scripts/out/logs/<corrida>/errores/` (en GitHub, en el artefacto).
 - Los zips de algunos emisores (vía OSE) traen primero la constancia CDR: `documentoPrincipal()` elige la factura.

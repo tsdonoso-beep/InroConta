@@ -152,6 +152,13 @@ ruta de §4 y deja la evidencia para armar el script de verdad.
 La bitácora anota cada página por la que pasa el login (`[ruta]`, sin `state`
 ni `code`), para ver dónde se queda si vuelve a fallar.
 
+**Segunda corrida (08/10/2026, run 37809532012):** con `antiguo` cayó igual
+en la portada, 3 de 3: el problema es el **login mismo**, no el menú nuevo
+(el de los XML tampoco habría entrado). Arreglo en `sol/ingreso.mts`, que
+usan todos los scripts de `scripts/local/`: esperar a que cargue el formulario
+antes de llenarlo y, si cae en la portada, llevar el `code` al menú. Ver
+`docs/pipeline-cpe-local.md` §9 («Aprendido… sobre el login»).
+
 **En GitHub:** Actions → **SUNAT detracciones (reconocimiento)** → Run
 workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,
 bajar el artefacto `bitacoras-detracciones-reconocer`.

@@ -75,6 +75,14 @@ export interface FilaDetalleCpe {
   tipoCambio?: number | null;
   totalSoles?: number | null;
   detraccionRevisar?: string | null;
+  /** De las constancias de depósito de detracción (migración 066): números, fecha del último pago, lo depositado y sus enlaces en Drive. */
+  detraccionConstancia?: string | null;
+  detraccionFechaPago?: string | null;
+  detraccionDepositado?: number | null;
+  detraccionPdf?: string | null;
+  detraccionHtml?: string | null;
+  /** «Con constancia», «Revisar monto», «Falta constancia» o vacío. */
+  detraccionConstanciaEstado?: string | null;
 }
 
 // El orden importa: lo que se busca primero —de qué comprobante es, qué se
@@ -96,6 +104,8 @@ export const CABECERAS_ITEMS = [
   "Proyecto de la OC", "Centro de costo según", "Documentos de la OC",
   "Base gravada", "IGV del comprobante", "No gravado (inafecto / exonerado)", "Desglose según",
   "Tipo de cambio", "Total en soles", "Detracción: revisar",
+  "Constancia de detracción", "Fecha de pago (detracción)", "Detracción depositada",
+  "PDF constancia de detracción", "HTML constancia de detracción", "Detracción: constancia",
 ];
 
 export const TIPOS_ITEMS: TipoColumna[] = [
@@ -147,6 +157,12 @@ export const TIPOS_ITEMS: TipoColumna[] = [
   "numero", // Tipo de cambio
   "numero", // Total en soles
   "texto",  // Detracción: revisar
+  "texto",  // Constancia de detracción
+  "fecha",  // Fecha de pago (detracción)
+  "numero", // Detracción depositada
+  "texto",  // PDF constancia de detracción
+  "texto",  // HTML constancia de detracción
+  "texto",  // Detracción: constancia
 ];
 
 /** Lo mínimo de un `SupabaseClient` que hace falta para paginar un RPC. */
@@ -159,9 +175,10 @@ interface ClienteConRpc {
 const TAMANO_PAGINA_DETALLE = 1000;
 
 /**
- * Trae TODO el detalle, paginando. Sale de `detalle_cpe_hoja`: el mismo
- * `detalle_cpe` con lo que dice la carpeta madre de cada OC, el IGV
- * desglosado, el total en soles y la detracción a revisar, al final.
+ * Trae TODO el detalle, paginando. Sale de `detalle_cpe_hoja_con_detraccion`:
+ * `detalle_cpe_hoja` (el mismo `detalle_cpe` con lo que dice la carpeta madre
+ * de cada OC, el IGV desglosado, el total en soles y la detracción a revisar)
+ * más la constancia de depósito de detracción de cada comprobante, al final.
  *
  * Supabase corta cada respuesta de su API en 1000 filas por omisión si no se
  * pide un rango explícito — un solo `.rpc(...)` sin `.range()` se queda
@@ -191,7 +208,7 @@ export async function detalleCpeCompleto(
 }
 
 async function paginasDelDetalle(sb: ClienteConRpc, periodo: string): Promise<Record<string, unknown>[]> {
-  return paginasDeRpc(sb, "detalle_cpe_hoja", { p_periodo: periodo });
+  return paginasDeRpc(sb, "detalle_cpe_hoja_con_detraccion", { p_periodo: periodo });
 }
 
 async function paginasDeRpc(sb: ClienteConRpc, fn: string, args: Record<string, unknown>): Promise<Record<string, unknown>[]> {
@@ -265,6 +282,12 @@ export function filaDetalleDesdeRpc(d: Record<string, unknown>): FilaDetalleCpe 
     tipoCambio: aNum(d.tipo_cambio),
     totalSoles: aNum(d.total_soles),
     detraccionRevisar: (d.detraccion_revisar as string) ?? null,
+    detraccionConstancia: (d.detraccion_constancia as string) ?? null,
+    detraccionFechaPago: (d.detraccion_fecha_pago as string) ?? null,
+    detraccionDepositado: aNum(d.detraccion_depositado),
+    detraccionPdf: (d.detraccion_pdf as string) ?? null,
+    detraccionHtml: (d.detraccion_html as string) ?? null,
+    detraccionConstanciaEstado: (d.detraccion_constancia_estado as string) ?? null,
   };
 }
 
@@ -328,6 +351,12 @@ export function filasItemsSunat(filas: FilaDetalleCpe[]): string[][] {
       num(f.tipoCambio ?? null, 3),
       num(f.totalSoles ?? null, 2),
       f.detraccionRevisar ?? "",
+      f.detraccionConstancia ?? "",
+      fechaCorta(f.detraccionFechaPago ?? null),
+      num(f.detraccionDepositado ?? null, 2),
+      f.detraccionPdf ?? "",
+      f.detraccionHtml ?? "",
+      f.detraccionConstanciaEstado ?? "",
     ]),
   ];
 }

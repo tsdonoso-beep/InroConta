@@ -3,7 +3,8 @@
 //   login (menú nuevo) → «Consulta de Pago de Detracciones» → por cada tramo de FECHA DE PAGO y tipo de cuenta:
 //   consultar (API de la página) → por cada constancia nueva: obtenerconstancia → descargarconstancia → PDF
 //   → Drive: Detracciones/Compras|Ventas/AAAA-MM (período tributario) → base (guardar_detracciones, de a 20)
-//   → al final, las pestañas DETRACCIONES y DETRACCIONES SIN CONSTANCIA del libro INROCONTA.
+//   → al final, si bajó constancias nuevas, republica COMPROBANTES SUNAT - DETALLE: la detracción va en la misma
+//     hoja que el resto de la extracción (seis columnas al final, con el enlace al PDF y al HTML; migración 066).
 //
 // Por fecha de pago y no por período: un depósito puede llegar meses después de la factura (el 07/10/2026 se
 // pagó una de 202608). Las que ya están en la base con su PDF y su HTML no se vuelven a bajar.
@@ -38,7 +39,8 @@ import {
   type Tramo,
 } from "./registro.mts";
 import { aPdf, DIR_SALIDA, respaldar, statsDrive, subir } from "./archivo.mts";
-import { guardadas, guardarLote, publicarHojas, statsBase } from "./guardar.mts";
+import { guardadas, guardarLote, statsBase } from "./guardar.mts";
+import { publicarDetalle } from "../comun/guardar.mts";
 
 const HASTA = texto("HASTA", hoyLima());
 const DESDE = texto("DESDE", haceDias(num("DIAS", 10), HASTA));
@@ -118,7 +120,7 @@ try {
     if (CONTAR_MASIVOS && tc === "1") await contarMasivos(spot, t);
   }
   if (GUARDAR) await guardarLote(b, lote.splice(0));
-  if (GUARDAR && PUBLICAR !== "nunca" && (PUBLICAR === "siempre" || s.bajadas > 0)) await publicarHojas(b);
+  if (GUARDAR && PUBLICAR !== "nunca" && (PUBLICAR === "siempre" || s.bajadas > 0)) await publicarDetalle(b);
 } catch (e) {
   resumen.error = primeraLinea(e);
   b.log("error", "detracciones", primeraLinea(e));

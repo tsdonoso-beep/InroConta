@@ -313,17 +313,26 @@ Detracciones/
 **En la base:** `detraccion_constancia` (migración 066), una fila por
 constancia, reconocida por su número.
 
-**En el libro INROCONTA:**
-- **DETRACCIONES**: una fila por constancia, con su factura del SIRE y del XML.
-  Estado «Con factura», «Revisar monto» (difiere en más de S/ 1 de la
-  detracción del SIRE o del XML; SUNAT redondea el depósito a soles) o
-  «Sin factura».
-- **DETRACCIONES SIN CONSTANCIA**: compras del SIRE desde 202601 con
-  detracción y sin constancia guardada.
+**En la hoja COMPROBANTES SUNAT - DETALLE** (la misma de toda la extracción,
+la que lee la vista de Apps Script; decidido el 08/10/2026 en vez de pestañas
+aparte). Sale de `detalle_cpe_hoja_con_detraccion()` (migración 066), que es
+`detalle_cpe_hoja()` sin tocar más seis columnas al final:
+
+| Columna | Qué trae |
+|---|---|
+| Constancia de detracción | El número; si hay más de una (depósitos parciales), todas con « / » |
+| Fecha de pago (detracción) | La del último depósito |
+| Detracción depositada | La suma de lo depositado |
+| PDF constancia de detracción | Enlace al PDF en Drive |
+| HTML constancia de detracción | Enlace al HTML original de SUNAT en Drive |
+| Detracción: constancia | «Con constancia», «Revisar monto» (difiere en más de S/ 1 de la detracción del XML; SUNAT redondea el depósito a soles), «Falta constancia» (el XML dice que tiene detracción y no hay constancia) o vacío |
+
+La corrida republica la hoja solo si bajó constancias nuevas. Solo aparecen
+las constancias de comprobantes que tienen XML (la hoja es del XML): las de
+facturas sin XML quedan en la base y en Drive.
 
 **Primera carga:** Actions → **SUNAT detracciones** → Run workflow → `desde`
 `01/01/2026`. Para probar sin guardar: `guardar` desmarcado y `limite` 5.
 
-**Antes de la primera corrida hay que aplicar la migración 066** en el editor
-SQL de Supabase. Sin ella la corrida igual baja y archiva en Drive, pero no
-guarda en la base (el lote queda en la bitácora) ni publica las pestañas.
+**Migración 066 aplicada el 08/10/2026** (por el conector de Supabase). La
+función del detalle de siempre quedó igual (se comprobó con su huella md5).

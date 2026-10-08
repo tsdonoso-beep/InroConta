@@ -6,8 +6,9 @@
 # de SUNAT (lo mismo que «Guardar») y lo imprime a PDF; los dos van a Drive,
 # a Detracciones/Compras|Ventas/AAAA-MM (por período tributario), al lado de
 # Recibidas/ y Emitidas/ de los XML. Guarda cada constancia en la base
-# (detraccion_constancia, migración 066) y publica las pestañas DETRACCIONES
-# y DETRACCIONES SIN CONSTANCIA del libro INROCONTA.
+# (detraccion_constancia, migración 066) y, si bajó nuevas, republica la hoja
+# COMPROBANTES SUNAT - DETALLE, que trae la constancia de cada factura en seis
+# columnas al final (con el enlace al PDF y al HTML): la que lee la vista.
 #
 # Por fecha de pago y no por período: un depósito puede llegar meses después
 # de su factura (el 07/10/2026 se pagó una de 202608). El cron mira los

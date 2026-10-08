@@ -1,8 +1,9 @@
 # Reconocimiento de la consulta SPOT de SOL (constancias de detracción)
 #
 # Primer paso para bajar las constancias de depósito de detracción
-# (docs/detracciones-spot.md). Entra a SOL por el menú NUEVO
-# (MenuInternetPlataforma.htm), recorre Opciones → Mis declaraciones y pagos →
+# (docs/detracciones-spot.md). Entra a SOL por el menú de siempre, abre el
+# NUEVO (MenuInternetPlataforma.htm) en otra pestaña con la misma sesión
+# —entrar directo al nuevo falló el 08/10/2026—, recorre Opciones → Mis declaraciones y pagos →
 # Consultas → Consultas de Presentación y Pago → Consulta de Pago de
 # Detracciones, consulta un período con las fechas vacías, abre las primeras
 # constancias y baja su HTML («Guardar») y un PDF de ese HTML.
@@ -30,10 +31,11 @@ on:
         description: "Texto del «Tipo de Cuenta» a elegir."
         required: false
         default: "Convencional"
-      menu_url:
-        description: "Página de entrada a SOL. Vacío = el menú nuevo (MenuInternetPlataforma.htm)."
-        required: false
-        default: ""
+      entrada:
+        description: "antiguo = login por el menú de siempre y el nuevo en otra pestaña · directo = login en el menú nuevo (falló el 08/10)."
+        type: choice
+        options: [antiguo, directo]
+        default: antiguo
 
 permissions:
   contents: read
@@ -71,7 +73,7 @@ jobs:
           PERIODO: ${{ inputs.periodo }}
           CONSTANCIAS: ${{ inputs.constancias }}
           TIPO_CUENTA: ${{ inputs.tipo_cuenta }}
-          MENU_URL: ${{ inputs.menu_url }}
+          ENTRADA: ${{ inputs.entrada || 'antiguo' }}
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/detracciones/reconocer.mts
 
       # Capturas, HTML, constancias de prueba y registro de red: es la evidencia

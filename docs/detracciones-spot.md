@@ -137,9 +137,20 @@ ruta de §4 y deja la evidencia para armar el script de verdad.
 | `spot.mts` | La ruta del menú nuevo y la pantalla SPOT (filtros, tabla, modal, «Guardar»): se reusará en el script de verdad |
 | `red.mts` | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
 
-El login es el de siempre (`sol/sesion.mts` → `entrar()`), pero entrando
-**directo al menú nuevo** (`MenuInternetPlataforma.htm`): entrar al de los
-XML y navegar después cerraría la sesión.
+**Cómo entra** (`ENTRADA`, input `entrada` del workflow):
+
+- **`antiguo` (por omisión, desde el 08/10/2026):** el login de siempre
+  (`sol/sesion.mts` → `entrar()`, el que usan los XML) y el menú nuevo en
+  **otra pestaña** del mismo navegador, con la misma sesión. La pestaña del
+  menú de siempre queda abierta: navegarla o cerrarla cierra la sesión.
+- **`directo`:** login en el menú nuevo. **Falló en la primera corrida
+  (08/10/2026, run 37808718099):** las claves pasaron (SUNAT devolvió un
+  `code`), pero la autenticación quedó 3 de 3 veces en la portada de
+  `api-seguridad.sunat.gob.pe/?state=&code=…`, con el `state` vacío: SUNAT no
+  supo a qué menú volver.
+
+La bitácora anota cada página por la que pasa el login (`[ruta]`, sin `state`
+ni `code`), para ver dónde se queda si vuelve a fallar.
 
 **En GitHub:** Actions → **SUNAT detracciones (reconocimiento)** → Run
 workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,

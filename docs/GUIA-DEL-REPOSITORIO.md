@@ -274,6 +274,9 @@ que es la evidencia para diagnosticar cuando algo falla.
   republica **COMPROBANTES SUNAT - DETALLE**: la detracción va en la misma
   hoja que el resto de la extracción (seis columnas al final, con el enlace
   al PDF y al HTML de la constancia), que es la que lee la vista de Apps Script.
+  En cada corrida publica además las pestañas **DETRACCIONES** (todas las
+  constancias, con el caso: normal, revisar monto, factura de un año anterior,
+  sin XML…) y **DETRACCIONES SIN CONSTANCIA** (migración 067).
 - **Por fecha de pago, no por período:** un depósito puede llegar meses
   después de la factura. Lo ya guardado no se vuelve a bajar.
 - **Cuándo:** cron 09:30 (últimos 10 días) + manual (`desde`, `hasta`, `dias`,
@@ -411,6 +414,7 @@ Apps Script entran como el usuario robot; la app, como la persona.
 | `vinculos_oc()` | Cruza comprobantes con archivos de las carpetas de OC | 039, 040, 042, 045, 046, 048, 049, 050 |
 | `cargar_captura_oc(...)` | Recibe la captura de OC desde Apps Script | 039, 042 |
 | `guardar_detracciones(p_empresa_ruc, p_filas)` | Guarda constancias de detracción (idempotente; no pisa enlaces con vacío) | 066 |
+| `detracciones_hoja(p_empresa_ruc)` / `detracciones_sin_constancia(…)` | Las pestañas DETRACCIONES (una fila por constancia, con su factura y el caso) y DETRACCIONES SIN CONSTANCIA (facturas con detracción sin depósito) | 067 |
 | `detalle_cpe_hoja_con_detraccion(p_periodo)` | Lo que publica la hoja **DETALLE**: `detalle_cpe_hoja` (sin tocar) + la constancia de detracción de cada comprobante (números, fecha de pago, depositado, PDF, HTML y estado) | 066 |
 
 La versión vigente de cada función es la de la **última** migración que la toca.
@@ -434,6 +438,8 @@ tocan.
 | **COMPROBANTES SUNAT** | comprobante (SIRE) | sunat-diario, app | montos, condición del RUC, OC, centro de costo, código CONCAR, alertas, archivo que confirma la OC |
 | **COMPROBANTES SUNAT - DETALLE** | ítem (XML) | descargar, individual, detracciones, app | descripción, cantidad, precio, enlaces a PDF/XML, forma de pago, detracción, OC, archivo que confirma la OC, constancia de detracción (PDF, HTML y estado) |
 | **… DETALLE AAAA-MM a AAAA-MM** | ítem | extraer rango | solo los meses pedidos |
+| **DETRACCIONES** | constancia de detracción (todas) | detracciones | caso, período, fecha de pago, meses hasta el pago, factura, monto, dónde está la factura, PDF y HTML |
+| **DETRACCIONES SIN CONSTANCIA** | factura con detracción y sin depósito | detracciones | compra o venta, meses desde la emisión, detracción, PDF de la factura |
 
 Las columnas se definen en `src/shared/lib/export/comprobantes-sunat.ts` y
 `src/shared/lib/export/items-sunat.ts`. Las nuevas se agregan **siempre al

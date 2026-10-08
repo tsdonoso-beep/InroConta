@@ -4,7 +4,8 @@
 //   consultar (API de la página) → por cada constancia nueva: obtenerconstancia → descargarconstancia → PDF
 //   → Drive: Detracciones/Compras|Ventas/AAAA-MM (período tributario) → base (guardar_detracciones, de a 20)
 //   → al final, si bajó constancias nuevas, republica COMPROBANTES SUNAT - DETALLE: la detracción va en la misma
-//     hoja que el resto de la extracción (seis columnas al final, con el enlace al PDF y al HTML; migración 066).
+//     hoja que el resto de la extracción (seis columnas al final, con el enlace al PDF y al HTML; migración 066),
+//     y en cada corrida las pestañas DETRACCIONES y DETRACCIONES SIN CONSTANCIA (todas, con el caso; migración 067).
 //
 // Por fecha de pago y no por período: un depósito puede llegar meses después de la factura (el 07/10/2026 se
 // pagó una de 202608). Las que ya están en la base con su PDF y su HTML no se vuelven a bajar.
@@ -41,6 +42,7 @@ import {
 import { aPdf, DIR_SALIDA, respaldar, statsDrive, subir } from "./archivo.mts";
 import { guardadas, guardarLote, statsBase } from "./guardar.mts";
 import { publicarDetalle } from "../comun/guardar.mts";
+import { publicarPestanas } from "./pestanas.mts";
 
 const HASTA = texto("HASTA", hoyLima());
 const DESDE = texto("DESDE", haceDias(num("DIAS", 10), HASTA));
@@ -120,6 +122,9 @@ try {
     if (CONTAR_MASIVOS && tc === "1") await contarMasivos(spot, t);
   }
   if (GUARDAR) await guardarLote(b, lote.splice(0));
+  // Las pestañas, en cada corrida (son livianas y cambian con el tiempo: «Meses desde la emisión», facturas
+  // nuevas sin constancia); el DETALLE (27 000 filas, ~3 min), solo si entró alguna constancia.
+  if (GUARDAR && PUBLICAR !== "nunca") await publicarPestanas(b);
   if (GUARDAR && PUBLICAR !== "nunca" && (PUBLICAR === "siempre" || s.bajadas > 0)) await publicarDetalle(b);
 } catch (e) {
   resumen.error = primeraLinea(e);

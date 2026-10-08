@@ -8,8 +8,9 @@
  * a mes— con un botón que abre la hoja real para quien necesite el
  * desglose línea por línea. Con filtros por mes, compras/ventas y moneda,
  * un buscador de TODO lo comprado (con su precio en el tiempo y el PDF de la
- * última compra), proveedores mes a mes, importaciones, centros de costo y
- * cuánto del gasto ya tiene su OC.
+ * última compra), proveedores mes a mes, importaciones, centros de costo,
+ * cuánto del gasto ya tiene su OC y las detracciones (constancias del SPOT,
+ * casos a revisar y facturas sin constancia).
  *
  * El servidor ya no manda totales hechos: manda cada comprobante en forma
  * compacta (una fila de números y códigos) y el navegador arma los totales
@@ -42,7 +43,7 @@
  *    implementaciones» → el lápiz → Versión «Nueva» → Implementar: una
  *    implementación ya publicada no se actualiza sola con el código nuevo.
  * 8. Para las secciones de compras y legajo (Legajo por OC, Facturas sin OC,
- *    Cambios del robot), que leen directo de la base: engranaje
+ *    Cambios del robot) y Detracciones, que leen directo de la base: engranaje
  *    (Configuración del proyecto) → Propiedades del script → SUPABASE_URL,
  *    SUPABASE_ANON_KEY, ROBOT_CORREO y ROBOT_CLAVE, los mismos de
  *    CarpetaMadre.gs. Sin ellas, el resto de la vista funciona igual.
@@ -184,10 +185,12 @@ var VISTA_MAX_PRODUCTOS = 7000; // lo que viaja al navegador para el buscador (l
  *   docs      una fila por COMPROBANTE (la hoja trae una por ítem):
  *             [período, origen, proveedor, tipo, moneda, neto, detracción, oc, centro de costo, ¿importación?,
  *              serie-número, fecha de emisión, id del PDF, id del XML,
- *              neto en soles, base gravada, IGV, no gravado, detracción a revisar, tipo de cambio]
+ *              neto en soles, base gravada, IGV, no gravado, detracción a revisar, tipo de cambio,
+ *              constancia de detracción]
  *             (los cuatro montos con la nota de crédito restando; base, IGV y no gravado
  *              en la moneda del comprobante; vacíos —null— si la hoja no los trae)
  *             (origen 0 recibido / 1 emitido / 2 otro; tipo F B C D O; neto con la nota de crédito restando)
+ *             (la constancia, migración 066: null, o [número, fecha de pago, depositado, id del PDF, id del HTML, estado])
  *   productos una fila por producto comprado:
  *             [descripción, unidad, moneda, proveedor, veces, gasto, [[período, precio], …], id del PDF de la última compra]
  *   dic       los textos que se repiten (proveedores, OC, centros de costo, monedas), una sola vez.
@@ -214,7 +217,11 @@ function datosCompactosVista_() {
     legajo: opc('Legajo de la OC'), situacion: opc('Situación del pago (OC)'),
     // Desde la migración 053: el IGV desglosado, el total en soles y la detracción a revisar.
     soles: opc('Total en soles'), baseGravada: opc('Base gravada'), igv: opc('IGV del comprobante'),
-    noGravado: opc('No gravado (inafecto / exonerado)'), detRevisar: opc('Detracción: revisar'), tc: opc('Tipo de cambio')
+    noGravado: opc('No gravado (inafecto / exonerado)'), detRevisar: opc('Detracción: revisar'), tc: opc('Tipo de cambio'),
+    // Desde la migración 066: la constancia de detracción (SPOT) de la factura.
+    constancia: opc('Constancia de detracción'), fechaPagoDet: opc('Fecha de pago (detracción)'),
+    depositado: opc('Detracción depositada'), pdfConstancia: opc('PDF constancia de detracción'),
+    htmlConstancia: opc('HTML constancia de detracción'), estadoConstancia: opc('Detracción: constancia')
   };
   // Un número de la hoja, o null si la columna no está o la celda está vacía.
   var numOpc = function (f, i) { return i >= 0 && f[i] !== '' && f[i] != null ? Number(f[i]) : null; };
@@ -282,7 +289,12 @@ function datosCompactosVista_() {
       conSigno_(esNota, numOpc(f, c.igv)),
       conSigno_(esNota, numOpc(f, c.noGravado)),
       txt(f, c.detRevisar),
-      moneda === 'PEN' ? 1 : numOpc(f, c.tc)
+      moneda === 'PEN' ? 1 : numOpc(f, c.tc),
+      // La constancia de detracción, solo si la factura tiene algo que decir (con constancia o le falta).
+      txt(f, c.constancia) || txt(f, c.estadoConstancia)
+        ? [txt(f, c.constancia), fechaTexto_(c.fechaPagoDet >= 0 ? f[c.fechaPagoDet] : ''), numOpc(f, c.depositado),
+           idDrive_(txt(f, c.pdfConstancia)), idDrive_(txt(f, c.htmlConstancia)), txt(f, c.estadoConstancia)]
+        : null
     ]);
   }
 
@@ -380,8 +392,8 @@ var VISTA_RUC = '20512201611';
 
 function datosDeLaBaseVista() {
   var listo = leerVistaLista_('base');
-  // Una copia guardada por una versión anterior (sin la ficha de los RUC ni el cuadre de ventas) se vuelve a armar.
-  if (listo && listo.rucs && listo.cuadreVentas) return listo;
+  // Una copia guardada por una versión anterior (sin la ficha de los RUC, el cuadre de ventas o las detracciones) se vuelve a armar.
+  if (listo && listo.rucs && listo.cuadreVentas && listo.detracciones) return listo;
   var d = datosDeLaBaseVistaAhora_();
   if (!d.error) guardarVistaLista_('base', d);
   return d;
@@ -407,7 +419,7 @@ function datosDeLaBaseVistaAhora_() {
       { metodo: 'post', ruta: 'rpc/fichas_ruc_json', cuerpo: {}, opcional: true },
       // El cuadre de ventas e IGV por mes, como el PDT 621 (migración 063).
       { metodo: 'post', ruta: 'rpc/cuadre_ventas_json', cuerpo: { p_empresa_ruc: VISTA_RUC }, opcional: true }
-    ]);
+    ].concat(pedidosDetraccionesVista_()));
     // carpetas_madre_fuentes: las carpetas madre con lo que dicen Compras, COMEX y Almacén (la hoja privada de Contabilidad).
     var carpetas = (r[0] || [])
       .map(function (f) {
@@ -435,11 +447,65 @@ function datosDeLaBaseVistaAhora_() {
     // [ruc, buen contribuyente, agente de retención, agente de percepción, estado, condición,
     //  dirección, distrito, provincia, departamento, consultado el].
     var rucs = r[4] || [];
+    var det = detraccionesVista_(r.slice(6));
     return { error: null, carpetas: carpetas, sinOc: sinOc, cambios: cambios, copia: copia, rucs: rucs, cuadreVentas: r[5] || [],
-      armadoEl: new Date().toISOString() };
+      detracciones: det.constancias, detSinConstancia: det.sinConstancia, detError: det.error, armadoEl: new Date().toISOString() };
   } catch (e) {
     return { error: String(e.message || e) };
   }
+}
+
+// ── Detracciones (constancias del SPOT, migración 067) ──
+//
+// Las mismas filas de las pestañas DETRACCIONES y DETRACCIONES SIN CONSTANCIA
+// del libro: una por constancia, con su caso, y las facturas con detracción
+// que no tienen constancia. La API de la base entrega 1000 filas por pedido:
+// se piden en páginas (las funciones ordenan de forma fija), todas a la vez.
+
+var VISTA_DET_PAGINAS = 3;  // hasta 3000 constancias (la primera carga fueron 634)
+
+function pedidosDetraccionesVista_() {
+  var pedidos = [];
+  ['detracciones_hoja', 'detracciones_sin_constancia'].forEach(function (funcion) {
+    for (var i = 0; i < VISTA_DET_PAGINAS; i++) {
+      pedidos.push({ metodo: 'post', ruta: 'rpc/' + funcion + '?limit=1000&offset=' + (i * 1000), cuerpo: { p_empresa_ruc: VISTA_RUC }, opcional: true });
+    }
+  });
+  return pedidos;
+}
+
+/**
+ * Las respuestas de pedidosDetraccionesVista_, en forma compacta:
+ *   constancias   [caso, período, sentido (0 compra / 1 venta), fecha de pago aaaa-mm-dd, meses entre período y pago,
+ *                  constancia, tipo, serie, número, RUC proveedor, proveedor, doc. adquiriente, adquiriente,
+ *                  código de bien o servicio, depositado, detracción de la factura, factura en, total factura, moneda,
+ *                  cuenta Banco de la Nación, cuenta del XML, N.° de operación, id PDF constancia, id HTML constancia,
+ *                  id PDF factura, fecha y hora de pago]
+ *   sinConstancia [sentido (0/1), período, fecha de emisión, meses desde la emisión, RUC, nombre, tipo, serie, número,
+ *                  total, moneda, detracción, según (XML o SIRE), id PDF factura]
+ */
+function detraccionesVista_(r) {
+  var n = VISTA_DET_PAGINAS, num = function (v) { return v == null ? null : Number(v); };
+  var junta = function (paginas) {
+    if (paginas.some(function (p) { return p == null; })) return null;
+    return paginas.reduce(function (a, p) { return a.concat(p); }, []);
+  };
+  var hoja = junta(r.slice(0, n)), sin = junta(r.slice(n, 2 * n));
+  return {
+    error: hoja && sin ? null : 'La base no entregó las detracciones (¿falta la migración 067?).',
+    constancias: (hoja || []).map(function (f) {
+      return [f.caso || '', f.periodo || '', f.sentido === 'Venta' ? 1 : 0, f.fecha_pago || '', f.meses_hasta_pago,
+        f.numero_constancia || '', f.tipo_comprobante || '', f.serie || '', f.numero || '', f.proveedor_ruc || '', f.proveedor_nombre || '',
+        f.adquiriente_numero || '', f.adquiriente_nombre || '', f.codigo_bien_servicio || '', num(f.monto), num(f.detraccion_factura),
+        f.factura_en || '', num(f.total_factura), f.moneda || '', f.numero_cuenta || '', f.cuenta_xml || '', f.numero_operacion || '',
+        idDrive_(f.pdf_constancia || ''), idDrive_(f.html_constancia || ''), idDrive_(f.pdf_factura || ''), f.fecha_hora_pago || ''];
+    }),
+    sinConstancia: (sin || []).map(function (f) {
+      return [f.sentido === 'Venta' ? 1 : 0, f.periodo || '', f.fecha_emision || '', f.meses_desde_emision, f.ruc || '', f.nombre || '',
+        f.tipo_comprobante || '', f.serie || '', f.numero || '', num(f.total), f.moneda || 'PEN', num(f.detraccion), f.detraccion_segun || '',
+        idDrive_(f.pdf_factura || '')];
+    })
+  };
 }
 
 /**

@@ -477,7 +477,7 @@ Google**. Instalación de cada uno en `docs/apps-script.md`.
 | `CodigoPadron.gs` + `TableroPadron.html` | Tablero SUNAT publicado como página |
 | `PadronRuc.gs` | Condición del RUC dentro del Sheet |
 | `Desglose.gs` | Desglose de ítems en la misma hoja |
-| `VistaEjecutiva.gs` + `VistaEjecutivaPagina.html` | Vista ejecutiva del DETALLE para compartir |
+| `VistaEjecutiva.gs` + `VistaEjecutivaPagina.html` | Vista ejecutiva del DETALLE para compartir (con la sección Detracciones: constancias, casos y facturas sin constancia) |
 | `OrdenarCPE.gs` | Script suelto, de una sola vez: ordenó en carpetas los XML que el scraper subió antes de tenerlas |
 | `CapturaCarpetasOC.gs` | Recorre las carpetas de cada OC y lista sus archivos |
 | `LecturaFacturas.gs` | Lee por OCR las facturas sin número en el nombre |

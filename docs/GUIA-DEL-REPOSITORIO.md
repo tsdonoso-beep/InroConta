@@ -265,8 +265,8 @@ que es la evidencia para diagnosticar cuando algo falla.
 #### SUNAT detracciones (reconocimiento) — `detracciones-reconocer.yml` → `scripts/local/detracciones/reconocer.mts`
 - **En construcción** (desde el 07/10/2026). Primer paso para bajar las
   **constancias de depósito de detracción** del menú SPOT de SOL.
-- **Qué hace:** entra a SOL por el menú de siempre, abre el menú nuevo en
-  otra pestaña, llega a «Consulta de Pago de
+- **Qué hace:** entra a SOL por el menú nuevo (tiene su propio login),
+  llega a «Consulta de Pago de
   Detracciones», consulta un período, abre las primeras constancias y baja
   su HTML («Guardar») y un PDF. **No guarda nada** en la base ni en Drive:
   deja capturas, HTML, opciones de los filtros y lo que la página pide por

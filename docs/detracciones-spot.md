@@ -327,7 +327,32 @@ aparte). Sale de `detalle_cpe_hoja_con_detraccion()` (migración 066), que es
 | HTML constancia de detracción | Enlace al HTML original de SUNAT en Drive |
 | Detracción: constancia | «Con constancia», «Revisar monto» (difiere en más de S/ 1 de la detracción del XML; SUNAT redondea el depósito a soles), «Falta constancia» (el XML dice que tiene detracción y no hay constancia) o vacío |
 
-La corrida republica la hoja solo si bajó constancias nuevas. Solo aparecen
+La corrida republica esa hoja solo si bajó constancias nuevas.
+
+**Además, dos pestañas propias** (migración 067, pedido del 08/10/2026 para
+rastrear los casos atípicos), que se publican en cada corrida:
+
+- **DETRACCIONES**: una fila por constancia, **todas** (también las de
+  facturas sin XML o de años anteriores), con la columna **Caso**, la primera
+  que calce de: «Revisar monto» · «Factura de AAAA» (período anterior a 2026) ·
+  «Sin factura» (ni en el SIRE ni en los XML) · «Sin XML» · «XML no declara
+  detracción» · «Pago 2+ meses después» · «Normal». Más: meses entre el
+  período y el pago, dónde está la factura (SIRE y XML / XML / SIRE / No
+  encontrada), detracción de la factura, cuentas y enlaces.
+- **DETRACCIONES SIN CONSTANCIA**: facturas de compra y de venta desde 202601
+  con detracción (en el XML, o en el SIRE si no hay XML) y sin constancia,
+  con los meses desde la emisión.
+
+Al 08/10/2026 (634 constancias):
+
+| Caso | Compras | Ventas |
+|---|---:|---:|
+| Normal | 437 | 17 |
+| XML no declara detracción | 50 | — |
+| Factura de 2025 | 32 (S/ 58 706) | 32 (S/ 391 595) |
+| Revisar monto | 23 | — |
+| Pago 2+ meses después | 21 | 14 |
+| Sin factura | 1 | 7 | Solo aparecen
 las constancias de comprobantes que tienen XML (la hoja es del XML): las de
 facturas sin XML quedan en la base y en Drive.
 

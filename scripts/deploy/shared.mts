@@ -19,10 +19,14 @@ export function git(...args: string[]): string {
 /** The full hash of HEAD. */
 export const headCommit = () => git('rev-parse', 'HEAD');
 
-/** Throws if there is anything uncommitted: what is tested and deployed must be a commit. */
+/**
+ * Throws if there is anything uncommitted that could change what is tested or deployed:
+ * edits to tracked files, and new files inside the app (clasp would push them). Untracked
+ * files elsewhere (data/, notes) never reach Apps Script, so they do not block.
+ */
 export function requireCleanTree(what: string): void {
-    const dirty = git('status', '--porcelain');
-    if (dirty) throw new Error(`Commit everything before ${what}; uncommitted:\n${dirty}`);
+    const dirty = [git('status', '--porcelain', '--untracked-files=no'), git('status', '--porcelain', '--', 'apps-script')].filter(Boolean);
+    if (dirty.length) throw new Error(`Commit everything before ${what}; uncommitted:\n${[...new Set(dirty.join('\n').split('\n'))].join('\n')}`);
 }
 
 /** The version people see, from package.json (the owner sets it when releasing). */

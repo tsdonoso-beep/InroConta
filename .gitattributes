@@ -1,0 +1,2 @@
+# Git hooks run under sh: a CRLF checkout would leave a carriage return at the end of every command.
+.husky/* text eol=lf

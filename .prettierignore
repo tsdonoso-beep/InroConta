@@ -1,4 +1,13 @@
+# Generated or external: formatting them only adds noise to the diffs.
 node_modules
+pnpm-lock.yaml
 scripts/out
 secrets
-docs/database/database.full.sql
+
+# SQL: Prettier can't parse it without a plugin, and the migrations are aligned by hand
+# (database.full.sql is generated from them by `pnpm db:consolidar`).
+docs/**/*.sql
+
+# Apps Script HtmlService pages: pasted by hand into each sheet, with inline <script> and
+# <style> that Prettier's HTML printer rewraps in ways that are hard to review.
+src/*.html

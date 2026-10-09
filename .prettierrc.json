@@ -1,8 +1,26 @@
 {
-  "printWidth": 140,
+  "printWidth": 160,
+  "tabWidth": 4,
+  "useTabs": false,
   "semi": true,
-  "singleQuote": false,
+  "singleQuote": true,
   "trailingComma": "all",
-  "arrowParens": "avoid",
-  "endOfLine": "auto"
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "always",
+  "endOfLine": "auto",
+  "overrides": [
+    {
+      "files": "*.gs",
+      "options": {
+        "parser": "babel"
+      }
+    },
+    {
+      "files": ["*.json", "*.md", "*.yml", "*.yaml", "*.mjs", "*.cjs"],
+      "options": {
+        "tabWidth": 2
+      }
+    }
+  ]
 }

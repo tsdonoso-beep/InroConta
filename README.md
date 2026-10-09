@@ -53,7 +53,8 @@ pnpm exec playwright install chromium
 | `pnpm test:e2e`             | Pruebas de punta a punta (Playwright) de la vista web, en local                                        |
 | `pnpm check`                | Tipos, lint, formato y que `database.full.sql` esté al día                                             |
 | `pnpm lint` / `pnpm format` | ESLint / Prettier sobre todo el repositorio                                                            |
-| `pnpm deploy:app`           | Prueba y despliega la app de Apps Script                                                               |
+| `pnpm deploy:check`         | Corre todas las pruebas y marca el commit como listo para desplegar                                    |
+| `pnpm deploy:app`           | Despliega la app de Apps Script (solo un commit que pasó `deploy:check`)                               |
 | `pnpm db:consolidar`        | Regenera `docs/database/database.full.sql` después de una migración nueva                              |
 | `pnpm cpe:local`            | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))            |
 | `pnpm carpetas:local`       | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                |
@@ -68,18 +69,27 @@ corren desde PowerShell o cmd: en Git Bash, `tar` es el de GNU y `domicilios:loc
 La vista web vive en un proyecto de Apps Script dentro del libro INROCONTA. Se despliega desde aquí con
 [clasp](https://github.com/google/clasp), nunca a mano desde el editor:
 
+Son dos pasos, siempre con todo commiteado:
+
 ```bash
+pnpm deploy:check
 pnpm deploy:app "qué cambió"
 ```
 
-1. Exige el árbol limpio: lo que sale publicado es siempre un commit.
-2. Corre `pnpm test` y `pnpm test:e2e`. Si alguno falla, no se sube nada.
-3. `clasp push`, crea una versión nueva y la pone en **la misma implementación de siempre**: el enlace `/exec` no
+1. **`deploy:check`** corre `pnpm test` y `pnpm test:e2e`. Si pasan, deja anotado que **ese commit** está probado
+   (`scripts/out/deploy/tested.json`).
+2. **`deploy:app`** se niega a desplegar si hay algo sin commitear o si el commit actual no pasó `deploy:check`. Luego
+   hace `clasp push`, crea una versión nueva y la pone en **la misma implementación de siempre**: el enlace `/exec` no
    cambia nunca. Un enlace nuevo solo aparece si se crea una implementación nueva, y eso no se hace.
-4. Escribe en la pestaña **DESPLIEGUES** del libro el enlace vigente (celda B1) y una fila con la versión, el commit y
-   los cambios que llevó. Ahí se ve rápido qué cambió en cada despliegue.
+3. Escribe en la pestaña **DESPLIEGUES** del libro el enlace vigente (celda B1), la versión y una fila con la fecha,
+   la versión, el commit y los cambios que llevó. Ahí se ve rápido qué cambió en cada despliegue.
 
-`pnpm deploy:app --dry-run` hace solo las comprobaciones y las pruebas, sin subir nada.
+**La versión** es la de `package.json` (la pones tú antes de desplegar, por ejemplo con un commit
+`chore(release): …`); Apps Script además numera cada despliegue (4, 5, 6…) y los dos números quedan en la pestaña. Si
+la app cambió y la versión es la misma que en el despliegue anterior, `deploy:app` lo avisa. La descripción es una
+frase para Contabilidad; si no se pone, va el asunto del último commit.
+
+`pnpm deploy:app --dry-run` muestra qué se desplegaría, sin subir nada.
 
 **La primera vez en cada computadora:**
 

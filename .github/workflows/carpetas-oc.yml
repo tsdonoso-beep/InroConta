@@ -79,12 +79,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Para leer por dentro: pdftotext/pdftoppm (PDF) y tesseract (OCR, español e inglés).
       - name: Instalar lectores de PDF y OCR

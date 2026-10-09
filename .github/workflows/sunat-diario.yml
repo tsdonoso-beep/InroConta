@@ -46,6 +46,8 @@ jobs:
       # rompe nada, pero un registro con ruido acaba en que nadie lo lee.
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           # Esto es otra cosa que lo de arriba: es la versión con la que
@@ -54,9 +56,9 @@ jobs:
           # una tarea que corre sola de madrugada no es donde conviene
           # estrenar versión.
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Consultar el mes en curso y el anterior
         env:

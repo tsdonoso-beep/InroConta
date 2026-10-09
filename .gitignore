@@ -15,4 +15,4 @@
 # Varios
 .DS_Store
 *.tsbuildinfo
-npm-debug.log*
+pnpm-debug.log*

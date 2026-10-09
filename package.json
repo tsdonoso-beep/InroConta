@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "INROCONTA: comprobantes SUNAT, carpetas de OC y hojas de Contabilidad (INROPRIN)",
+  "packageManager": "pnpm@11.4.0",
   "scripts": {
     "cpe:local": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/cpe.mts",
     "cpe:sondeo": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/sondear-api.mts",

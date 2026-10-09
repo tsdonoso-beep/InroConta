@@ -102,16 +102,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Solo Chromium, que es lo que usa el script, con sus dependencias de
       # sistema. Evita bajar los otros navegadores.
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium
 
       - name: Entrar a SOL y (si no es depuración) bajar el rango
         env:

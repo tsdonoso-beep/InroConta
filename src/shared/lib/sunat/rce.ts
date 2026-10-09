@@ -451,7 +451,7 @@ function modificaDe(celdas: string[], dame: (c: string[], campo: Campo) => strin
  * el archivo que justamente hace falta mirar para arreglarlo.
  */
 export function leerPropuestaRce(texto: string): LecturaRce {
-    const limpio = texto.replace(/^﻿/, '');
+    const limpio = texto.replace(/^\uFEFF/, '');
     const primeraLinea = limpio.split(/\r?\n/, 1)[0] ?? '';
 
     if (primeraLinea.trim() === '') {

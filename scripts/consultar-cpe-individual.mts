@@ -252,7 +252,7 @@ async function clicEnAlgunMarco(page: Page, texto: string, posicion: 'primera' |
 /** Qué entradas de menú ofrece este acceso, para diagnosticar sin adivinar. */
 async function radiografiaMenu(page: Page) {
     for (const f of page.frames()) {
-        let textos: string[] = [];
+        let textos: string[];
         try {
             textos = await f
                 .locator('a, li')
@@ -277,7 +277,7 @@ async function radiografiaMenu(page: Page) {
  */
 async function radiografiaFormulario(page: Page) {
     for (const f of page.frames()) {
-        let campos: string[] = [];
+        let campos: string[];
         try {
             campos = await f.locator('input,select,textarea').evaluateAll((els) =>
                 els.slice(0, 30).map((el) => {

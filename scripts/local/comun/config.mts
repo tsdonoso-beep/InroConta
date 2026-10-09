@@ -35,7 +35,7 @@ export function cargarClaveDeArchivo(): void {
 }
 
 export function claveDesdeTexto(bruto: string): string {
-    const t = bruto.replace(/^﻿/, '');
+    const t = bruto.replace(/^\uFEFF/, '');
     try {
         const j = JSON.parse(t) as Record<string, unknown>;
         const valor = j.private_key ? j : (j.GOOGLE_SA_PRIVATE_KEY ?? j);

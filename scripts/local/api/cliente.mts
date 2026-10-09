@@ -51,8 +51,7 @@ export class ClienteApi {
         const t0 = Date.now();
         const auth = this.token();
         if (!auth) return { status: 0, clase: 'SESION', ms: 0, json: null, texto: 'sin token' };
-        let status = 0,
-            texto = '';
+        let status: number, texto: string;
         try {
             const http = typeof this.http === 'function' ? this.http() : this.http;
             const r = await http.fetch(url, {

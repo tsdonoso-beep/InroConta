@@ -114,11 +114,11 @@ export class TrabajadorUi implements Trabajador {
                 fases[f] = Date.now() - t0;
             }
         };
-        let clase: Clase = 'EXCEPCION',
+        let clase: Clase,
             textos: string[] = [],
             error: ReturnType<typeof crudo> | undefined,
             reuso = false;
-        let r: Resultado = { clase };
+        let r: Resultado;
         try {
             const page = await this.pagina();
             if (this.marco && (await marcoFormulario(page)) === this.marco) reuso = true;

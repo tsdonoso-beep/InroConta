@@ -38,7 +38,7 @@ export function consolidar(archivos: Array<{ nombre: string; sql: string }>): st
             `-- └──────────────────────────────────────────────────────────────`,
             '',
         );
-        partes.push(a.sql.replace(/^﻿/, '').replace(/\s+$/, ''), '');
+        partes.push(a.sql.replace(/^\uFEFF/, '').replace(/\s+$/, ''), '');
     }
     return partes.join('\n') + '\n';
 }

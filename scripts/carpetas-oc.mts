@@ -402,7 +402,7 @@ async function leerArchivo(drive: Drive, a: Archivo, h: Herramientas): Promise<L
         if (DEBUG && l.estado !== 'LEÍDO') {
             mkdirSync(join(SALIDA, 'textos'), { recursive: true });
             writeFileSync(
-                join(SALIDA, 'textos', `${a.oc?.oc ?? 'sin-oc'} ${a.nombre.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 80)}.txt`),
+                join(SALIDA, 'textos', `${a.oc?.oc ?? 'sin-oc'} ${a.nombre.replace(/[/\\:*?"<>|]/g, '_').slice(0, 80)}.txt`),
                 `${a.url}\n${metodo}\n\n${texto.slice(0, 4000)}`,
             );
         }
@@ -1353,7 +1353,7 @@ async function main() {
         resumenDeCambios(cambios, notaCambios),
     ].join('\n');
 
-    let comparacion = '';
+    let comparacion: string;
     try {
         if (!sb) throw new Error(sinBase);
         comparacion = comparar(IMPO ? await fuenteCuadro(sb) : await fuenteCG(sb), porCarpeta, !SUBCARPETA);

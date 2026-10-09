@@ -279,7 +279,7 @@ async function clicEnAlgunMarco(page: Page, texto: string, timeoutMs = 20000): P
     while (Date.now() < fin) {
         for (const f of page.frames()) {
             const loc = f.locator(`text=${texto}`);
-            let cuantas = 0;
+            let cuantas: number;
             try {
                 cuantas = await loc.count();
             } catch {
@@ -537,7 +537,7 @@ async function clicAceptar(marco: Frame) {
  */
 async function opcionesDelMenu(page: Page) {
     for (const f of page.frames()) {
-        let textos: string[] = [];
+        let textos: string[];
         try {
             textos = await f
                 .locator('a, li')
@@ -945,10 +945,7 @@ async function consultarUnTipo(page: Page, consulta: Consulta, desde: string, ha
  */
 async function radiografia(page: Page) {
     for (const f of page.frames()) {
-        let inputs = 0,
-            selects = 0,
-            descargas = 0,
-            tipo = false;
+        let inputs: number, selects: number, descargas: number, tipo: boolean;
         try {
             inputs = await f.locator('input').count();
             selects = await f.locator('select').count();

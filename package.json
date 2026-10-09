@@ -26,6 +26,8 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:all": "pnpm test && pnpm test:e2e",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm db:consolidar --revisar",
     "prepare": "husky"
   },

@@ -19,18 +19,18 @@ entorno, y el camino del menú estaba escrito a mano dentro del script. Eso
 servía mientras **todos** los tipos vivieran en la misma pantalla. Las boletas
 no tienen por qué vivir ahí, así que ahora cada tipo dice por dónde se llega:
 
-| Nombre | Etiqueta en el portal | Código SUNAT | Menú | ¿Confirmado? |
-|---|---|---|---|---|
-| FE Emitidas | FE Emitidas | `10` | Empresas › Consulta de Facturas y Notas Electrónicas | sí |
-| FE Recibidas | FE Recibidas | `11` | ídem | sí |
-| NC Emitidas | NC Emitidas | `13` | ídem | sí |
-| NC Recibidas | NC Recibidas | `14` | ídem | sí |
-| ND Emitidas | ND Emitidas | `15` | ídem | sí |
-| ND Recibidas | ND Recibidas | `16` | ídem | sí |
-| BVE Emitidas | BVE Emitidas | `17` | Empresas › Comprobantes de pago › SEE - SOL › Boleta de Venta Electrónica › Consultar Boleta de Venta y Nota | sí |
-| BVE Recibidas | BVE Recibidas | `18` | ídem | sí |
-| NC-BVE Emitidas | NC-BVE Emitidas | `20` | ídem | sí |
-| ND-BVE Emitidas | ND-BVE Emitidas | `22` | ídem | sí |
+| Nombre          | Etiqueta en el portal | Código SUNAT | Menú                                                                                                         | ¿Confirmado? |
+| --------------- | --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------ | ------------ |
+| FE Emitidas     | FE Emitidas           | `10`         | Empresas › Consulta de Facturas y Notas Electrónicas                                                         | sí           |
+| FE Recibidas    | FE Recibidas          | `11`         | ídem                                                                                                         | sí           |
+| NC Emitidas     | NC Emitidas           | `13`         | ídem                                                                                                         | sí           |
+| NC Recibidas    | NC Recibidas          | `14`         | ídem                                                                                                         | sí           |
+| ND Emitidas     | ND Emitidas           | `15`         | ídem                                                                                                         | sí           |
+| ND Recibidas    | ND Recibidas          | `16`         | ídem                                                                                                         | sí           |
+| BVE Emitidas    | BVE Emitidas          | `17`         | Empresas › Comprobantes de pago › SEE - SOL › Boleta de Venta Electrónica › Consultar Boleta de Venta y Nota | sí           |
+| BVE Recibidas   | BVE Recibidas         | `18`         | ídem                                                                                                         | sí           |
+| NC-BVE Emitidas | NC-BVE Emitidas       | `20`         | ídem                                                                                                         | sí           |
+| ND-BVE Emitidas | ND-BVE Emitidas       | `22`         | ídem                                                                                                         | sí           |
 
 Las cuatro etiquetas de boleta son **las que ofrece el desplegable**, leídas de
 la captura del portal. Que las notas de boleta solo existan **Emitidas** no es
@@ -92,12 +92,12 @@ entero y se borró — 169 líneas menos.
 
 Lo único que cambia de verdad:
 
-| | facturas y notas | boletas |
-|---|---|---|
-| menú | acceso directo, dos clics | el árbol entero, cinco clics |
-| módulo | `ol-ti-itconscpemype` | `ol-ti-itconscpemypebve` |
-| etiquetas | FE / NC / ND | BVE / NC-BVE / ND-BVE |
-| formulario | **idéntico** | **idéntico** |
+|            | facturas y notas          | boletas                      |
+| ---------- | ------------------------- | ---------------------------- |
+| menú       | acceso directo, dos clics | el árbol entero, cinco clics |
+| módulo     | `ol-ti-itconscpemype`     | `ol-ti-itconscpemypebve`     |
+| etiquetas  | FE / NC / ND              | BVE / NC-BVE / ND-BVE        |
+| formulario | **idéntico**              | **idéntico**                 |
 
 Y el camino del menú ya lo dice el catálogo, así que el código no necesita
 preguntarse en cuál de las dos está.
@@ -273,8 +273,8 @@ estaba» y la base actualiza en vez de duplicar.
 
 ## 5. Qué NO cambió
 
-*(Esto valía mientras la cuenta nueva no estuviera probada. Ya lo está — ver
-abajo.)*
+_(Esto valía mientras la cuenta nueva no estuviera probada. Ya lo está — ver
+abajo.)_
 
 El workflow diario `descargar-cpe.yml` usa el mismo script. Durante el
 desarrollo se lo dejó a propósito con sus seis tipos, su ventana de dos días y
@@ -295,11 +295,11 @@ Se hizo el cambio recién con la cuenta nueva probada, que era la condición:
 
 Qué cambió, concretamente:
 
-| | antes | ahora |
-|---|---|---|
-| tipos | 6 (FE/NC/ND) | **10** (+ BVE/NC-BVE/ND-BVE) |
-| acceso | el del SIRE | `SUNAT_SOL_*`, con respaldo en el del SIRE |
-| tope de tiempo | 90 min | **120 min** |
+|                | antes        | ahora                                      |
+| -------------- | ------------ | ------------------------------------------ |
+| tipos          | 6 (FE/NC/ND) | **10** (+ BVE/NC-BVE/ND-BVE)               |
+| acceso         | el del SIRE  | `SUNAT_SOL_*`, con respaldo en el del SIRE |
+| tope de tiempo | 90 min       | **120 min**                                |
 
 El tope sube porque una consulta que devuelve **cero** igual tarda ~90 s en
 concluirlo: espera a que aparezca la grilla —que en un mes cargado puede
@@ -374,12 +374,12 @@ Tres cosas lo hacen especialmente feo:
 Run del 28/09/2026, agosto y setiembre, los cuatro tipos de boleta. 25 minutos,
 8 consultas, ninguna fallida.
 
-| Tipo | Agosto | Setiembre |
-|---|---|---|
-| BVE Emitidas | 0 | 0 |
-| BVE Recibidas | **66** | **39** |
-| NC-BVE Emitidas | 0 | 0 |
-| ND-BVE Emitidas | 0 | 0 |
+| Tipo            | Agosto | Setiembre |
+| --------------- | ------ | --------- |
+| BVE Emitidas    | 0      | 0         |
+| BVE Recibidas   | **66** | **39**    |
+| NC-BVE Emitidas | 0      | 0         |
+| ND-BVE Emitidas | 0      | 0         |
 
 ```
 Archivados en Drive: 186 nuevos, 24 ya estaban.
@@ -411,7 +411,7 @@ enlaces. Son 6 de los 25 minutos. Es el precio de no confundir «vacío» con
 ## 8. Lo que sigue sin resolver
 
 - **Las boletas que el técnico pidió a su nombre siguen sin aparecer.** `BVE
-  Recibidas` trae las boletas donde el **RUC de la empresa** es el adquiriente
+Recibidas` trae las boletas donde el **RUC de la empresa** es el adquiriente
   —se confirmó en el portal: emisores como `10209958258`, proveedores pequeños
   con RUC de persona natural—. Una boleta emitida al **DNI del trabajador** no
   está vinculada al RUC de la empresa en ningún registro de SUNAT, así que

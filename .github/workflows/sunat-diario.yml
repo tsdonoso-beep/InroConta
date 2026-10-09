@@ -13,18 +13,18 @@ on:
   schedule:
     # 08:00 en Lima, que es UTC-5 todo el año. GitHub puede correrlo en
     # cualquier momento de esa hora, lo cual da igual para algo diario.
-    - cron: "0 13 * * *"
+    - cron: '0 13 * * *'
   # Para poder dispararlo a mano desde la pestaña Actions sin esperar al día
   # siguiente. Es como se prueba la primera vez, y también como se rellenan
   # meses viejos cuando se agrega una columna nueva.
   workflow_dispatch:
     inputs:
       periodos:
-        description: "Períodos a consultar, separados por coma (202601,202602). Vacío = mes en curso y anterior."
+        description: 'Períodos a consultar, separados por coma (202601,202602). Vacío = mes en curso y anterior.'
         required: false
-        default: ""
+        default: ''
       solo_publicar:
-        description: "Solo rehacer la hoja con lo ya guardado, sin preguntarle a SUNAT."
+        description: 'Solo rehacer la hoja con lo ya guardado, sin preguntarle a SUNAT.'
         type: boolean
         required: false
         default: false
@@ -55,7 +55,7 @@ jobs:
           # a propósito. En setiembre de 2026 la 26 todavía es «Current», y
           # una tarea que corre sola de madrugada no es donde conviene
           # estrenar versión.
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

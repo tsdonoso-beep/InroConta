@@ -54,18 +54,18 @@ on:
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo mirar: entra, lista el menú y los tipos que ofrece este acceso, y no baja nada. Dejar en true la primera vez."
+        description: 'Solo mirar: entra, lista el menú y los tipos que ofrece este acceso, y no baja nada. Dejar en true la primera vez.'
         type: boolean
         required: false
         default: true
       fecha_inicio:
-        description: "Desde (dd/mm/yyyy)."
+        description: 'Desde (dd/mm/yyyy).'
         required: false
-        default: "01/08/2026"
+        default: '01/08/2026'
       fecha_fin:
-        description: "Hasta (dd/mm/yyyy)."
+        description: 'Hasta (dd/mm/yyyy).'
         required: false
-        default: "30/09/2026"
+        default: '30/09/2026'
       tipos_consulta:
         description: >-
           Los tipos a consultar, separados por coma. Los válidos son los diez
@@ -75,7 +75,7 @@ on:
           Emitidas (pantalla de boletas). Un nombre que no esté en la lista
           corta la corrida antes del login, diciendo cuáles hay.
         required: false
-        default: "FE Emitidas,FE Recibidas,NC Emitidas,NC Recibidas,ND Emitidas,ND Recibidas,BVE Emitidas,BVE Recibidas,NC-BVE Emitidas,ND-BVE Emitidas"
+        default: 'FE Emitidas,FE Recibidas,NC Emitidas,NC Recibidas,ND Emitidas,ND Recibidas,BVE Emitidas,BVE Recibidas,NC-BVE Emitidas,ND-BVE Emitidas'
       menu_boletas:
         description: >-
           Normalmente VACÍO: el camino del menú de las boletas ya está
@@ -84,7 +84,7 @@ on:
           Nota). Queda por si SUNAT renombra alguna entrada y hace falta
           probar otro camino sin tocar código: los textos separados por «>».
         required: false
-        default: ""
+        default: ''
 
 # Esto solo lee de SUNAT y escribe en la base y en Drive.
 permissions:
@@ -106,7 +106,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -146,8 +146,8 @@ jobs:
           TIPOS_CONSULTA: ${{ inputs.tipos_consulta }}
           MENU_BOLETAS: ${{ inputs.menu_boletas }}
           # Las dos cosas que distinguen a este workflow del diario.
-          PARTIR_POR_MES: "1"
-          HOJA_DEL_RANGO: "1"
+          PARTIR_POR_MES: '1'
+          HOJA_DEL_RANGO: '1'
         # con-bitacora: hora y nivel en cada línea y scripts/out/logs/<script>-<fecha>/ (eventos, HTTP con error, resumen).
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/descargar-cpe.mts
 

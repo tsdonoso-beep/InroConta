@@ -35,32 +35,32 @@ on:
     # los horarios cuando está saturado, y más a la hora en punto (el de las
     # 02:00 arrancó a las 08:38 el 02/10/2026). La hoja GENERAL no depende de
     # la hora: CarpetaMadre.gs mira cada hora si hay una lectura nueva.
-    - cron: "17 6 * * *"
-    - cron: "47 16 * * *"
+    - cron: '17 6 * * *'
+    - cron: '47 16 * * *'
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo leer y mostrar el resumen, sin subir a la base ni publicar la hoja."
+        description: 'Solo leer y mostrar el resumen, sin subir a la base ni publicar la hoja.'
         type: boolean
         required: false
         default: true
       carpeta:
-        description: "Qué carpeta madre leer."
+        description: 'Qué carpeta madre leer.'
         type: choice
         options: [nacionales, importaciones, ambas]
         default: nacionales
       subcarpeta:
-        description: "Solo en nacionales: los proyectos cuyo nombre contiene este texto (vacío = toda la carpeta). Importaciones se lee siempre entera."
+        description: 'Solo en nacionales: los proyectos cuyo nombre contiene este texto (vacío = toda la carpeta). Importaciones se lee siempre entera.'
         required: false
-        default: "TALLERES ESPECIALIZADOS"
+        default: 'TALLERES ESPECIALIZADOS'
       leer_max:
-        description: "Cuántos archivos abrir y leer por dentro (OCR) como mucho, por carpeta madre."
+        description: 'Cuántos archivos abrir y leer por dentro (OCR) como mucho, por carpeta madre.'
         required: false
-        default: "200"
+        default: '200'
       leer_minutos:
-        description: "Minutos de lectura por dentro, por carpeta madre (máximo ~150; vacío = 15 en depuración, 45/30 de verdad)."
+        description: 'Minutos de lectura por dentro, por carpeta madre (máximo ~150; vacío = 15 en depuración, 45/30 de verdad).'
         required: false
-        default: ""
+        default: ''
 
 concurrency:
   group: carpetas-oc
@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: ppnpm install --frozen-lockfile
@@ -150,7 +150,7 @@ jobs:
           DEBUG: ${{ inputs.debug && '1' || '0' }}
           PROCEDENCIA: importacion
           # Siempre entera: el filtro de subcarpeta es para los proyectos de nacionales.
-          SUBCARPETA: ""
+          SUBCARPETA: ''
           LEER_MAX: ${{ inputs.leer_max || '3000' }}
           LEER_MINUTOS: ${{ inputs.leer_minutos || (inputs.debug && '15' || '30') }}
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/carpetas-oc.mts

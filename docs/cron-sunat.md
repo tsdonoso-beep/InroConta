@@ -69,10 +69,10 @@ puede leer de ahí.
 El camino es: el repositorio en GitHub · **Settings** · **Secrets and
 variables** · **Actions** · **New repository secret**. Ocho, uno por uno:
 
-| Secreto | De dónde sale |
-|---|---|
-| `SUPABASE_URL` | el mismo valor que `NEXT_PUBLIC_SUPABASE_URL` en Vercel |
-| `SUPABASE_ANON_KEY` | el mismo que `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| Secreto             | De dónde sale                                           |
+| ------------------- | ------------------------------------------------------- |
+| `SUPABASE_URL`      | el mismo valor que `NEXT_PUBLIC_SUPABASE_URL` en Vercel |
+| `SUPABASE_ANON_KEY` | el mismo que `NEXT_PUBLIC_SUPABASE_ANON_KEY`            |
 
 Esos dos también valen como `PROJECT_URL` y `ANON_KEY`, que es como quedan si
 los valores se copiaron desde los secretos de Supabase —ahí el prefijo
@@ -94,11 +94,11 @@ sola todos los días. Sin ellas la consulta funciona igual y guarda todo; lo
 único que pasa es que la hoja se queda como la dejó la última publicación
 manual:
 
-| Secreto | De dónde sale |
-|---|---|
-| `GOOGLE_SA_EMAIL` | Vercel · Settings · Environment Variables |
-| `GOOGLE_SA_PRIVATE_KEY` | ídem (es larga y empieza con `-----BEGIN PRIVATE KEY-----`) |
-| `GOOGLE_DRIVE_FOLDER_ID` | ídem |
+| Secreto                  | De dónde sale                                               |
+| ------------------------ | ----------------------------------------------------------- |
+| `GOOGLE_SA_EMAIL`        | Vercel · Settings · Environment Variables                   |
+| `GOOGLE_SA_PRIVATE_KEY`  | ídem (es larga y empieza con `-----BEGIN PRIVATE KEY-----`) |
+| `GOOGLE_DRIVE_FOLDER_ID` | ídem                                                        |
 
 Para verlas: en Vercel, proyecto **foto-grama** · Settings · Environment
 Variables, y en cada una el menú de los tres puntos tiene la opción de
@@ -117,7 +117,7 @@ También sirve pegar solo la clave, como un bloque que empieza con
 `-----BEGIN PRIVATE KEY-----`, con o sin comillas, con los saltos escritos
 como `\n` o de verdad. Todas esas formas se aceptan.
 
-Las variables de Vercel se guardaron como tipo *Secret*, que no deja volver a
+Las variables de Vercel se guardaron como tipo _Secret_, que no deja volver a
 verlas. Por eso hubo que crear una clave nueva en Google Cloud Console: no
 invalida la anterior, una cuenta de servicio puede tener varias.
 

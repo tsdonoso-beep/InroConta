@@ -24,30 +24,30 @@ name: SUNAT detracciones
 on:
   schedule:
     # 09:30 en Lima (UTC-5): después de «SUNAT CPE por API» (08:30) y del padrón (09:00).
-    - cron: "30 14 * * *"
+    - cron: '30 14 * * *'
   workflow_dispatch:
     inputs:
       desde:
-        description: "Fecha de pago desde (dd/mm/aaaa). Vacío = hace «dias» días. Primera carga: 01/01/2026."
+        description: 'Fecha de pago desde (dd/mm/aaaa). Vacío = hace «dias» días. Primera carga: 01/01/2026.'
         required: false
-        default: ""
+        default: ''
       hasta:
-        description: "Fecha de pago hasta (dd/mm/aaaa). Vacío = hoy en Lima."
+        description: 'Fecha de pago hasta (dd/mm/aaaa). Vacío = hoy en Lima.'
         required: false
-        default: ""
+        default: ''
       dias:
-        description: "Si no hay «desde»: cuántos días hacia atrás."
+        description: 'Si no hay «desde»: cuántos días hacia atrás.'
         required: false
-        default: "10"
+        default: '10'
       guardar:
-        description: "Subir a Drive y guardar en la base. Desmarcado = prueba (solo disco)."
+        description: 'Subir a Drive y guardar en la base. Desmarcado = prueba (solo disco).'
         type: boolean
         required: false
         default: true
       limite:
-        description: "Cuántas constancias bajar como máximo (0 = todas)."
+        description: 'Cuántas constancias bajar como máximo (0 = todas).'
         required: false
-        default: "0"
+        default: '0'
 
 permissions:
   contents: read
@@ -72,7 +72,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: ppnpm install --frozen-lockfile

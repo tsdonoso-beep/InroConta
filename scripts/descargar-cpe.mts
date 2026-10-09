@@ -25,32 +25,41 @@
 //   • Descarga (DEBUG=0): baja XML+PDF, los archiva en Drive y guarda el
 //     detalle.
 
-import { chromium, type Page, type Frame, type Locator, type Download } from "playwright";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { google } from "googleapis";
-import { createClient } from "@supabase/supabase-js";
-import { normalizarClavePrivada, correoDeServicio, carpeta, publicarHoja, publicarHojaPorAnio } from "../src/shared/lib/drive/servidor.ts";
-import { leerZip } from "../src/shared/lib/sunat/zip.ts";
-import { crearSubidor } from "./local/comun/cache-drive.mts";
-import { documentoPrincipal, leerComprobanteXml, type ComprobanteCpe } from "../src/shared/lib/sunat/cpe-xml.ts";
-import { prepararLote, origenDe, periodoDe, identidad, type DocLote } from "../src/shared/lib/sunat/cpe-importacion.ts";
+import { chromium, type Page, type Frame, type Locator, type Download } from 'playwright';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { google } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
+import { normalizarClavePrivada, correoDeServicio, carpeta, publicarHoja, publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
+import { leerZip } from '../src/shared/lib/sunat/zip.ts';
+import { crearSubidor } from './local/comun/cache-drive.mts';
+import { documentoPrincipal, leerComprobanteXml, type ComprobanteCpe } from '../src/shared/lib/sunat/cpe-xml.ts';
+import { prepararLote, origenDe, periodoDe, identidad, type DocLote } from '../src/shared/lib/sunat/cpe-importacion.ts';
 import {
-  conMenuDeBoletas, consultaDe, normalizar, tandasPorMes, periodosDelRango, nombreDeHojaDelRango,
-  type Consulta, type Tanda,
-} from "../src/shared/lib/sunat/cpe-consulta.ts";
-import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from "../src/shared/lib/export/items-sunat.ts";
-import type { SupabaseClient } from "@supabase/supabase-js";
+    conMenuDeBoletas,
+    consultaDe,
+    normalizar,
+    tandasPorMes,
+    periodosDelRango,
+    nombreDeHojaDelRango,
+    type Consulta,
+    type Tanda,
+} from '../src/shared/lib/sunat/cpe-consulta.ts';
+import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
 function pedir(...nombres: string[]): string {
-  for (const n of nombres) { const v = (process.env[n] ?? "").trim(); if (v) return v; }
-  console.error(`✗ Falta ${nombres.join(" o ")} en el entorno.`);
-  process.exit(1);
+    for (const n of nombres) {
+        const v = (process.env[n] ?? '').trim();
+        if (v) return v;
+    }
+    console.error(`✗ Falta ${nombres.join(' o ')} en el entorno.`);
+    process.exit(1);
 }
 
-const RUC       = process.env.SUNAT_RUC?.trim() || "20512201611";
+const RUC = process.env.SUNAT_RUC?.trim() || '20512201611';
 // El acceso de SOL con el que se entra al portal.
 //
 // Se buscan primero SUNAT_SOL_USUARIO / SUNAT_SOL_CLAVE y se cae a los del
@@ -59,21 +68,23 @@ const RUC       = process.env.SUNAT_RUC?.trim() || "20512201611";
 // acá cambiaría también el del SIRE —que no necesita ese permiso— y un error
 // en uno rompería los dos. Mientras los secretos nuevos no estén puestos, esto
 // se comporta exactamente como antes.
-const USUARIO = pedir("SUNAT_SOL_USUARIO", "SUNAT_INROPRIN_USUARIO");  // el secundario de SOL, ej. APISIREE
-const CLAVE   = pedir("SUNAT_SOL_CLAVE", "SUNAT_INROPRIN_CLAVE");
+const USUARIO = pedir('SUNAT_SOL_USUARIO', 'SUNAT_INROPRIN_USUARIO'); // el secundario de SOL, ej. APISIREE
+const CLAVE = pedir('SUNAT_SOL_CLAVE', 'SUNAT_INROPRIN_CLAVE');
 
 // El usuario del portal es el secundario solo, sin el RUC pegado adelante.
 const USUARIO_SOL = USUARIO.startsWith(RUC) ? USUARIO.slice(RUC.length) : USUARIO;
 
-const DEBUG = process.env.DEBUG !== "0";
+const DEBUG = process.env.DEBUG !== '0';
 
 // Por dónde se entra a las boletas, si la corrida de depuración mostró que no
 // es lo que dice el catálogo. Los textos del menú van separados por «>»:
 // "Empresas > Comprobantes de pago > Consultar Boleta". Vacío = el del
 // catálogo. Es un tornillo de ajuste: cuando se sepa el camino de verdad, se
 // escribe en `src/shared/lib/sunat/cpe-consulta.ts` y este input deja de hacer falta.
-const MENU_BOLETAS = (process.env.MENU_BOLETAS?.trim() || "")
-  .split(">").map(t => t.trim()).filter(Boolean);
+const MENU_BOLETAS = (process.env.MENU_BOLETAS?.trim() || '')
+    .split('>')
+    .map((t) => t.trim())
+    .filter(Boolean);
 
 const CATALOGO = conMenuDeBoletas(MENU_BOLETAS);
 
@@ -85,35 +96,35 @@ const CATALOGO = conMenuDeBoletas(MENU_BOLETAS);
 // Se resuelven contra el catálogo ANTES de entrar a SUNAT: un nombre mal
 // escrito en el workflow tiene que cortar acá, con la lista de los que hay, y
 // no después de un login y veinte minutos de corrida.
-const TIPOS_CONSULTA: Consulta[] = (process.env.TIPOS_CONSULTA?.trim() || process.env.TIPO_CONSULTA?.trim() || "FE Recibidas")
-  .split(",").map(t => t.trim()).filter(Boolean)
-  .map(n => {
-    const c = consultaDe(n, CATALOGO);
-    if (!c) {
-      console.error(`✗ "${n}" no es un tipo de consulta conocido.`);
-      console.error(`  Los que hay: ${CATALOGO.map(x => x.nombre).join(", ")}.`);
-      process.exit(1);
-    }
-    return c;
-  });
+const TIPOS_CONSULTA: Consulta[] = (process.env.TIPOS_CONSULTA?.trim() || process.env.TIPO_CONSULTA?.trim() || 'FE Recibidas')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((n) => {
+        const c = consultaDe(n, CATALOGO);
+        if (!c) {
+            console.error(`✗ "${n}" no es un tipo de consulta conocido.`);
+            console.error(`  Los que hay: ${CATALOGO.map((x) => x.nombre).join(', ')}.`);
+            process.exit(1);
+        }
+        return c;
+    });
 
 // La carpeta de Drive del proyecto donde se archivan los comprobantes.
-const CARPETA_DRIVE = process.env.SUNAT_DRIVE_FOLDER?.trim() || "1RnyGimYdnhbQ3nKxGOoBc_iRz38fxCnX";
+const CARPETA_DRIVE = process.env.SUNAT_DRIVE_FOLDER?.trim() || '1RnyGimYdnhbQ3nKxGOoBc_iRz38fxCnX';
 
 // La entrada del menú de SOL. Sin sesión, rebota sola a la pantalla de login
 // con el client_id y el redirect_uri correctos del menú —los del API SIRE no
 // sirven para el login web: dejan el ?code= colgado sin volver al menú—.
-const LOGIN_URL = process.env.SOL_LOGIN_URL?.trim()
-  || "https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm";
+const LOGIN_URL = process.env.SOL_LOGIN_URL?.trim() || 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm';
 
 function ddmmyyyy(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 const HOY = new Date();
 const FECHA_FIN = process.env.FECHA_FIN?.trim() || ddmmyyyy(HOY);
-const FECHA_INICIO = process.env.FECHA_INICIO?.trim()
-  || ddmmyyyy(new Date(HOY.getTime() - 30 * 24 * 3600 * 1000));
+const FECHA_INICIO = process.env.FECHA_INICIO?.trim() || ddmmyyyy(new Date(HOY.getTime() - 30 * 24 * 3600 * 1000));
 
 /**
  * Partir el rango en una consulta por mes calendario.
@@ -123,7 +134,7 @@ const FECHA_INICIO = process.env.FECHA_INICIO?.trim()
  * por ejemplo—, donde pedir varios meses en UNA sola consulta es justo lo que
  * disparó el «User rate limit exceeded» de SUNAT.
  */
-const PARTIR_POR_MES = process.env.PARTIR_POR_MES === "1";
+const PARTIR_POR_MES = process.env.PARTIR_POR_MES === '1';
 
 /**
  * El rango, ya partido en las consultas que se van a hacer.
@@ -134,18 +145,16 @@ const PARTIR_POR_MES = process.env.PARTIR_POR_MES === "1";
  * (ocho tipos por dos meses son dieciséis entradas al menú) para repetir el
  * mismo hallazgo. El corte está probado aparte, en los tests del módulo.
  */
-const TANDAS: Tanda[] = PARTIR_POR_MES && !DEBUG
-  ? tandasPorMes(FECHA_INICIO, FECHA_FIN)
-  : [{ desde: FECHA_INICIO, hasta: FECHA_FIN }];
+const TANDAS: Tanda[] = PARTIR_POR_MES && !DEBUG ? tandasPorMes(FECHA_INICIO, FECHA_FIN) : [{ desde: FECHA_INICIO, hasta: FECHA_FIN }];
 
 /**
  * Además de la hoja histórica, dejar una hoja APARTE solo con los períodos que
  * abarca el rango pedido. Apagado por omisión: la corrida diaria no necesita
  * una hoja nueva cada día.
  */
-const HOJA_DEL_RANGO = process.env.HOJA_DEL_RANGO === "1";
+const HOJA_DEL_RANGO = process.env.HOJA_DEL_RANGO === '1';
 
-const CAPTURAS = join(process.cwd(), "scripts", "out", "capturas");
+const CAPTURAS = join(process.cwd(), 'scripts', 'out', 'capturas');
 mkdirSync(CAPTURAS, { recursive: true });
 
 /**
@@ -156,20 +165,20 @@ mkdirSync(CAPTURAS, { recursive: true });
  * —y esa vista, al ser una tabla plana (no la grilla dojox), no tiene el
  * problema de las tandas de 25 ni la carrera al cruzar de una a otra—.
  */
-const PROBAR_IMPRIMIR = process.env.PROBAR_IMPRIMIR === "1";
+const PROBAR_IMPRIMIR = process.env.PROBAR_IMPRIMIR === '1';
 const RANGO_PRUEBA_IMPRIMIR = process.env.RANGO_PRUEBA_IMPRIMIR?.trim() || null;
 
 let paso = 0;
 async function evidencia(page: Page, nombre: string) {
-  paso++;
-  const base = join(CAPTURAS, `${String(paso).padStart(2, "0")}-${nombre}`);
-  try {
-    await page.screenshot({ path: `${base}.png`, fullPage: true });
-    writeFileSync(`${base}.html`, await page.content());
-    console.log(`  · evidencia: ${nombre}`);
-  } catch (e) {
-    console.log(`  · no se pudo capturar ${nombre}: ${e instanceof Error ? e.message : e}`);
-  }
+    paso++;
+    const base = join(CAPTURAS, `${String(paso).padStart(2, '0')}-${nombre}`);
+    try {
+        await page.screenshot({ path: `${base}.png`, fullPage: true });
+        writeFileSync(`${base}.html`, await page.content());
+        console.log(`  · evidencia: ${nombre}`);
+    } catch (e) {
+        console.log(`  · no se pudo capturar ${nombre}: ${e instanceof Error ? e.message : e}`);
+    }
 }
 
 /**
@@ -180,18 +189,18 @@ async function evidencia(page: Page, nombre: string) {
  * es un bloqueo de verdad y hay que decirlo, no seguir como si nada.
  */
 async function irConReintento(page: Page, url: string, intentos = 4) {
-  let ultimo: unknown;
-  for (let i = 1; i <= intentos; i++) {
-    try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-      return;
-    } catch (e) {
-      ultimo = e;
-      console.log(`  · intento ${i}/${intentos} falló: ${e instanceof Error ? e.message.split("\n")[0] : e}`);
-      await page.waitForTimeout(3000 * i);
+    let ultimo: unknown;
+    for (let i = 1; i <= intentos; i++) {
+        try {
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            return;
+        } catch (e) {
+            ultimo = e;
+            console.log(`  · intento ${i}/${intentos} falló: ${e instanceof Error ? e.message.split('\n')[0] : e}`);
+            await page.waitForTimeout(3000 * i);
+        }
     }
-  }
-  throw ultimo;
+    throw ultimo;
 }
 
 // ── Login ─────────────────────────────────────────────────────────
@@ -204,42 +213,42 @@ async function irConReintento(page: Page, url: string, intentos = 4) {
  * cambian, la evidencia de depuración lo muestra.
  */
 async function entrar(page: Page) {
-  console.log(`Entrando a SOL como ${RUC} / ${USUARIO_SOL}…`);
-  await irConReintento(page, LOGIN_URL);
-  // MenuInternet, sin sesión, rebota a la pantalla de login: se espera el
-  // formulario en vez de asumir que ya está.
-  await page.waitForSelector("#txtRuc", { timeout: 60000 });
-  await evidencia(page, "login");
+    console.log(`Entrando a SOL como ${RUC} / ${USUARIO_SOL}…`);
+    await irConReintento(page, LOGIN_URL);
+    // MenuInternet, sin sesión, rebota a la pantalla de login: se espera el
+    // formulario en vez de asumir que ya está.
+    await page.waitForSelector('#txtRuc', { timeout: 60000 });
+    await evidencia(page, 'login');
 
-  await page.fill("#txtRuc", RUC);
-  await page.fill("#txtUsuario", USUARIO_SOL);
-  await page.fill("#txtContrasena", CLAVE);
-  await evidencia(page, "login-lleno");
+    await page.fill('#txtRuc', RUC);
+    await page.fill('#txtUsuario', USUARIO_SOL);
+    await page.fill('#txtContrasena', CLAVE);
+    await evidencia(page, 'login-lleno');
 
-  // El botón dice «Iniciar sesión»; históricamente su id es btnAceptar. Se
-  // prueba por id y, si no, por texto.
-  const boton = (await page.$("#btnAceptar")) ? "#btnAceptar" : "text=Iniciar sesión";
-  await page.click(boton);
+    // El botón dice «Iniciar sesión»; históricamente su id es btnAceptar. Se
+    // prueba por id y, si no, por texto.
+    const boton = (await page.$('#btnAceptar')) ? '#btnAceptar' : 'text=Iniciar sesión';
+    await page.click(boton);
 
-  // Tras el login, SUNAT rebota por api-seguridad (?code=...) y recién
-  // después aterriza en el menú (MenuInternet.htm). El primer run se quedó en
-  // esa pantalla intermedia: hay que esperar a que la cadena termine, no al
-  // primer «networkidle».
-  await page.waitForURL(/MenuInternet\.htm/i, { timeout: 60000 }).catch(() => {});
-  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-  console.log(`  · tras login, URL: ${page.url()}`);
-  await evidencia(page, "post-login");
+    // Tras el login, SUNAT rebota por api-seguridad (?code=...) y recién
+    // después aterriza en el menú (MenuInternet.htm). El primer run se quedó en
+    // esa pantalla intermedia: hay que esperar a que la cadena termine, no al
+    // primer «networkidle».
+    await page.waitForURL(/MenuInternet\.htm/i, { timeout: 60000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    console.log(`  · tras login, URL: ${page.url()}`);
+    await evidencia(page, 'post-login');
 
-  const cuerpo = (await page.content()).toLowerCase();
-  if (/captcha|recaptcha|código de verificación|verification code/.test(cuerpo)) {
-    throw new Error("El login mostró un captcha/verificación. Revisa la captura 'post-login'.");
-  }
-  if (/usuario o clave|clave incorrecta|no coinciden/.test(cuerpo)) {
-    throw new Error("SOL rechazó las credenciales. Revisa 'post-login'.");
-  }
-  if (!/MenuInternet|e-menu\.sunat/i.test(page.url())) {
-    throw new Error(`No se llegó al menú tras el login; quedó en ${page.url()}. Revisa 'post-login'.`);
-  }
+    const cuerpo = (await page.content()).toLowerCase();
+    if (/captcha|recaptcha|código de verificación|verification code/.test(cuerpo)) {
+        throw new Error("El login mostró un captcha/verificación. Revisa la captura 'post-login'.");
+    }
+    if (/usuario o clave|clave incorrecta|no coinciden/.test(cuerpo)) {
+        throw new Error("SOL rechazó las credenciales. Revisa 'post-login'.");
+    }
+    if (!/MenuInternet|e-menu\.sunat/i.test(page.url())) {
+        throw new Error(`No se llegó al menú tras el login; quedó en ${page.url()}. Revisa 'post-login'.`);
+    }
 }
 
 /**
@@ -265,29 +274,35 @@ async function entrar(page: Page) {
  * rompe el siguiente.
  */
 async function clicEnAlgunMarco(page: Page, texto: string, timeoutMs = 20000): Promise<boolean> {
-  const fin = Date.now() + timeoutMs;
-  let avisado = false;
-  while (Date.now() < fin) {
-    for (const f of page.frames()) {
-      const loc = f.locator(`text=${texto}`);
-      let cuantas = 0;
-      try { cuantas = await loc.count(); } catch { continue; }
-      if (cuantas > 1 && !avisado) {
-        console.log(`  · «${texto}» aparece ${cuantas} veces; se prueba la primera que se pueda clicar.`);
-        avisado = true;
-      }
-      for (let i = 0; i < cuantas; i++) {
-        try {
-          const uno = loc.nth(i);
-          if (!await uno.isVisible()) continue;
-          await uno.click({ timeout: 5000 });
-          return true;
-        } catch { /* esta no se pudo; se prueba la siguiente */ }
-      }
+    const fin = Date.now() + timeoutMs;
+    let avisado = false;
+    while (Date.now() < fin) {
+        for (const f of page.frames()) {
+            const loc = f.locator(`text=${texto}`);
+            let cuantas = 0;
+            try {
+                cuantas = await loc.count();
+            } catch {
+                continue;
+            }
+            if (cuantas > 1 && !avisado) {
+                console.log(`  · «${texto}» aparece ${cuantas} veces; se prueba la primera que se pueda clicar.`);
+                avisado = true;
+            }
+            for (let i = 0; i < cuantas; i++) {
+                try {
+                    const uno = loc.nth(i);
+                    if (!(await uno.isVisible())) continue;
+                    await uno.click({ timeout: 5000 });
+                    return true;
+                } catch {
+                    /* esta no se pudo; se prueba la siguiente */
+                }
+            }
+        }
+        await page.waitForTimeout(500);
     }
-    await page.waitForTimeout(500);
-  }
-  return false;
+    return false;
 }
 
 // ── Navegar a la consulta y bajar ─────────────────────────────────
@@ -320,17 +335,19 @@ const SEL_PDF = 'a:has-text("PDF")';
  * diciendo «no se pudo escribir la fecha» en vez de «el módulo no abrió».
  */
 async function marcoConsulta(page: Page, intentos = 30): Promise<Frame | null> {
-  for (let i = 0; i < intentos; i++) {
-    for (const f of page.frames()) {
-      try {
-        // «fec_desde» es la marca segura, y resultó ser la misma en las dos
-        // pantallas: son la misma aplicación.
-        if (await f.locator('input[name="fec_desde"]').count()) return f;
-      } catch { /* el marco puede estar navegando */ }
+    for (let i = 0; i < intentos; i++) {
+        for (const f of page.frames()) {
+            try {
+                // «fec_desde» es la marca segura, y resultó ser la misma en las dos
+                // pantallas: son la misma aplicación.
+                if (await f.locator('input[name="fec_desde"]').count()) return f;
+            } catch {
+                /* el marco puede estar navegando */
+            }
+        }
+        await page.waitForTimeout(1000);
     }
-    await page.waitForTimeout(1000);
-  }
-  return null;
+    return null;
 }
 
 /**
@@ -341,26 +358,26 @@ async function marcoConsulta(page: Page, intentos = 30): Promise<Frame | null> {
  * difieren en CÓMO encontrar el campo, no en cómo llenarlo.
  */
 async function escribirFecha(campo: Locator, valor: string): Promise<boolean> {
-  try {
-    await campo.evaluate((el, v) => {
-      const i = el as HTMLInputElement;
-      i.removeAttribute("readonly");
-      i.value = v as string;
-      i.dispatchEvent(new Event("input", { bubbles: true }));
-      i.dispatchEvent(new Event("change", { bubbles: true }));
-      i.dispatchEvent(new Event("blur", { bubbles: true }));
-    }, valor);
-    return true;
-  } catch (e) {
-    console.log(`  ⚠ no se pudo escribir la fecha: ${e instanceof Error ? e.message.split("\n")[0] : e}`);
-    return false;
-  }
+    try {
+        await campo.evaluate((el, v) => {
+            const i = el as HTMLInputElement;
+            i.removeAttribute('readonly');
+            i.value = v as string;
+            i.dispatchEvent(new Event('input', { bubbles: true }));
+            i.dispatchEvent(new Event('change', { bubbles: true }));
+            i.dispatchEvent(new Event('blur', { bubbles: true }));
+        }, valor);
+        return true;
+    } catch (e) {
+        console.log(`  ⚠ no se pudo escribir la fecha: ${e instanceof Error ? e.message.split('\n')[0] : e}`);
+        return false;
+    }
 }
 
 /** Pone una fecha en el campo con ese `name`. */
 async function ponerFechaPorNombre(marco: Frame, nombre: string, valor: string) {
-  const campo = marco.locator(`input[name="${nombre}"]`).first();
-  if (!await escribirFecha(campo, valor)) console.log(`  ⚠ …era el campo ${nombre}`);
+    const campo = marco.locator(`input[name="${nombre}"]`).first();
+    if (!(await escribirFecha(campo, valor))) console.log(`  ⚠ …era el campo ${nombre}`);
 }
 
 /**
@@ -381,97 +398,106 @@ async function ponerFechaPorNombre(marco: Frame, nombre: string, valor: string) 
  * de verdad en la lista.
  */
 async function elegirTipo(marco: Frame, consulta: Consulta): Promise<boolean> {
-  const visible = marco.locator('[id="criterio.tipoConsulta"]').first();
-  if (!(await visible.count())) { console.log("  ⚠ no encontré el campo de tipo"); return false; }
-  await visible.click().catch(() => {});
-  await marco.page().waitForTimeout(800);
-
-  // Las opciones que este acceso ofrece DE VERDAD. Es la evidencia que dice
-  // cómo se llaman las boletas en el portal, en vez de adivinar la etiqueta.
-  const opciones = await marco.locator("li, .ui-menu-item, option").evaluateAll(
-    els => [...new Set(els.map(e => (e.textContent || "").replace(/\s+/g, " ").trim())
-      .filter(t => t.length > 0 && t.length < 60))].slice(0, 40)
-  ).catch(() => [] as string[]);
-  if (opciones.length) console.log(`  · opciones del «Tipo de Consulta»: ${opciones.join(" | ")}`);
-
-  const etiqueta = consulta.etiqueta;
-  const opcion = marco.locator(
-    `li:has-text("${etiqueta}"), .ui-menu-item:has-text("${etiqueta}"), option:has-text("${etiqueta}"), a:has-text("${etiqueta}")`
-  ).first();
-
-  if (await opcion.count()) {
-    await opcion.click().catch(() => {});
-  } else if (consulta.confirmado) {
-    // Respaldo de siempre, solo para los tipos que sabemos que existen:
-    // teclear el texto y Enter. El código se verifica abajo igual.
-    console.log(`  ⚠ no vi la opción «${etiqueta}» en la lista; se teclea y se verifica.`);
-    await visible.fill(etiqueta).catch(() => {});
-    await visible.press("Enter").catch(() => {});
-  } else {
-    console.log(`  ✗ este acceso no ofrece «${etiqueta}» (etiqueta sin confirmar). No se consulta este tipo:`);
-    console.log("    corregí la etiqueta en src/shared/lib/sunat/cpe-consulta.ts con una de las opciones de arriba.");
-    return false;
-  }
-
-  // Confirmar que quedó puesto ESTE tipo.
-  //
-  // Los dos campos se actualizan por un evento del combobox, no en el mismo
-  // tic del clic: leerlos de inmediato puede sorprenderlos con el valor
-  // ANTERIOR (el que trae el formulario recién abierto). Abortar por eso sería
-  // romper una consulta que iba bien — y en la corrida diaria, que nadie mira,
-  // se vería como «hoy no había comprobantes». Así que se insiste: se acepta
-  // apenas coincide, y solo se abandona si sigue distinto tras varios
-  // intentos. Esa insistencia distingue medio segundo de desfase de un tipo
-  // mal elegido.
-  //
-  // Con qué se compara depende de lo que se sepa del tipo:
-  //   • con código conocido (las de facturas), contra el campo oculto, que es
-  //     el dato que de verdad viaja a SUNAT;
-  //   • sin código (las de boleta, cuyos códigos todavía no vimos), contra lo
-  //     que muestra el campo visible. Es más flojo, pero atrapa el caso que
-  //     importa: que el combobox se haya quedado en otra cosa.
-  const campo = consulta.codigo
-    ? marco.locator('input[name="tipoConsulta"]').first()
-    : visible;
-  const esperado = consulta.codigo ?? etiqueta;
-
-  let puesto = "";
-  for (let i = 0; i < 6; i++) {
-    puesto = await campo.inputValue().catch(() => "");
-    if (!puesto || normalizar(puesto) === normalizar(esperado)) break;
-    await marco.page().waitForTimeout(500);
-  }
-  if (puesto && normalizar(puesto) !== normalizar(esperado)) {
-    console.log(`  ✗ pedí «${consulta.nombre}» (${consulta.codigo ? `código ${consulta.codigo}` : "sin código conocido"}) y el formulario quedó en «${puesto}». No se consulta, para no bajar otro tipo creyendo que es este.`);
-    return false;
-  }
-
-  // Para un tipo SIN código conocido queda un agujero que hay que tapar aparte.
-  //
-  // El run del 28/09/2026 mostró que en este portal la opción casi nunca se
-  // encuentra en la lista, así que lo normal es entrar por el respaldo: teclear
-  // la etiqueta y pulsar Enter. Y entonces la comprobación de arriba —campo
-  // visible contra etiqueta— se vuelve VACÍA: acabamos de escribir esa etiqueta
-  // ahí nosotros, así que siempre coincide. Una verificación que no verifica.
-  //
-  // Lo que sí dice la verdad es el campo oculto. No sabemos qué código le toca
-  // a este tipo, pero sí sabemos los de los demás: si quedó puesto el de OTRO,
-  // el combobox no resolvió lo que tecleamos y estaríamos por bajar ese otro
-  // tipo con el nombre de este.
-  if (!consulta.codigo) {
-    const oculto = await marco.locator('input[name="tipoConsulta"]').first().inputValue().catch(() => "");
-    const ajeno = CATALOGO.find(c => c.codigo !== null && c.codigo === oculto);
-    if (ajeno) {
-      console.log(`  ✗ pedí «${consulta.nombre}» y el formulario quedó con tipoConsulta=${oculto}, que es el de «${ajeno.nombre}». No se consulta.`);
-      return false;
+    const visible = marco.locator('[id="criterio.tipoConsulta"]').first();
+    if (!(await visible.count())) {
+        console.log('  ⚠ no encontré el campo de tipo');
+        return false;
     }
-    if (!oculto) {
-      console.log(`  ✗ pedí «${consulta.nombre}» y el formulario quedó sin tipo puesto. No se consulta.`);
-      return false;
+    await visible.click().catch(() => {});
+    await marco.page().waitForTimeout(800);
+
+    // Las opciones que este acceso ofrece DE VERDAD. Es la evidencia que dice
+    // cómo se llaman las boletas en el portal, en vez de adivinar la etiqueta.
+    const opciones = await marco
+        .locator('li, .ui-menu-item, option')
+        .evaluateAll((els) =>
+            [...new Set(els.map((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter((t) => t.length > 0 && t.length < 60))].slice(0, 40),
+        )
+        .catch(() => [] as string[]);
+    if (opciones.length) console.log(`  · opciones del «Tipo de Consulta»: ${opciones.join(' | ')}`);
+
+    const etiqueta = consulta.etiqueta;
+    const opcion = marco
+        .locator(`li:has-text("${etiqueta}"), .ui-menu-item:has-text("${etiqueta}"), option:has-text("${etiqueta}"), a:has-text("${etiqueta}")`)
+        .first();
+
+    if (await opcion.count()) {
+        await opcion.click().catch(() => {});
+    } else if (consulta.confirmado) {
+        // Respaldo de siempre, solo para los tipos que sabemos que existen:
+        // teclear el texto y Enter. El código se verifica abajo igual.
+        console.log(`  ⚠ no vi la opción «${etiqueta}» en la lista; se teclea y se verifica.`);
+        await visible.fill(etiqueta).catch(() => {});
+        await visible.press('Enter').catch(() => {});
+    } else {
+        console.log(`  ✗ este acceso no ofrece «${etiqueta}» (etiqueta sin confirmar). No se consulta este tipo:`);
+        console.log('    corregí la etiqueta en src/shared/lib/sunat/cpe-consulta.ts con una de las opciones de arriba.');
+        return false;
     }
-    console.log(`  · «${consulta.nombre}» → tipoConsulta=${oculto}  ← anotá este código en src/shared/lib/sunat/cpe-consulta.ts`);
-  }
-  return true;
+
+    // Confirmar que quedó puesto ESTE tipo.
+    //
+    // Los dos campos se actualizan por un evento del combobox, no en el mismo
+    // tic del clic: leerlos de inmediato puede sorprenderlos con el valor
+    // ANTERIOR (el que trae el formulario recién abierto). Abortar por eso sería
+    // romper una consulta que iba bien — y en la corrida diaria, que nadie mira,
+    // se vería como «hoy no había comprobantes». Así que se insiste: se acepta
+    // apenas coincide, y solo se abandona si sigue distinto tras varios
+    // intentos. Esa insistencia distingue medio segundo de desfase de un tipo
+    // mal elegido.
+    //
+    // Con qué se compara depende de lo que se sepa del tipo:
+    //   • con código conocido (las de facturas), contra el campo oculto, que es
+    //     el dato que de verdad viaja a SUNAT;
+    //   • sin código (las de boleta, cuyos códigos todavía no vimos), contra lo
+    //     que muestra el campo visible. Es más flojo, pero atrapa el caso que
+    //     importa: que el combobox se haya quedado en otra cosa.
+    const campo = consulta.codigo ? marco.locator('input[name="tipoConsulta"]').first() : visible;
+    const esperado = consulta.codigo ?? etiqueta;
+
+    let puesto = '';
+    for (let i = 0; i < 6; i++) {
+        puesto = await campo.inputValue().catch(() => '');
+        if (!puesto || normalizar(puesto) === normalizar(esperado)) break;
+        await marco.page().waitForTimeout(500);
+    }
+    if (puesto && normalizar(puesto) !== normalizar(esperado)) {
+        console.log(
+            `  ✗ pedí «${consulta.nombre}» (${consulta.codigo ? `código ${consulta.codigo}` : 'sin código conocido'}) y el formulario quedó en «${puesto}». No se consulta, para no bajar otro tipo creyendo que es este.`,
+        );
+        return false;
+    }
+
+    // Para un tipo SIN código conocido queda un agujero que hay que tapar aparte.
+    //
+    // El run del 28/09/2026 mostró que en este portal la opción casi nunca se
+    // encuentra en la lista, así que lo normal es entrar por el respaldo: teclear
+    // la etiqueta y pulsar Enter. Y entonces la comprobación de arriba —campo
+    // visible contra etiqueta— se vuelve VACÍA: acabamos de escribir esa etiqueta
+    // ahí nosotros, así que siempre coincide. Una verificación que no verifica.
+    //
+    // Lo que sí dice la verdad es el campo oculto. No sabemos qué código le toca
+    // a este tipo, pero sí sabemos los de los demás: si quedó puesto el de OTRO,
+    // el combobox no resolvió lo que tecleamos y estaríamos por bajar ese otro
+    // tipo con el nombre de este.
+    if (!consulta.codigo) {
+        const oculto = await marco
+            .locator('input[name="tipoConsulta"]')
+            .first()
+            .inputValue()
+            .catch(() => '');
+        const ajeno = CATALOGO.find((c) => c.codigo !== null && c.codigo === oculto);
+        if (ajeno) {
+            console.log(`  ✗ pedí «${consulta.nombre}» y el formulario quedó con tipoConsulta=${oculto}, que es el de «${ajeno.nombre}». No se consulta.`);
+            return false;
+        }
+        if (!oculto) {
+            console.log(`  ✗ pedí «${consulta.nombre}» y el formulario quedó sin tipo puesto. No se consulta.`);
+            return false;
+        }
+        console.log(`  · «${consulta.nombre}» → tipoConsulta=${oculto}  ← anotá este código en src/shared/lib/sunat/cpe-consulta.ts`);
+    }
+    return true;
 }
 
 /**
@@ -484,17 +510,20 @@ async function elegirTipo(marco: Frame, consulta: Consulta): Promise<boolean> {
  * exactos y se evita el genérico.
  */
 async function clicAceptar(marco: Frame) {
-  const intentos = [
-    () => marco.locator('input[value="Aceptar"], input[value=" Aceptar "]'),
-    () => marco.locator('img[alt="Aceptar"], img[title="Aceptar"], [title="Aceptar"]'),
-    () => marco.getByText("Aceptar", { exact: true }),
-    () => marco.locator('a:has-text("Aceptar")'),
-  ];
-  for (const get of intentos) {
-    const loc = get().first();
-    if (await loc.count()) { await loc.click({ timeout: 10000 }).catch(() => {}); return; }
-  }
-  console.log("  ⚠ no encontré el botón Aceptar");
+    const intentos = [
+        () => marco.locator('input[value="Aceptar"], input[value=" Aceptar "]'),
+        () => marco.locator('img[alt="Aceptar"], img[title="Aceptar"], [title="Aceptar"]'),
+        () => marco.getByText('Aceptar', { exact: true }),
+        () => marco.locator('a:has-text("Aceptar")'),
+    ];
+    for (const get of intentos) {
+        const loc = get().first();
+        if (await loc.count()) {
+            await loc.click({ timeout: 10000 }).catch(() => {});
+            return;
+        }
+    }
+    console.log('  ⚠ no encontré el botón Aceptar');
 }
 
 /**
@@ -507,18 +536,21 @@ async function clicAceptar(marco: Frame) {
  * la próxima vez que SUNAT renombre algo.
  */
 async function opcionesDelMenu(page: Page) {
-  for (const f of page.frames()) {
-    let textos: string[] = [];
-    try {
-      textos = await f.locator("a, li").evaluateAll(els => [...new Set(
-        els.map(e => (e.textContent || "").replace(/\s+/g, " ").trim())
-          .filter(t => t.length > 3 && t.length < 70)
-      )].slice(0, 50));
-    } catch { continue; }
-    if (textos.length === 0) continue;
-    console.log(`  · menú visible en ${f.url().slice(0, 60) || "(principal)"}:`);
-    textos.forEach(t => console.log(`     – ${t}`));
-  }
+    for (const f of page.frames()) {
+        let textos: string[] = [];
+        try {
+            textos = await f
+                .locator('a, li')
+                .evaluateAll((els) =>
+                    [...new Set(els.map((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter((t) => t.length > 3 && t.length < 70))].slice(0, 50),
+                );
+        } catch {
+            continue;
+        }
+        if (textos.length === 0) continue;
+        console.log(`  · menú visible en ${f.url().slice(0, 60) || '(principal)'}:`);
+        textos.forEach((t) => console.log(`     – ${t}`));
+    }
 }
 
 /**
@@ -543,47 +575,63 @@ async function opcionesDelMenu(page: Page) {
  * pestaña del módulo que haya quedado abierta.
  */
 async function abrirModuloConsulta(page: Page, menu: string[]): Promise<boolean> {
-  console.log(`Menú → ${menu.join(" → ")}…`);
-  await irConReintento(page, LOGIN_URL);
-  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-  await evidencia(page, "menu-inicio");
-  console.log(`  · frames: ${page.frames().map(f => f.url() || "(vacío)").join(" | ")}`);
+    console.log(`Menú → ${menu.join(' → ')}…`);
+    await irConReintento(page, LOGIN_URL);
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    await evidencia(page, 'menu-inicio');
+    console.log(
+        `  · frames: ${page
+            .frames()
+            .map((f) => f.url() || '(vacío)')
+            .join(' | ')}`,
+    );
 
-  let completo = true;
-  for (const [i, texto] of menu.entries()) {
-    const ultimo = i === menu.length - 1;
-    if (await clicEnAlgunMarco(page, texto)) {
-      await page.waitForTimeout(ultimo ? 3000 : 1500);
-      if (!ultimo) await evidencia(page, `menu-${slug(texto)}`);
-      continue;
+    let completo = true;
+    for (const [i, texto] of menu.entries()) {
+        const ultimo = i === menu.length - 1;
+        if (await clicEnAlgunMarco(page, texto)) {
+            await page.waitForTimeout(ultimo ? 3000 : 1500);
+            if (!ultimo) await evidencia(page, `menu-${slug(texto)}`);
+            continue;
+        }
+        completo = false;
+
+        // Un texto del menú que no está es lo que hay que saber con nombre y
+        // apellido: se dice cuál, y se lista lo que el menú sí ofrece.
+        console.log(`  ⚠ no encontré «${texto}» en el menú de este acceso.`);
+        await opcionesDelMenu(page);
+
+        // El respaldo de siempre para facturas y notas: la ruta larga por
+        // «Comprobantes de pago», por si el acceso directo no está.
+        if (texto === 'Consulta de Facturas y Notas Electrónicas') {
+            await clicEnAlgunMarco(page, 'Comprobantes de pago');
+            await page.waitForTimeout(1000);
+            if (await clicEnAlgunMarco(page, 'Consultar Factura y Nota')) completo = true;
+            await page.waitForTimeout(3000);
+        }
     }
-    completo = false;
-
-    // Un texto del menú que no está es lo que hay que saber con nombre y
-    // apellido: se dice cuál, y se lista lo que el menú sí ofrece.
-    console.log(`  ⚠ no encontré «${texto}» en el menú de este acceso.`);
-    await opcionesDelMenu(page);
-
-    // El respaldo de siempre para facturas y notas: la ruta larga por
-    // «Comprobantes de pago», por si el acceso directo no está.
-    if (texto === "Consulta de Facturas y Notas Electrónicas") {
-      await clicEnAlgunMarco(page, "Comprobantes de pago");
-      await page.waitForTimeout(1000);
-      if (await clicEnAlgunMarco(page, "Consultar Factura y Nota")) completo = true;
-      await page.waitForTimeout(3000);
-    }
-  }
-  await evidencia(page, "consulta-abierta");
-  return completo;
+    await evidencia(page, 'consulta-abierta');
+    return completo;
 }
 
 /** Un nombre de archivo seguro para las capturas, a partir del tipo de consulta. */
 function slug(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-");
+    return s
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-');
 }
 
-interface ArchivoBajado { nombre: string; datos: Buffer; tipo: string }
-interface FilaBajada { xml: ArchivoBajado | null; pdf: ArchivoBajado | null }
+interface ArchivoBajado {
+    nombre: string;
+    datos: Buffer;
+    tipo: string;
+}
+interface FilaBajada {
+    xml: ArchivoBajado | null;
+    pdf: ArchivoBajado | null;
+}
 
 /**
  * El total real de una tabla de resultados, leído del propio widget en vez
@@ -595,16 +643,16 @@ interface FilaBajada { xml: ArchivoBajado | null; pdf: ArchivoBajado | null }
  * total (`rowCount`), sin importar cuánto se haya scrolleado.
  */
 async function rowCountDeGrid(f: Frame): Promise<number | null> {
-  try {
-    return await f.evaluate(() => {
-      const w = window as unknown as { dijit?: { registry?: { toArray?: () => Array<Record<string, unknown>> } } };
-      const widgets = w.dijit?.registry?.toArray?.() ?? [];
-      const grid = widgets.find((x) => typeof x.rowCount === "number");
-      return grid ? (grid.rowCount as number) : null;
-    });
-  } catch {
-    return null;
-  }
+    try {
+        return await f.evaluate(() => {
+            const w = window as unknown as { dijit?: { registry?: { toArray?: () => Array<Record<string, unknown>> } } };
+            const widgets = w.dijit?.registry?.toArray?.() ?? [];
+            const grid = widgets.find((x) => typeof x.rowCount === 'number');
+            return grid ? (grid.rowCount as number) : null;
+        });
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -631,18 +679,23 @@ async function rowCountDeGrid(f: Frame): Promise<number | null> {
  * respaldo por enlaces baja igual.
  */
 function hayDescargaPorIndice(f: Frame): Promise<boolean> {
-  return f.evaluate(() => {
-    const w = window as unknown as Record<string, Record<string, unknown> | undefined>;
-    return typeof w.consultaFactura?.descargar === "function";
-  }).catch(() => false);
+    return f
+        .evaluate(() => {
+            const w = window as unknown as Record<string, Record<string, unknown> | undefined>;
+            return typeof w.consultaFactura?.descargar === 'function';
+        })
+        .catch(() => false);
 }
 
-function descargarPorIndice(f: Frame, indice: number, metodo: "descargar" | "descargarComprobantePdf") {
-  return f.evaluate(({ i, m }) => {
-    const w = window as unknown as Record<string, Record<string, (i: string) => void> | undefined>;
-    const cf = w.consultaFactura;
-    if (cf && typeof cf[m] === "function") cf[m](String(i));
-  }, { i: indice, m: metodo });
+function descargarPorIndice(f: Frame, indice: number, metodo: 'descargar' | 'descargarComprobantePdf') {
+    return f.evaluate(
+        ({ i, m }) => {
+            const w = window as unknown as Record<string, Record<string, (i: string) => void> | undefined>;
+            const cf = w.consultaFactura;
+            if (cf && typeof cf[m] === 'function') cf[m](String(i));
+        },
+        { i: indice, m: metodo },
+    );
 }
 
 /**
@@ -663,182 +716,224 @@ function descargarPorIndice(f: Frame, indice: number, metodo: "descargar" | "des
  * cambia de verdad es el camino del menú, y eso ya lo dice el catálogo.
  */
 async function consultarUnTipo(page: Page, consulta: Consulta, desde: string, hasta: string): Promise<FilaBajada[] | null> {
-  const tipo = consulta.nombre;
-  const marco = await marcoConsulta(page);
-  if (!marco) {
-    console.log(`  ✗ ${tipo}: no se abrió el formulario de consulta. Revisa la captura «consulta-abierta».`);
-    await evidencia(page, `sin-formulario-${slug(tipo)}`);
-    return null;
-  }
-  console.log(`  · marco de la consulta: ${marco.url() || "(principal)"}`);
-
-  // Radiografía: qué hay de verdad en cada frame, para fijar los selectores
-  // sin adivinar. Se imprime al log; en depuración es la evidencia clave.
-  if (DEBUG) await radiografia(page);
-
-  // Fechas: por su nombre real (fec_desde / fec_hasta), no por posición —la
-  // radiografía mostró que hay varios inputs de texto y contar posiciones caía
-  // en los equivocados—.
-  await ponerFechaPorNombre(marco, "fec_desde", desde);
-  await ponerFechaPorNombre(marco, "fec_hasta", hasta);
-
-  // Tipo de Consulta: no es un <select> sino un combobox (input visible
-  // #criterio.tipoConsulta + hidden name=tipoConsulta). Se maneja como un
-  // humano: clic en el visible y clic en la opción. Si no se pudo dejar ESTE
-  // tipo puesto, se abandona la consulta: bajar lo que haya quedado en el
-  // formulario sería archivarlo bajo un nombre que no le corresponde.
-  if (!await elegirTipo(marco, consulta)) {
-    await evidencia(page, `sin-tipo-${slug(tipo)}`);
-    return null;
-  }
-
-  // Confirmar qué quedó puesto de verdad en el formulario.
-  const leer = async (n: string) => (await marco.locator(`input[name="${n}"]`).first().inputValue().catch(() => "?"));
-  console.log(`  · form [${tipo}]: fec_desde=${await leer("fec_desde")} fec_hasta=${await leer("fec_hasta")} tipo(hidden)=${await leer("tipoConsulta")}`);
-  await evidencia(page, `consulta-lista-${slug(tipo)}`);
-
-  // Aceptar: es un <input type="button"> con su texto en value.
-  await clicAceptar(marco);
-
-  // Tras Aceptar, la tabla de resultados carga en OTRO frame (anidado), no en
-  // el del formulario. Se sondean todos los frames buscando la grilla dojox
-  // —ahí vive el total real (`rowCount`), sin depender de cuántas filas
-  // estén pintadas—. Si no aparece ninguna en ~20s, se cae al respaldo de
-  // contar enlaces «Descargar Factura» (el camino viejo, por si el portal
-  // cambia y deja de usar esa grilla, o da un resultado vacío sin ella).
-  let res: Frame = marco;
-  let descargas = 0;
-  let usandoRowCount = false;
-  // 30 intentos × 2s = 60s. Un mes chico arma la grilla casi al toque, pero
-  // uno cargado (julio: FE Recibidas tardó 51s en aparecer) puede tardar más
-  // que los 20s de antes —y con eso caía al respaldo viejo (tope ~25) aunque
-  // la grilla sí existiera, solo que tarde—.
-  for (let i = 0; i < 30; i++) {
-    for (const f of page.frames()) {
-      const rc = await rowCountDeGrid(f);
-      if (rc != null) { descargas = rc; res = f; usandoRowCount = true; break; }
+    const tipo = consulta.nombre;
+    const marco = await marcoConsulta(page);
+    if (!marco) {
+        console.log(`  ✗ ${tipo}: no se abrió el formulario de consulta. Revisa la captura «consulta-abierta».`);
+        await evidencia(page, `sin-formulario-${slug(tipo)}`);
+        return null;
     }
-    if (usandoRowCount) break;
-    await page.waitForTimeout(2000);
-  }
+    console.log(`  · marco de la consulta: ${marco.url() || '(principal)'}`);
 
-  if (!usandoRowCount) {
-    // Respaldo: el conteo por enlaces de antes. Sirve tal cual para un
-    // resultado vacío (0 enlaces = 0 comprobantes) y como red de seguridad
-    // si la grilla no se pudo leer.
-    for (let i = 0; i < 15; i++) {
-      let maxAhora = 0;
-      let marcoAhora: Frame = res;
-      for (const f of page.frames()) {
+    // Radiografía: qué hay de verdad en cada frame, para fijar los selectores
+    // sin adivinar. Se imprime al log; en depuración es la evidencia clave.
+    if (DEBUG) await radiografia(page);
+
+    // Fechas: por su nombre real (fec_desde / fec_hasta), no por posición —la
+    // radiografía mostró que hay varios inputs de texto y contar posiciones caía
+    // en los equivocados—.
+    await ponerFechaPorNombre(marco, 'fec_desde', desde);
+    await ponerFechaPorNombre(marco, 'fec_hasta', hasta);
+
+    // Tipo de Consulta: no es un <select> sino un combobox (input visible
+    // #criterio.tipoConsulta + hidden name=tipoConsulta). Se maneja como un
+    // humano: clic en el visible y clic en la opción. Si no se pudo dejar ESTE
+    // tipo puesto, se abandona la consulta: bajar lo que haya quedado en el
+    // formulario sería archivarlo bajo un nombre que no le corresponde.
+    if (!(await elegirTipo(marco, consulta))) {
+        await evidencia(page, `sin-tipo-${slug(tipo)}`);
+        return null;
+    }
+
+    // Confirmar qué quedó puesto de verdad en el formulario.
+    const leer = async (n: string) =>
+        await marco
+            .locator(`input[name="${n}"]`)
+            .first()
+            .inputValue()
+            .catch(() => '?');
+    console.log(`  · form [${tipo}]: fec_desde=${await leer('fec_desde')} fec_hasta=${await leer('fec_hasta')} tipo(hidden)=${await leer('tipoConsulta')}`);
+    await evidencia(page, `consulta-lista-${slug(tipo)}`);
+
+    // Aceptar: es un <input type="button"> con su texto en value.
+    await clicAceptar(marco);
+
+    // Tras Aceptar, la tabla de resultados carga en OTRO frame (anidado), no en
+    // el del formulario. Se sondean todos los frames buscando la grilla dojox
+    // —ahí vive el total real (`rowCount`), sin depender de cuántas filas
+    // estén pintadas—. Si no aparece ninguna en ~20s, se cae al respaldo de
+    // contar enlaces «Descargar Factura» (el camino viejo, por si el portal
+    // cambia y deja de usar esa grilla, o da un resultado vacío sin ella).
+    let res: Frame = marco;
+    let descargas = 0;
+    let usandoRowCount = false;
+    // 30 intentos × 2s = 60s. Un mes chico arma la grilla casi al toque, pero
+    // uno cargado (julio: FE Recibidas tardó 51s en aparecer) puede tardar más
+    // que los 20s de antes —y con eso caía al respaldo viejo (tope ~25) aunque
+    // la grilla sí existiera, solo que tarde—.
+    for (let i = 0; i < 30; i++) {
+        for (const f of page.frames()) {
+            const rc = await rowCountDeGrid(f);
+            if (rc != null) {
+                descargas = rc;
+                res = f;
+                usandoRowCount = true;
+                break;
+            }
+        }
+        if (usandoRowCount) break;
+        await page.waitForTimeout(2000);
+    }
+
+    if (!usandoRowCount) {
+        // Respaldo: el conteo por enlaces de antes. Sirve tal cual para un
+        // resultado vacío (0 enlaces = 0 comprobantes) y como red de seguridad
+        // si la grilla no se pudo leer.
+        for (let i = 0; i < 15; i++) {
+            let maxAhora = 0;
+            let marcoAhora: Frame = res;
+            for (const f of page.frames()) {
+                try {
+                    const c = await f.locator(SEL_XML).count();
+                    if (c > maxAhora) {
+                        maxAhora = c;
+                        marcoAhora = f;
+                    }
+                } catch {
+                    /* frame navegando */
+                }
+            }
+            if (maxAhora > descargas) {
+                descargas = maxAhora;
+                res = marcoAhora;
+            }
+            if (descargas > 0) break;
+            await page.waitForTimeout(2000);
+        }
+    }
+
+    await evidencia(page, `resultados-${slug(tipo)}`);
+    console.log(
+        `  · resultados [${tipo}]: ${descargas} comprobantes (${usandoRowCount ? 'rowCount de la grilla' : 'conteo de enlaces, respaldo'}) en ${res.url().slice(0, 70)}`,
+    );
+    if (descargas === 0) {
+        // Si no hay nada, radiografiar para ver dónde quedó la tabla.
+        await radiografia(page);
+    }
+
+    if (PROBAR_IMPRIMIR && RANGO_PRUEBA_IMPRIMIR) {
         try {
-          const c = await f.locator(SEL_XML).count();
-          if (c > maxAhora) { maxAhora = c; marcoAhora = f; }
-        } catch { /* frame navegando */ }
-      }
-      if (maxAhora > descargas) { descargas = maxAhora; res = marcoAhora; }
-      if (descargas > 0) break;
-      await page.waitForTimeout(2000);
+            const codigoTipo = await leer('tipoConsulta');
+            const url =
+                'https://ww1.sunat.gob.pe/ol-ti-itconscpemype/consultar.do?action=imprimirListado' +
+                `&periodoDesc=${encodeURIComponent(RANGO_PRUEBA_IMPRIMIR)}&tipoConsulta=${encodeURIComponent(codigoTipo)}`;
+            const html = await res.evaluate((u) => fetch(u, { credentials: 'include' }).then((r) => r.text()), url);
+            writeFileSync(join(CAPTURAS, `zz-imprimir-${slug(tipo)}.html`), html);
+            const periodoEnHtml =
+                html.match(/del\s*Periodo\s*<\/?[^>]*>?\s*([\d/ -]+)/i)?.[1]?.trim() ?? html.match(/(\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4})/)?.[1];
+            const filas = (html.match(/<tr[ >]/gi) ?? []).length;
+            console.log(
+                `  · PRUEBA imprimirListado [${tipo}]: se consultó "${desde} - ${hasta}", se pidió el listado con "${RANGO_PRUEBA_IMPRIMIR}" → el HTML dice periodo "${periodoEnHtml}", ${filas} filas <tr>.`,
+            );
+        } catch (e) {
+            console.log(`  · PRUEBA imprimirListado [${tipo}] falló: ${e instanceof Error ? e.message : e}`);
+        }
     }
-  }
 
-  await evidencia(page, `resultados-${slug(tipo)}`);
-  console.log(`  · resultados [${tipo}]: ${descargas} comprobantes (${usandoRowCount ? "rowCount de la grilla" : "conteo de enlaces, respaldo"}) en ${res.url().slice(0, 70)}`);
-  if (descargas === 0) {
-    // Si no hay nada, radiografiar para ver dónde quedó la tabla.
-    await radiografia(page);
-  }
-
-  if (PROBAR_IMPRIMIR && RANGO_PRUEBA_IMPRIMIR) {
-    try {
-      const codigoTipo = await leer("tipoConsulta");
-      const url = "https://ww1.sunat.gob.pe/ol-ti-itconscpemype/consultar.do?action=imprimirListado"
-        + `&periodoDesc=${encodeURIComponent(RANGO_PRUEBA_IMPRIMIR)}&tipoConsulta=${encodeURIComponent(codigoTipo)}`;
-      const html = await res.evaluate((u) => fetch(u, { credentials: "include" }).then((r) => r.text()), url);
-      writeFileSync(join(CAPTURAS, `zz-imprimir-${slug(tipo)}.html`), html);
-      const periodoEnHtml = html.match(/del\s*Periodo\s*<\/?[^>]*>?\s*([\d/ -]+)/i)?.[1]?.trim()
-        ?? html.match(/(\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4})/)?.[1];
-      const filas = (html.match(/<tr[ >]/gi) ?? []).length;
-      console.log(`  · PRUEBA imprimirListado [${tipo}]: se consultó "${desde} - ${hasta}", se pidió el listado con "${RANGO_PRUEBA_IMPRIMIR}" → el HTML dice periodo "${periodoEnHtml}", ${filas} filas <tr>.`);
-    } catch (e) {
-      console.log(`  · PRUEBA imprimirListado [${tipo}] falló: ${e instanceof Error ? e.message : e}`);
+    if (DEBUG) {
+        console.log(`Modo depuración [${tipo}]: se ven ${descargas} comprobantes. No se baja nada.`);
+        return [];
     }
-  }
 
-  if (DEBUG) {
-    console.log(`Modo depuración [${tipo}]: se ven ${descargas} comprobantes. No se baja nada.`);
-    return [];
-  }
-
-  // La grilla puede existir sin que exista la función que baja por índice
-  // —módulos distintos del portal—. Se comprueba antes de comprometerse.
-  const porIndice = usandoRowCount && await hayDescargaPorIndice(res);
-  if (usandoRowCount && !porIndice) {
-    const enlaces = await res.locator(SEL_XML).count().catch(() => 0);
-    console.log(`  ⚠ hay grilla (${descargas} filas) pero este módulo no expone consultaFactura.descargar. Se baja clicando los ${enlaces} enlaces.`);
-    if (enlaces > 0 && enlaces < descargas) {
-      // El caso que el fix por índice existía para evitar: la grilla dojox
-      // solo pinta las filas visibles. Si acá pasa, el registro lo dice en vez
-      // de que la descarga se corte en silencio.
-      console.log(`  ⚠ y solo se ven ${enlaces} de ${descargas}: la tabla está virtualizada y faltarían ${descargas - enlaces}.`);
+    // La grilla puede existir sin que exista la función que baja por índice
+    // —módulos distintos del portal—. Se comprueba antes de comprometerse.
+    const porIndice = usandoRowCount && (await hayDescargaPorIndice(res));
+    if (usandoRowCount && !porIndice) {
+        const enlaces = await res
+            .locator(SEL_XML)
+            .count()
+            .catch(() => 0);
+        console.log(`  ⚠ hay grilla (${descargas} filas) pero este módulo no expone consultaFactura.descargar. Se baja clicando los ${enlaces} enlaces.`);
+        if (enlaces > 0 && enlaces < descargas) {
+            // El caso que el fix por índice existía para evitar: la grilla dojox
+            // solo pinta las filas visibles. Si acá pasa, el registro lo dice en vez
+            // de que la descarga se corte en silencio.
+            console.log(`  ⚠ y solo se ven ${enlaces} de ${descargas}: la tabla está virtualizada y faltarían ${descargas - enlaces}.`);
+        }
+        descargas = enlaces;
     }
-    descargas = enlaces;
-  }
 
-  console.log(`Bajando ${descargas} comprobantes de ${tipo} (XML + PDF)…`);
-  const salida: FilaBajada[] = [];
+    console.log(`Bajando ${descargas} comprobantes de ${tipo} (XML + PDF)…`);
+    const salida: FilaBajada[] = [];
 
-  if (porIndice) {
-    // Se llama directo a la función de SUNAT por índice de fila: no depende
-    // de que esa fila esté pintada ni de cómo se llame su enlace (distinto
-    // entre FE y NC/ND).
-    //
-    // La grilla trae los datos del servidor en tandas de 25: al cruzar a una
-    // tanda nueva (fila 26, 51, 76…), la PRIMERA lectura de esa tanda puede
-    // llegar antes de que SUNAT termine de traerla —se vio en un run real,
-    // "Cannot read properties of null (reading 'nroRucEmisor')" justo en
-    // esos índices, y nunca en los de en medio—. Un reintento corto alcanza:
-    // para cuando se reintenta, la tanda ya cargó.
-    for (let i = 0; i < descargas; i++) {
-      let xmlArchivo: ArchivoBajado | null = null;
-      let pdfArchivo: ArchivoBajado | null = null;
-      try {
-        xmlArchivo = await bajar(page, () => descargarPorIndice(res, i, "descargar"));
-      } catch (e) {
-        console.log(`  · XML fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e} — reintentando…`);
-        await page.waitForTimeout(1500);
-        try { xmlArchivo = await bajar(page, () => descargarPorIndice(res, i, "descargar")); } catch (e2) { console.log(`  · XML fila ${i + 1} [${tipo}]: ${e2 instanceof Error ? e2.message : e2}`); }
-      }
-      try {
-        pdfArchivo = await bajar(page, () => descargarPorIndice(res, i, "descargarComprobantePdf"));
-      } catch (e) {
-        console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e} — reintentando…`);
-        await page.waitForTimeout(1500);
-        try { pdfArchivo = await bajar(page, () => descargarPorIndice(res, i, "descargarComprobantePdf")); } catch (e2) { console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e2 instanceof Error ? e2.message : e2}`); }
-      }
-      salida.push({ xml: xmlArchivo, pdf: pdfArchivo });
+    if (porIndice) {
+        // Se llama directo a la función de SUNAT por índice de fila: no depende
+        // de que esa fila esté pintada ni de cómo se llame su enlace (distinto
+        // entre FE y NC/ND).
+        //
+        // La grilla trae los datos del servidor en tandas de 25: al cruzar a una
+        // tanda nueva (fila 26, 51, 76…), la PRIMERA lectura de esa tanda puede
+        // llegar antes de que SUNAT termine de traerla —se vio en un run real,
+        // "Cannot read properties of null (reading 'nroRucEmisor')" justo en
+        // esos índices, y nunca en los de en medio—. Un reintento corto alcanza:
+        // para cuando se reintenta, la tanda ya cargó.
+        for (let i = 0; i < descargas; i++) {
+            let xmlArchivo: ArchivoBajado | null = null;
+            let pdfArchivo: ArchivoBajado | null = null;
+            try {
+                xmlArchivo = await bajar(page, () => descargarPorIndice(res, i, 'descargar'));
+            } catch (e) {
+                console.log(`  · XML fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e} — reintentando…`);
+                await page.waitForTimeout(1500);
+                try {
+                    xmlArchivo = await bajar(page, () => descargarPorIndice(res, i, 'descargar'));
+                } catch (e2) {
+                    console.log(`  · XML fila ${i + 1} [${tipo}]: ${e2 instanceof Error ? e2.message : e2}`);
+                }
+            }
+            try {
+                pdfArchivo = await bajar(page, () => descargarPorIndice(res, i, 'descargarComprobantePdf'));
+            } catch (e) {
+                console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e} — reintentando…`);
+                await page.waitForTimeout(1500);
+                try {
+                    pdfArchivo = await bajar(page, () => descargarPorIndice(res, i, 'descargarComprobantePdf'));
+                } catch (e2) {
+                    console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e2 instanceof Error ? e2.message : e2}`);
+                }
+            }
+            salida.push({ xml: xmlArchivo, pdf: pdfArchivo });
 
-      // Espaciar las solicitudes: un mes cargado (400+ comprobantes) pidiendo
-      // XML+PDF fila tras fila sin pausa parece ser lo que dispara el
-      // "User rate limit exceeded" de SUNAT a mitad de descarga (visto real
-      // en julio, cortado en la fila 401 de 410). Una pausa corta baja el
-      // ritmo sin alargar demasiado la corrida.
-      await page.waitForTimeout(400);
+            // Espaciar las solicitudes: un mes cargado (400+ comprobantes) pidiendo
+            // XML+PDF fila tras fila sin pausa parece ser lo que dispara el
+            // "User rate limit exceeded" de SUNAT a mitad de descarga (visto real
+            // en julio, cortado en la fila 401 de 410). Una pausa corta baja el
+            // ritmo sin alargar demasiado la corrida.
+            await page.waitForTimeout(400);
+        }
+    } else {
+        // Respaldo: el clic por enlace. Es lo correcto cuando la tabla NO es la
+        // grilla dojox —una tabla HTML común trae todas sus filas en el documento,
+        // así que contar enlaces no se queda corto—.
+        const xml = res.locator(SEL_XML);
+        const pdf = res.locator(SEL_PDF);
+        for (let i = 0; i < descargas; i++) {
+            let xmlArchivo: ArchivoBajado | null = null;
+            let pdfArchivo: ArchivoBajado | null = null;
+            try {
+                xmlArchivo = await bajar(page, () => xml.nth(i).click());
+            } catch (e) {
+                console.log(`  · XML fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e}`);
+            }
+            try {
+                pdfArchivo = await bajar(page, () => pdf.nth(i).click());
+            } catch (e) {
+                console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e}`);
+            }
+            salida.push({ xml: xmlArchivo, pdf: pdfArchivo });
+        }
     }
-  } else {
-    // Respaldo: el clic por enlace. Es lo correcto cuando la tabla NO es la
-    // grilla dojox —una tabla HTML común trae todas sus filas en el documento,
-    // así que contar enlaces no se queda corto—.
-    const xml = res.locator(SEL_XML);
-    const pdf = res.locator(SEL_PDF);
-    for (let i = 0; i < descargas; i++) {
-      let xmlArchivo: ArchivoBajado | null = null;
-      let pdfArchivo: ArchivoBajado | null = null;
-      try { xmlArchivo = await bajar(page, () => xml.nth(i).click()); } catch (e) { console.log(`  · XML fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e}`); }
-      try { pdfArchivo = await bajar(page, () => pdf.nth(i).click()); } catch (e) { console.log(`  · PDF fila ${i + 1} [${tipo}]: ${e instanceof Error ? e.message : e}`); }
-      salida.push({ xml: xmlArchivo, pdf: pdfArchivo });
-    }
-  }
-  return salida;
+    return salida;
 }
 
 /**
@@ -849,68 +944,90 @@ async function consultarUnTipo(page: Page, consulta: Consulta, desde: string, ha
  * un select o un widget, y cómo son los enlaces de descarga.
  */
 async function radiografia(page: Page) {
-  for (const f of page.frames()) {
-    let inputs = 0, selects = 0, descargas = 0, tipo = false;
-    try {
-      inputs = await f.locator("input").count();
-      selects = await f.locator("select").count();
-      descargas = await f.locator("text=Descargar").count();
-      tipo = (await f.locator("text=Tipo de Consulta").count()) > 0;
-    } catch { continue; }
-    if (inputs === 0 && selects === 0 && descargas === 0 && !tipo) continue;
+    for (const f of page.frames()) {
+        let inputs = 0,
+            selects = 0,
+            descargas = 0,
+            tipo = false;
+        try {
+            inputs = await f.locator('input').count();
+            selects = await f.locator('select').count();
+            descargas = await f.locator('text=Descargar').count();
+            tipo = (await f.locator('text=Tipo de Consulta').count()) > 0;
+        } catch {
+            continue;
+        }
+        if (inputs === 0 && selects === 0 && descargas === 0 && !tipo) continue;
 
-    console.log(`\n▚ FRAME ${f.url().slice(0, 90)}`);
-    console.log(`   inputs=${inputs} selects=${selects} descargas=${descargas} tipoConsulta=${tipo}`);
-    try {
-      const campos = await f.locator("input,select,textarea").evaluateAll(els =>
-        els.slice(0, 25).map(el => {
-          const e = el as HTMLInputElement | HTMLSelectElement;
-          const tag = e.tagName.toLowerCase();
-          const tipo = (e as HTMLInputElement).type || "";
-          const opts = tag === "select"
-            ? " opts=[" + Array.from((e as HTMLSelectElement).options).map(o => o.text.trim()).join("|") + "]"
-            : "";
-          return `${tag}#${e.id || "-"}[name=${e.name || "-"} type=${tipo}]${opts}`;
-        }));
-      campos.forEach(c => console.log(`     · ${c}`));
-    } catch { /* frame ajeno */ }
+        console.log(`\n▚ FRAME ${f.url().slice(0, 90)}`);
+        console.log(`   inputs=${inputs} selects=${selects} descargas=${descargas} tipoConsulta=${tipo}`);
+        try {
+            const campos = await f.locator('input,select,textarea').evaluateAll((els) =>
+                els.slice(0, 25).map((el) => {
+                    const e = el as HTMLInputElement | HTMLSelectElement;
+                    const tag = e.tagName.toLowerCase();
+                    const tipo = (e as HTMLInputElement).type || '';
+                    const opts =
+                        tag === 'select'
+                            ? ' opts=[' +
+                              Array.from((e as HTMLSelectElement).options)
+                                  .map((o) => o.text.trim())
+                                  .join('|') +
+                              ']'
+                            : '';
+                    return `${tag}#${e.id || '-'}[name=${e.name || '-'} type=${tipo}]${opts}`;
+                }),
+            );
+            campos.forEach((c) => console.log(`     · ${c}`));
+        } catch {
+            /* frame ajeno */
+        }
 
-    if (descargas > 0) {
-      try {
-        const links = await f.locator("a").evaluateAll(els =>
-          els.filter(a => /descargar/i.test(a.textContent || "")).slice(0, 4)
-            .map(a => `${(a.textContent || "").trim().slice(0, 40)} → ${(a as HTMLAnchorElement).getAttribute("href")?.slice(0, 60) || "(js)"}`));
-        links.forEach(l => console.log(`     ↓ ${l}`));
-      } catch { /* nada */ }
+        if (descargas > 0) {
+            try {
+                const links = await f.locator('a').evaluateAll((els) =>
+                    els
+                        .filter((a) => /descargar/i.test(a.textContent || ''))
+                        .slice(0, 4)
+                        .map((a) => `${(a.textContent || '').trim().slice(0, 40)} → ${(a as HTMLAnchorElement).getAttribute('href')?.slice(0, 60) || '(js)'}`),
+                );
+                links.forEach((l) => console.log(`     ↓ ${l}`));
+            } catch {
+                /* nada */
+            }
+        }
     }
-  }
-  console.log("");
+    console.log('');
 }
 
 /** Dispara una descarga y la devuelve como buffer con su nombre. */
 async function bajar(page: Page, accion: () => Promise<void>): Promise<{ nombre: string; datos: Buffer; tipo: string }> {
-  const [descarga] = await Promise.all([
-    page.waitForEvent("download", { timeout: 60000 }) as Promise<Download>,
-    accion(),
-  ]);
-  const stream = await descarga.createReadStream();
-  const trozos: Buffer[] = [];
-  for await (const t of stream) trozos.push(t as Buffer);
-  const nombre = descarga.suggestedFilename();
-  const tipo = /\.pdf$/i.test(nombre) ? "application/pdf"
-    : /\.(xml|zip)$/i.test(nombre) ? (/\.zip$/i.test(nombre) ? "application/zip" : "application/xml")
-    : "application/octet-stream";
-  return { nombre, datos: Buffer.concat(trozos), tipo };
+    const [descarga] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }) as Promise<Download>, accion()]);
+    const stream = await descarga.createReadStream();
+    const trozos: Buffer[] = [];
+    for await (const t of stream) trozos.push(t as Buffer);
+    const nombre = descarga.suggestedFilename();
+    const tipo = /\.pdf$/i.test(nombre)
+        ? 'application/pdf'
+        : /\.(xml|zip)$/i.test(nombre)
+          ? /\.zip$/i.test(nombre)
+              ? 'application/zip'
+              : 'application/xml'
+          : 'application/octet-stream';
+    return { nombre, datos: Buffer.concat(trozos), tipo };
 }
 
 // ── Archivar en Drive ─────────────────────────────────────────────
 
 function clienteDrive() {
-  const email = correoDeServicio(process.env.GOOGLE_SA_EMAIL, process.env.GOOGLE_SA_PRIVATE_KEY);
-  const key = normalizarClavePrivada(process.env.GOOGLE_SA_PRIVATE_KEY);
-  if (!email || !key) { console.error("✗ Faltan GOOGLE_SA_EMAIL / GOOGLE_SA_PRIVATE_KEY."); process.exit(1); }
-  const auth = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/drive"] });
-  return google.drive({ version: "v3", auth });
+    const email = correoDeServicio(process.env.GOOGLE_SA_EMAIL, process.env.GOOGLE_SA_PRIVATE_KEY);
+    const key = normalizarClavePrivada(process.env.GOOGLE_SA_PRIVATE_KEY);
+    if (!email || !key) {
+        console.error('✗ Faltan GOOGLE_SA_EMAIL / GOOGLE_SA_PRIVATE_KEY.');
+        process.exit(1);
+    }
+    const auth = new google.auth.JWT({ email, key, scopes: ['https://www.googleapis.com/auth/drive'] });
+    return google.drive({ version: 'v3', auth });
 }
 
 /**
@@ -926,10 +1043,12 @@ function clienteDrive() {
 // por archivo más la subida. Mismo resultado, la mitad de llamadas a Drive.
 let subidor: ReturnType<typeof crearSubidor> | null = null;
 async function subirADrive(
-  drive: ReturnType<typeof clienteDrive>, carpetaId: string, f: ArchivoBajado
-): Promise<{ estado: "nuevo" | "existe"; url: string | null }> {
-  subidor ??= crearSubidor(drive as unknown as Parameters<typeof crearSubidor>[0]);
-  return subidor(carpetaId, f);
+    drive: ReturnType<typeof clienteDrive>,
+    carpetaId: string,
+    f: ArchivoBajado,
+): Promise<{ estado: 'nuevo' | 'existe'; url: string | null }> {
+    subidor ??= crearSubidor(drive as unknown as Parameters<typeof crearSubidor>[0]);
+    return subidor(carpetaId, f);
 }
 
 /**
@@ -938,21 +1057,19 @@ async function subirADrive(
  * la misma búsqueda de "Recibidas/2026-08" cientos de veces.
  */
 const carpetasPorRuta = new Map<string, Promise<string>>();
-async function carpetaDelLote(
-  drive: ReturnType<typeof clienteDrive>, origen: DocLote["origen"], periodo: string | null
-): Promise<string> {
-  const sub = origen === "RECIBIDO" ? "Recibidas" : origen === "EMITIDO" ? "Emitidas" : "Otros";
-  const mes = periodo && /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4, 6)}` : "Sin fecha";
-  const clave = `${sub}/${mes}`;
-  let promesa = carpetasPorRuta.get(clave);
-  if (!promesa) {
-    promesa = (async () => {
-      const idSub = await carpeta(drive, sub, CARPETA_DRIVE);
-      return carpeta(drive, mes, idSub);
-    })();
-    carpetasPorRuta.set(clave, promesa);
-  }
-  return promesa;
+async function carpetaDelLote(drive: ReturnType<typeof clienteDrive>, origen: DocLote['origen'], periodo: string | null): Promise<string> {
+    const sub = origen === 'RECIBIDO' ? 'Recibidas' : origen === 'EMITIDO' ? 'Emitidas' : 'Otros';
+    const mes = periodo && /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4, 6)}` : 'Sin fecha';
+    const clave = `${sub}/${mes}`;
+    let promesa = carpetasPorRuta.get(clave);
+    if (!promesa) {
+        promesa = (async () => {
+            const idSub = await carpeta(drive, sub, CARPETA_DRIVE);
+            return carpeta(drive, mes, idSub);
+        })();
+        carpetasPorRuta.set(clave, promesa);
+    }
+    return promesa;
 }
 
 // ── Guardar el detalle (opcional, si hay base) ────────────────────
@@ -967,15 +1084,18 @@ async function carpetaDelLote(
  * corrida no bajó nada nuevo pero la hoja del rango se pidió igual.
  */
 async function clienteBase(): Promise<SupabaseClient | null> {
-  const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-  if (!url) return null;
-  const sb = createClient(url, pedir("SUPABASE_ANON_KEY", "ANON_KEY"),
-    { auth: { autoRefreshToken: false, persistSession: false } });
-  const { error } = await sb.auth.signInWithPassword({
-    email: pedir("ROBOT_CORREO"), password: pedir("ROBOT_CLAVE"),
-  });
-  if (error) { console.error("⚠ No se pudo entrar a la base:", error.message); return null; }
-  return sb;
+    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
+    if (!url) return null;
+    const sb = createClient(url, pedir('SUPABASE_ANON_KEY', 'ANON_KEY'), { auth: { autoRefreshToken: false, persistSession: false } });
+    const { error } = await sb.auth.signInWithPassword({
+        email: pedir('ROBOT_CORREO'),
+        password: pedir('ROBOT_CLAVE'),
+    });
+    if (error) {
+        console.error('⚠ No se pudo entrar a la base:', error.message);
+        return null;
+    }
+    return sb;
 }
 
 /**
@@ -983,31 +1103,35 @@ async function clienteBase(): Promise<SupabaseClient | null> {
  * que el llamador pueda reusarlo y dejar la hoja publicada sin loguearse de
  * nuevo. `null` si no había credenciales de la base o nada que guardar.
  */
-async function guardarDetalle(
-  comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null }>
-): Promise<SupabaseClient | null> {
-  const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-  if (!url || comprobantes.length === 0) return null;
-  const lote = prepararLote(comprobantes.map(x => x.c), RUC);
-  if (lote.length === 0) return null;
+async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null }>): Promise<SupabaseClient | null> {
+    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
+    if (!url || comprobantes.length === 0) return null;
+    const lote = prepararLote(
+        comprobantes.map((x) => x.c),
+        RUC,
+    );
+    if (lote.length === 0) return null;
 
-  // El lote dedup por identidad puede haberse quedado con un comprobante que
-  // no es el mismo objeto que trajo el enlace; se reengancha por esa misma
-  // identidad, no por posición.
-  const urlsPorIdentidad = new Map(comprobantes.map(x => [identidad(x.c), x]));
-  for (const d of lote) {
-    const par = urlsPorIdentidad.get(identidad(d));
-    d.xmlDriveUrl = par?.xmlUrl ?? null;
-    d.pdfDriveUrl = par?.pdfUrl ?? null;
-  }
+    // El lote dedup por identidad puede haberse quedado con un comprobante que
+    // no es el mismo objeto que trajo el enlace; se reengancha por esa misma
+    // identidad, no por posición.
+    const urlsPorIdentidad = new Map(comprobantes.map((x) => [identidad(x.c), x]));
+    for (const d of lote) {
+        const par = urlsPorIdentidad.get(identidad(d));
+        d.xmlDriveUrl = par?.xmlUrl ?? null;
+        d.pdfDriveUrl = par?.pdfUrl ?? null;
+    }
 
-  const sb = await clienteBase();
-  if (!sb) return null;
-  const { data, error } = await sb.rpc("guardar_cpe", { p_empresa_ruc: RUC, p_docs: lote });
-  if (error) { console.error("⚠ No se guardó el detalle:", error.message); return null; }
-  const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
-  console.log(`Detalle guardado: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
-  return sb;
+    const sb = await clienteBase();
+    if (!sb) return null;
+    const { data, error } = await sb.rpc('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
+    if (error) {
+        console.error('⚠ No se guardó el detalle:', error.message);
+        return null;
+    }
+    const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
+    console.log(`Detalle guardado: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
+    return sb;
 }
 
 /**
@@ -1022,28 +1146,28 @@ async function guardarDetalle(
  * guardado en la base y solo se salta la publicación.
  */
 async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
-  if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
-    console.log("Sin credenciales de Drive: no se actualiza la hoja de detalle.");
-    return;
-  }
+    if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
+        console.log('Sin credenciales de Drive: no se actualiza la hoja de detalle.');
+        return;
+    }
 
-  let datos: Record<string, unknown>[];
-  try {
-    datos = await detalleCpeCompleto(sb, null);
-  } catch (e) {
-    console.error("⚠ No se pudo leer el detalle para la hoja:", e instanceof Error ? e.message : e);
-    return;
-  }
+    let datos: Record<string, unknown>[];
+    try {
+        datos = await detalleCpeCompleto(sb, null);
+    } catch (e) {
+        console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
+        return;
+    }
 
-  const filas = datos.map(filaDetalleDesdeRpc);
-  const r = await publicarHojaPorAnio({
-    filas: filasItemsSunat(filas),
-    nombre: "COMPROBANTES SUNAT - DETALLE",
-    carpetas: ["SUNAT"],
-    tipos: TIPOS_ITEMS,
-  });
-  console.log(`Hoja de detalle al día: ${filas.length} ítems · ${r.url}`);
-  for (const a of r.anteriores) console.log(`Hoja aparte ${a.anio}: ${a.filas} filas · ${a.url}`);
+    const filas = datos.map(filaDetalleDesdeRpc);
+    const r = await publicarHojaPorAnio({
+        filas: filasItemsSunat(filas),
+        nombre: 'COMPROBANTES SUNAT - DETALLE',
+        carpetas: ['SUNAT'],
+        tipos: TIPOS_ITEMS,
+    });
+    console.log(`Hoja de detalle al día: ${filas.length} ítems · ${r.url}`);
+    for (const a of r.anteriores) console.log(`Hoja aparte ${a.anio}: ${a.filas} filas · ${a.url}`);
 }
 
 /**
@@ -1062,46 +1186,53 @@ async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
  * mismo rango REEMPLAZA esta hoja en vez de dejar otra al lado.
  */
 async function publicarLaHojaDelRango(sb: SupabaseClient): Promise<void> {
-  if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
-    console.log("Sin credenciales de Drive: no se crea la hoja del rango.");
-    return;
-  }
+    if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
+        console.log('Sin credenciales de Drive: no se crea la hoja del rango.');
+        return;
+    }
 
-  const periodos = periodosDelRango(FECHA_INICIO, FECHA_FIN);
-  const nombre = nombreDeHojaDelRango(periodos);
-  if (!nombre) {
-    console.log(`No se entendió el rango ${FECHA_INICIO} – ${FECHA_FIN}: no se crea la hoja aparte.`);
-    return;
-  }
+    const periodos = periodosDelRango(FECHA_INICIO, FECHA_FIN);
+    const nombre = nombreDeHojaDelRango(periodos);
+    if (!nombre) {
+        console.log(`No se entendió el rango ${FECHA_INICIO} – ${FECHA_FIN}: no se crea la hoja aparte.`);
+        return;
+    }
 
-  // Un período por llamada: `detalle_cpe` filtra por período exacto, no por
-  // rango, y paginar cada uno es el camino que ya está probado.
-  const datos: Record<string, unknown>[] = [];
-  try {
-    for (const periodo of periodos) datos.push(...await detalleCpeCompleto(sb, periodo));
-  } catch (e) {
-    console.error("⚠ No se pudo leer el detalle del rango:", e instanceof Error ? e.message : e);
-    return;
-  }
+    // Un período por llamada: `detalle_cpe` filtra por período exacto, no por
+    // rango, y paginar cada uno es el camino que ya está probado.
+    const datos: Record<string, unknown>[] = [];
+    try {
+        for (const periodo of periodos) datos.push(...(await detalleCpeCompleto(sb, periodo)));
+    } catch (e) {
+        console.error('⚠ No se pudo leer el detalle del rango:', e instanceof Error ? e.message : e);
+        return;
+    }
 
-  const filas = datos.map(filaDetalleDesdeRpc);
-  const r = await publicarHoja({
-    filas: filasItemsSunat(filas),
-    nombre,
-    carpetas: ["SUNAT"],
-    tipos: TIPOS_ITEMS,
-  });
-  console.log(`Hoja «${nombre}»: ${filas.length} ítems · ${r.url}`);
+    const filas = datos.map(filaDetalleDesdeRpc);
+    const r = await publicarHoja({
+        filas: filasItemsSunat(filas),
+        nombre,
+        carpetas: ['SUNAT'],
+        tipos: TIPOS_ITEMS,
+    });
+    console.log(`Hoja «${nombre}»: ${filas.length} ítems · ${r.url}`);
 
-  // El desglose por tipo de comprobante, que es cómo se comprueba de un
-  // vistazo si las boletas (03) de verdad entraron o si la hoja trae solo
-  // facturas otra vez.
-  const porTipo = new Map<string, number>();
-  for (const f of filas) {
-    const t = f.tipoComprobante || "?";
-    porTipo.set(t, (porTipo.get(t) ?? 0) + 1);
-  }
-  console.log(`  · ítems por tipo de comprobante: ${[...porTipo].sort().map(([t, n]) => `${t}=${n}`).join(" ") || "(ninguno)"}`);
+    // El desglose por tipo de comprobante, que es cómo se comprueba de un
+    // vistazo si las boletas (03) de verdad entraron o si la hoja trae solo
+    // facturas otra vez.
+    const porTipo = new Map<string, number>();
+    for (const f of filas) {
+        const t = f.tipoComprobante || '?';
+        porTipo.set(t, (porTipo.get(t) ?? 0) + 1);
+    }
+    console.log(
+        `  · ítems por tipo de comprobante: ${
+            [...porTipo]
+                .sort()
+                .map(([t, n]) => `${t}=${n}`)
+                .join(' ') || '(ninguno)'
+        }`,
+    );
 }
 
 /**
@@ -1116,155 +1247,157 @@ async function publicarLaHojaDelRango(sb: SupabaseClient): Promise<void> {
  * Latin-1 cuando de verdad no lo es.
  */
 function decodificar(buf: Buffer): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  } catch {
-    return buf.toString("latin1");
-  }
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+    } catch {
+        return buf.toString('latin1');
+    }
 }
 
 // ── Principal ─────────────────────────────────────────────────────
 
 const navegador = await chromium.launch({
-  headless: true,
-  args: ["--disable-blink-features=AutomationControlled"],
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled'],
 });
 const contexto = await navegador.newContext({
-  acceptDownloads: true,
-  locale: "es-PE",
-  // Un User-Agent de navegador real: el WAF de SUNAT resetea la conexión ante
-  // un headless sin UA. Con esto se presenta como un Chrome normal.
-  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    acceptDownloads: true,
+    locale: 'es-PE',
+    // Un User-Agent de navegador real: el WAF de SUNAT resetea la conexión ante
+    // un headless sin UA. Con esto se presenta como un Chrome normal.
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
 });
 const page = await contexto.newPage();
 
 /** El o los XML que trae una descarga: sueltos o dentro de un ZIP con css/xsl. */
 function xmlsDe(f: ArchivoBajado): string[] {
-  if (/\.zip$/i.test(f.nombre)) {
-    return leerZip(f.datos).filter(a => /\.xml$/i.test(a.nombre)).map(a => decodificar(a.contenido));
-  }
-  if (/\.xml$/i.test(f.nombre)) return [decodificar(f.datos)];
-  return [];
+    if (/\.zip$/i.test(f.nombre)) {
+        return leerZip(f.datos)
+            .filter((a) => /\.xml$/i.test(a.nombre))
+            .map((a) => decodificar(a.contenido));
+    }
+    if (/\.xml$/i.test(f.nombre)) return [decodificar(f.datos)];
+    return [];
 }
 
 try {
-  await entrar(page);
+    await entrar(page);
 
-  const drive = DEBUG ? null : clienteDrive();
-  let nuevos = 0, existentes = 0;
-  const comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null }> = [];
+    const drive = DEBUG ? null : clienteDrive();
+    let nuevos = 0,
+        existentes = 0;
+    const comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null }> = [];
 
-  console.log(`\nTipos a consultar: ${TIPOS_CONSULTA.map(t => t.nombre).join(" · ")}`);
-  console.log(`Rango: ${FECHA_INICIO} a ${FECHA_FIN}`
-    + (TANDAS.length > 1 ? ` — partido en ${TANDAS.length} consultas, una por mes` : ""));
+    console.log(`\nTipos a consultar: ${TIPOS_CONSULTA.map((t) => t.nombre).join(' · ')}`);
+    console.log(`Rango: ${FECHA_INICIO} a ${FECHA_FIN}` + (TANDAS.length > 1 ? ` — partido en ${TANDAS.length} consultas, una por mes` : ''));
 
-  // Tipo por tipo y, dentro de cada uno, tanda por tanda. Son
-  // TIPOS × TANDAS consultas dentro del MISMO login.
-  let consultas = 0;
-  let logradas = 0;
-  for (const consulta of TIPOS_CONSULTA) {
-    for (const tanda of TANDAS) {
-      // Un respiro entre consultas: encadenarlas sin pausa dentro de la misma
-      // sesión es justo el patrón que un WAF marca como robot. Va antes de cada
-      // una menos la primera, así no se espera de gusto al final.
-      if (consultas++ > 0) await page.waitForTimeout(3000);
+    // Tipo por tipo y, dentro de cada uno, tanda por tanda. Son
+    // TIPOS × TANDAS consultas dentro del MISMO login.
+    let consultas = 0;
+    let logradas = 0;
+    for (const consulta of TIPOS_CONSULTA) {
+        for (const tanda of TANDAS) {
+            // Un respiro entre consultas: encadenarlas sin pausa dentro de la misma
+            // sesión es justo el patrón que un WAF marca como robot. Va antes de cada
+            // una menos la primera, así no se espera de gusto al final.
+            if (consultas++ > 0) await page.waitForTimeout(3000);
 
-      const tipo = consulta.nombre;
-      console.log(`\n── ${tipo} (${tanda.desde} a ${tanda.hasta}) ──`);
-      let filas: FilaBajada[] | null;
-      try {
-        if (!await abrirModuloConsulta(page, consulta.menu)) {
-          // Sin módulo abierto no hay nada que intentar: seguir gastaba minuto
-          // y medio por consulta escribiendo en el marco del menú.
-          console.error(`  ✗ ${tipo} (${tanda.desde} a ${tanda.hasta}): no se llegó a la pantalla de consulta.`);
-          continue;
+            const tipo = consulta.nombre;
+            console.log(`\n── ${tipo} (${tanda.desde} a ${tanda.hasta}) ──`);
+            let filas: FilaBajada[] | null;
+            try {
+                if (!(await abrirModuloConsulta(page, consulta.menu))) {
+                    // Sin módulo abierto no hay nada que intentar: seguir gastaba minuto
+                    // y medio por consulta escribiendo en el marco del menú.
+                    console.error(`  ✗ ${tipo} (${tanda.desde} a ${tanda.hasta}): no se llegó a la pantalla de consulta.`);
+                    continue;
+                }
+                filas = await consultarUnTipo(page, consulta, tanda.desde, tanda.hasta);
+            } catch (e) {
+                // Una consulta que falla —el portal cambió, se cortó la conexión— no
+                // debe tumbar las demás: las otras igual merecen bajarse.
+                console.error(`  ✗ ${tipo} (${tanda.desde} a ${tanda.hasta}): ${e instanceof Error ? e.message : e}`);
+                continue;
+            }
+
+            // `null` es «no se pudo consultar»; `[]` es «se consultó y no había
+            // nada», que es un resultado legítimo. Distinguirlos importa: es lo que
+            // permite al final saber si el run sirvió de algo.
+            if (filas === null) continue;
+            logradas++;
+
+            if (DEBUG || filas.length === 0) continue;
+
+            // Se lee el XML antes de subir para saber, por comprobante, si es
+            // Emitida o Recibida y de qué mes es —así cada archivo va directo a su
+            // carpeta ordenada, en vez de a una carpeta plana que hay que reordenar
+            // después—.
+            for (const fila of filas) {
+                const xmls = fila.xml ? xmlsDe(fila.xml) : [];
+                const doc = documentoPrincipal(xmls); // no la constancia (CDR) que algunos zips traen primero
+                const c = doc ? leerComprobanteXml(doc) : null;
+                const origen = c ? origenDe(c, RUC) : 'OTRO';
+                const periodo = c ? periodoDe(c.fechaEmision) : null;
+                const carpetaId = await carpetaDelLote(drive!, origen, periodo);
+
+                let xmlUrl: string | null = null;
+                let pdfUrl: string | null = null;
+                if (fila.xml) {
+                    const r = await subirADrive(drive!, carpetaId, fila.xml);
+                    if (r.estado === 'nuevo') nuevos++;
+                    else existentes++;
+                    xmlUrl = r.url;
+                }
+                if (fila.pdf) {
+                    const r = await subirADrive(drive!, carpetaId, fila.pdf);
+                    if (r.estado === 'nuevo') nuevos++;
+                    else existentes++;
+                    pdfUrl = r.url;
+                }
+                if (c) comprobantes.push({ c, xmlUrl, pdfUrl });
+            }
         }
-        filas = await consultarUnTipo(page, consulta, tanda.desde, tanda.hasta);
-      } catch (e) {
-        // Una consulta que falla —el portal cambió, se cortó la conexión— no
-        // debe tumbar las demás: las otras igual merecen bajarse.
-        console.error(`  ✗ ${tipo} (${tanda.desde} a ${tanda.hasta}): ${e instanceof Error ? e.message : e}`);
-        continue;
-      }
-
-      // `null` es «no se pudo consultar»; `[]` es «se consultó y no había
-      // nada», que es un resultado legítimo. Distinguirlos importa: es lo que
-      // permite al final saber si el run sirvió de algo.
-      if (filas === null) continue;
-      logradas++;
-
-      if (DEBUG || filas.length === 0) continue;
-
-      // Se lee el XML antes de subir para saber, por comprobante, si es
-      // Emitida o Recibida y de qué mes es —así cada archivo va directo a su
-      // carpeta ordenada, en vez de a una carpeta plana que hay que reordenar
-      // después—.
-      for (const fila of filas) {
-        const xmls = fila.xml ? xmlsDe(fila.xml) : [];
-        const doc = documentoPrincipal(xmls); // no la constancia (CDR) que algunos zips traen primero
-        const c = doc ? leerComprobanteXml(doc) : null;
-        const origen = c ? origenDe(c, RUC) : "OTRO";
-        const periodo = c ? periodoDe(c.fechaEmision) : null;
-        const carpetaId = await carpetaDelLote(drive!, origen, periodo);
-
-        let xmlUrl: string | null = null;
-        let pdfUrl: string | null = null;
-        if (fila.xml) {
-          const r = await subirADrive(drive!, carpetaId, fila.xml);
-          if (r.estado === "nuevo") nuevos++; else existentes++;
-          xmlUrl = r.url;
-        }
-        if (fila.pdf) {
-          const r = await subirADrive(drive!, carpetaId, fila.pdf);
-          if (r.estado === "nuevo") nuevos++; else existentes++;
-          pdfUrl = r.url;
-        }
-        if (c) comprobantes.push({ c, xmlUrl, pdfUrl });
-      }
     }
-  }
 
-  // Un run donde NINGUNA consulta llegó siquiera a la tabla de resultados no
-  // es un run vacío: es un run roto, y tiene que verse rojo en la lista de
-  // Actions. El 28/09/2026 uno así terminó en verde habiendo fallado sus ocho
-  // consultas, y desde afuera era idéntico a «no había comprobantes».
-  if (logradas === 0 && consultas > 0) {
-    console.error(`\n✗ Ninguna de las ${consultas} consultas llegó a resultados. Revisa el artefacto 'scripts/out/capturas/'.`);
-    process.exitCode = 1;
-  } else if (logradas < consultas) {
-    console.log(`\n⚠ ${consultas - logradas} de ${consultas} consultas no llegaron a resultados.`);
-  }
+    // Un run donde NINGUNA consulta llegó siquiera a la tabla de resultados no
+    // es un run vacío: es un run roto, y tiene que verse rojo en la lista de
+    // Actions. El 28/09/2026 uno así terminó en verde habiendo fallado sus ocho
+    // consultas, y desde afuera era idéntico a «no había comprobantes».
+    if (logradas === 0 && consultas > 0) {
+        console.error(`\n✗ Ninguna de las ${consultas} consultas llegó a resultados. Revisa el artefacto 'scripts/out/capturas/'.`);
+        process.exitCode = 1;
+    } else if (logradas < consultas) {
+        console.log(`\n⚠ ${consultas - logradas} de ${consultas} consultas no llegaron a resultados.`);
+    }
 
-  if (DEBUG) {
-    console.log("\nModo depuración: no se bajó nada. Revisa el artefacto 'scripts/out/capturas/'.");
-  } else {
-    if (comprobantes.length === 0) {
-      console.log("\nNo se bajó ningún archivo en el rango, en ninguno de los tipos consultados.");
+    if (DEBUG) {
+        console.log("\nModo depuración: no se bajó nada. Revisa el artefacto 'scripts/out/capturas/'.");
     } else {
-      console.log(`\nArchivados en Drive: ${nuevos} nuevos, ${existentes} ya estaban.`);
-    }
+        if (comprobantes.length === 0) {
+            console.log('\nNo se bajó ningún archivo en el rango, en ninguno de los tipos consultados.');
+        } else {
+            console.log(`\nArchivados en Drive: ${nuevos} nuevos, ${existentes} ya estaban.`);
+        }
 
-    // Si no se bajó nada pero la hoja del rango se pidió igual, se entra a la
-    // base solo para publicarla: la hoja se arma con lo que hay GUARDADO, así
-    // que sale bien aunque esta corrida no haya agregado nada. Sin esto, pedir
-    // la hoja de un rango ya descargado terminaba sin hoja y sin explicación.
-    //
-    // Cuando sí hubo algo que bajar, en cambio, un guardado que falla deja el
-    // `null` de siempre y NO se publica nada: una hoja a la que le falta lo de
-    // esta corrida es peor que ninguna, porque se lee como completa.
-    const sb = comprobantes.length > 0
-      ? await guardarDetalle(comprobantes)
-      : (HOJA_DEL_RANGO ? await clienteBase() : null);
+        // Si no se bajó nada pero la hoja del rango se pidió igual, se entra a la
+        // base solo para publicarla: la hoja se arma con lo que hay GUARDADO, así
+        // que sale bien aunque esta corrida no haya agregado nada. Sin esto, pedir
+        // la hoja de un rango ya descargado terminaba sin hoja y sin explicación.
+        //
+        // Cuando sí hubo algo que bajar, en cambio, un guardado que falla deja el
+        // `null` de siempre y NO se publica nada: una hoja a la que le falta lo de
+        // esta corrida es peor que ninguna, porque se lee como completa.
+        const sb = comprobantes.length > 0 ? await guardarDetalle(comprobantes) : HOJA_DEL_RANGO ? await clienteBase() : null;
 
-    if (sb) {
-      await publicarLaHojaDetalle(sb);
-      if (HOJA_DEL_RANGO) await publicarLaHojaDelRango(sb);
+        if (sb) {
+            await publicarLaHojaDetalle(sb);
+            if (HOJA_DEL_RANGO) await publicarLaHojaDelRango(sb);
+        }
     }
-  }
 } catch (e) {
-  await evidencia(page, "error");
-  console.error("✗", e instanceof Error ? e.message : e);
-  process.exitCode = 1;
+    await evidencia(page, 'error');
+    console.error('✗', e instanceof Error ? e.message : e);
+    process.exitCode = 1;
 } finally {
-  await navegador.close();
+    await navegador.close();
 }

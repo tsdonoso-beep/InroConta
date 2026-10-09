@@ -14,25 +14,25 @@
 // deflate (8). Cualquier otro se rechaza con su número, para que el
 // mensaje diga qué pasó en vez de devolver bytes rotos.
 
-import { inflateRawSync } from "node:zlib";
+import { inflateRawSync } from 'node:zlib';
 
-const FIN_INDICE = 0x06054b50;   // cierre del zip
-const ENTRADA = 0x02014b50;      // una entrada del índice
-const LOCAL = 0x04034b50;        // la cabecera que precede al contenido
+const FIN_INDICE = 0x06054b50; // cierre del zip
+const ENTRADA = 0x02014b50; // una entrada del índice
+const LOCAL = 0x04034b50; // la cabecera que precede al contenido
 
 export interface ArchivoDelZip {
-  nombre: string;
-  contenido: Buffer;
+    nombre: string;
+    contenido: Buffer;
 }
 
 /** Busca el cierre del zip desde el final. */
 function ubicarFinDelIndice(b: Buffer): number {
-  // El cierre mide 22 bytes y puede llevar hasta 64 KB de comentario detrás.
-  const desde = Math.max(0, b.length - (22 + 0xffff));
-  for (let i = b.length - 22; i >= desde; i--) {
-    if (b.readUInt32LE(i) === FIN_INDICE) return i;
-  }
-  return -1;
+    // El cierre mide 22 bytes y puede llevar hasta 64 KB de comentario detrás.
+    const desde = Math.max(0, b.length - (22 + 0xffff));
+    for (let i = b.length - 22; i >= desde; i--) {
+        if (b.readUInt32LE(i) === FIN_INDICE) return i;
+    }
+    return -1;
 }
 
 /**
@@ -44,61 +44,59 @@ function ubicarFinDelIndice(b: Buffer): number {
  * afuera y el costo de acotarlo es una línea.
  */
 export function leerZip(datos: ArrayBuffer | Buffer, maximoDescomprimido = 256 * 1024 * 1024): ArchivoDelZip[] {
-  const b = Buffer.isBuffer(datos) ? datos : Buffer.from(datos);
+    const b = Buffer.isBuffer(datos) ? datos : Buffer.from(datos);
 
-  const fin = ubicarFinDelIndice(b);
-  if (fin < 0) {
-    throw new Error("Esto no es un zip: no se encontró su cierre. ¿SUNAT devolvió un error en vez del archivo?");
-  }
-
-  const cuantas = b.readUInt16LE(fin + 10);
-  let p = b.readUInt32LE(fin + 16);
-  const archivos: ArchivoDelZip[] = [];
-  let acumulado = 0;
-
-  for (let i = 0; i < cuantas; i++) {
-    if (p + 46 > b.length || b.readUInt32LE(p) !== ENTRADA) {
-      throw new Error(`El índice del zip está roto en la entrada ${i + 1} de ${cuantas}.`);
+    const fin = ubicarFinDelIndice(b);
+    if (fin < 0) {
+        throw new Error('Esto no es un zip: no se encontró su cierre. ¿SUNAT devolvió un error en vez del archivo?');
     }
 
-    const metodo = b.readUInt16LE(p + 10);
-    const comprimido = b.readUInt32LE(p + 20);
-    const crudo = b.readUInt32LE(p + 24);
-    const largoNombre = b.readUInt16LE(p + 28);
-    const largoExtra = b.readUInt16LE(p + 30);
-    const largoComentario = b.readUInt16LE(p + 32);
-    const inicioLocal = b.readUInt32LE(p + 42);
-    const nombre = b.subarray(p + 46, p + 46 + largoNombre).toString("utf8");
+    const cuantas = b.readUInt16LE(fin + 10);
+    let p = b.readUInt32LE(fin + 16);
+    const archivos: ArchivoDelZip[] = [];
+    let acumulado = 0;
 
-    p += 46 + largoNombre + largoExtra + largoComentario;
+    for (let i = 0; i < cuantas; i++) {
+        if (p + 46 > b.length || b.readUInt32LE(p) !== ENTRADA) {
+            throw new Error(`El índice del zip está roto en la entrada ${i + 1} de ${cuantas}.`);
+        }
 
-    // Una carpeta dentro del zip no tiene contenido que leer.
-    if (nombre.endsWith("/")) continue;
+        const metodo = b.readUInt16LE(p + 10);
+        const comprimido = b.readUInt32LE(p + 20);
+        const crudo = b.readUInt32LE(p + 24);
+        const largoNombre = b.readUInt16LE(p + 28);
+        const largoExtra = b.readUInt16LE(p + 30);
+        const largoComentario = b.readUInt16LE(p + 32);
+        const inicioLocal = b.readUInt32LE(p + 42);
+        const nombre = b.subarray(p + 46, p + 46 + largoNombre).toString('utf8');
 
-    acumulado += crudo;
-    if (acumulado > maximoDescomprimido) {
-      throw new Error(`El zip declara más de ${Math.round(maximoDescomprimido / 1024 / 1024)} MB descomprimidos. No se abre.`);
+        p += 46 + largoNombre + largoExtra + largoComentario;
+
+        // Una carpeta dentro del zip no tiene contenido que leer.
+        if (nombre.endsWith('/')) continue;
+
+        acumulado += crudo;
+        if (acumulado > maximoDescomprimido) {
+            throw new Error(`El zip declara más de ${Math.round(maximoDescomprimido / 1024 / 1024)} MB descomprimidos. No se abre.`);
+        }
+
+        if (b.readUInt32LE(inicioLocal) !== LOCAL) {
+            throw new Error(`La entrada «${nombre}» apunta a una posición que no es una cabecera.`);
+        }
+        // La cabecera local repite el nombre y trae su propio bloque extra, que
+        // no tiene por qué medir lo mismo que el del índice. Hay que leer los
+        // dos largos de aquí, no reutilizar los de arriba.
+        const inicio = inicioLocal + 30 + b.readUInt16LE(inicioLocal + 26) + b.readUInt16LE(inicioLocal + 28);
+        const bruto = b.subarray(inicio, inicio + comprimido);
+
+        if (metodo === 0) {
+            archivos.push({ nombre, contenido: Buffer.from(bruto) });
+        } else if (metodo === 8) {
+            archivos.push({ nombre, contenido: inflateRawSync(bruto) });
+        } else {
+            throw new Error(`«${nombre}» viene comprimido con el método ${metodo}, que no se sabe abrir.`);
+        }
     }
 
-    if (b.readUInt32LE(inicioLocal) !== LOCAL) {
-      throw new Error(`La entrada «${nombre}» apunta a una posición que no es una cabecera.`);
-    }
-    // La cabecera local repite el nombre y trae su propio bloque extra, que
-    // no tiene por qué medir lo mismo que el del índice. Hay que leer los
-    // dos largos de aquí, no reutilizar los de arriba.
-    const inicio = inicioLocal + 30
-      + b.readUInt16LE(inicioLocal + 26)
-      + b.readUInt16LE(inicioLocal + 28);
-    const bruto = b.subarray(inicio, inicio + comprimido);
-
-    if (metodo === 0) {
-      archivos.push({ nombre, contenido: Buffer.from(bruto) });
-    } else if (metodo === 8) {
-      archivos.push({ nombre, contenido: inflateRawSync(bruto) });
-    } else {
-      throw new Error(`«${nombre}» viene comprimido con el método ${metodo}, que no se sabe abrir.`);
-    }
-  }
-
-  return archivos;
+    return archivos;
 }

@@ -23,38 +23,38 @@ on:
   # Encadenado no depende de eso, nunca usa la cuenta de SOL a la vez que
   # «descargar XML», y para entonces «SUNAT diario» ya trajo la lista del SIRE.
   workflow_run:
-    workflows: ["SUNAT descargar XML"]
+    workflows: ['SUNAT descargar XML']
     types: [completed]
   schedule:
     # Respaldo por si el encadenado no llegara a dispararse. Si corren los dos,
     # el segundo espera (concurrency) y encuentra 0 pendientes en segundos.
-    - cron: "30 13 * * *"
+    - cron: '30 13 * * *'
   workflow_dispatch:
     inputs:
       periodo:
-        description: "Período(s) yyyymm separados por coma, o «todos». Vacío = mes anterior + actual."
+        description: 'Período(s) yyyymm separados por coma, o «todos». Vacío = mes anterior + actual.'
         required: false
-        default: ""
+        default: ''
       modo:
-        description: "nuevos = lo que el SIRE tiene y la base no · pdf = rellenar el PDF de lo ya guardado sin PDF."
+        description: 'nuevos = lo que el SIRE tiene y la base no · pdf = rellenar el PDF de lo ya guardado sin PDF.'
         type: choice
         options: [nuevos, pdf]
         default: nuevos
       workers:
-        description: "Pedidos a SUNAT en paralelo."
+        description: 'Pedidos a SUNAT en paralelo.'
         required: false
-        default: "8"
+        default: '8'
       limite:
-        description: "Cuántos procesar (0 = todos los pendientes)."
+        description: 'Cuántos procesar (0 = todos los pendientes).'
         required: false
-        default: "0"
+        default: '0'
       series:
-        description: "todas · noE (solo las que la consulta por rango no trae) · E (solo E001)."
+        description: 'todas · noE (solo las que la consulta por rango no trae) · E (solo E001).'
         type: choice
         options: [todas, noE, E]
         default: todas
       via:
-        description: "api (rápida) · ui (respaldo: llena la pantalla, como el workflow viejo)."
+        description: 'api (rápida) · ui (respaldo: llena la pantalla, como el workflow viejo).'
         type: choice
         options: [api, ui]
         default: api
@@ -82,7 +82,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -128,7 +128,7 @@ jobs:
           # descargar-cpe por pantallas (sondeo del 30/09/2026: 29/29 por la API,
           # salvo 500 intermitentes). Las notas E001 la API no las sirve: siguen allá.
           SERIES: ${{ inputs.series || 'todas' }}
-          BARRA: "0"
+          BARRA: '0'
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/cpe.mts
 
       - name: Estado final por etapa

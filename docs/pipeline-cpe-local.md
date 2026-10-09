@@ -14,11 +14,11 @@ XML y el PDF de cada pendiente **directo de esa API**, 8 a la vez, sin tocar
 pantallas. Después los archiva en Drive y los guarda en Supabase, igual que los
 otros workflows.
 
-| | Por pantallas (antes) | Por API (ahora) |
-|---|---|---|
-| Tiempo por comprobante | 20-30 s | ~300 ms el XML |
-| Éxito | ~20% desde el 29/09 | ~88% a la primera; casi todo el resto al reintentar |
-| Ago+sep (2 362 pendientes) | semanas | 5 min de SUNAT + ~25 min de Drive |
+|                            | Por pantallas (antes) | Por API (ahora)                                     |
+| -------------------------- | --------------------- | --------------------------------------------------- |
+| Tiempo por comprobante     | 20-30 s               | ~300 ms el XML                                      |
+| Éxito                      | ~20% desde el 29/09   | ~88% a la primera; casi todo el resto al reintentar |
+| Ago+sep (2 362 pendientes) | semanas               | 5 min de SUNAT + ~25 min de Drive                   |
 
 ## 2. Por qué funciona (lo que se descubrió)
 
@@ -58,20 +58,20 @@ Cada etapa es una **cola propia**: un trabajador de SUNAT baja el XML y sigue
 con otro sin esperar al PDF ni a Drive. Cada etapa se reporta por separado
 (§5).
 
-| Archivo | Qué hace |
-|---|---|
-| `cpe.mts` | El principal: arma la tubería y los trabajadores |
-| `sondear-api.mts` | Prueba las formas de pedirle a SUNAT sobre una muestra, **sin guardar nada** |
-| `estado.mts` | Muestra cómo va cada corrida, por etapa, desde otra terminal |
-| `estado-hojas.mts` | Qué tienen hoy las hojas publicadas en Drive |
-| `consolidar-db.mts` | Genera `docs/database/database.full.sql` con todas las migraciones |
-| `comun/tuberia.mts` | Las colas (SUNAT → PDF → Drive → base), reintentos, pausa si SUNAT cae |
-| `comun/etapas.mts` | Números y fin de cada etapa; escribe `estado.json` |
-| `comun/tipos.mts` | Lo puro: clasificar errores, política de reintentos, id de la API |
-| `comun/base.mts` · `drive.mts` | Supabase (pendientes, `guardar_cpe`, hoja) y Drive (con respaldo en disco) |
-| `comun/barra.mts` · `bitacora.mts` · `config.mts` | Barra de progreso, logs, variables de entorno |
-| `api/cliente.mts` · `trabajador-api.mts` | La API de SUNAT y el trabajador que la usa; renueva el token solo |
-| `sol/sesion.mts` · `formulario.mts` · `trabajador-ui.mts` | Login, menú y la vía por pantallas (respaldo) |
+| Archivo                                                   | Qué hace                                                                     |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `cpe.mts`                                                 | El principal: arma la tubería y los trabajadores                             |
+| `sondear-api.mts`                                         | Prueba las formas de pedirle a SUNAT sobre una muestra, **sin guardar nada** |
+| `estado.mts`                                              | Muestra cómo va cada corrida, por etapa, desde otra terminal                 |
+| `estado-hojas.mts`                                        | Qué tienen hoy las hojas publicadas en Drive                                 |
+| `consolidar-db.mts`                                       | Genera `docs/database/database.full.sql` con todas las migraciones           |
+| `comun/tuberia.mts`                                       | Las colas (SUNAT → PDF → Drive → base), reintentos, pausa si SUNAT cae       |
+| `comun/etapas.mts`                                        | Números y fin de cada etapa; escribe `estado.json`                           |
+| `comun/tipos.mts`                                         | Lo puro: clasificar errores, política de reintentos, id de la API            |
+| `comun/base.mts` · `drive.mts`                            | Supabase (pendientes, `guardar_cpe`, hoja) y Drive (con respaldo en disco)   |
+| `comun/barra.mts` · `bitacora.mts` · `config.mts`         | Barra de progreso, logs, variables de entorno                                |
+| `api/cliente.mts` · `trabajador-api.mts`                  | La API de SUNAT y el trabajador que la usa; renueva el token solo            |
+| `sol/sesion.mts` · `formulario.mts` · `trabajador-ui.mts` | Login, menú y la vía por pantallas (respaldo)                                |
 
 **Reglas de la carpeta** (las hace cumplir `pnpm lint`): archivos de **300
 líneas como máximo**, y nada de sintaxis que Node no sepa correr quitando tipos
@@ -140,27 +140,29 @@ Windows en «Nunca». Si se suspende, la corrida se congela.
 
 ### Variables
 
-| Variable | Por omisión | Qué hace |
-|---|---|---|
-| `PERIODO` | `202608,202609` | Meses `yyyymm` separados por coma, o `todos` |
-| `SERIES` · `TIPOS` · `RUCS` | `noE` · `01,07,08` · (todos) | Qué series (`noE`/`E`/`todas`), qué tipos y qué proveedores pedir |
-| `MODO` | `nuevos` | `nuevos` = lo del SIRE que no está en la base · `pdf` = rellenar PDF |
-| `VIA` | `api` | `ui` = por pantallas (respaldo, lento) |
-| `WORKERS` | `8` | Pedidos a SUNAT en paralelo |
-| `LIMITE` | `0` | Cuántos procesar (0 = todos) |
-| `ORDEN` | `antiguo` | `reciente` = lo más nuevo primero |
-| `SUBIDAS` · `PDF_EN_PARALELO` | `6` · `6` | Paralelo en Drive y en PDF |
-| `MAX_INTENTOS` · `ESPERA_CAIDO_S` | `6` · `30` | Reintentos por comprobante y espera tras un 500 |
-| `LOTE_GUARDADO` | `20` | Cada cuántos se guarda en Supabase |
-| `PUBLICAR` | `fin` | `nunca` = no republicar la hoja de detalle al final |
-| `HEADLESS` · `BARRA` | `1` · `1` | `0` = ver el navegador · `0` = sin barra de progreso |
+| Variable                          | Por omisión                  | Qué hace                                                             |
+| --------------------------------- | ---------------------------- | -------------------------------------------------------------------- |
+| `PERIODO`                         | `202608,202609`              | Meses `yyyymm` separados por coma, o `todos`                         |
+| `SERIES` · `TIPOS` · `RUCS`       | `noE` · `01,07,08` · (todos) | Qué series (`noE`/`E`/`todas`), qué tipos y qué proveedores pedir    |
+| `MODO`                            | `nuevos`                     | `nuevos` = lo del SIRE que no está en la base · `pdf` = rellenar PDF |
+| `VIA`                             | `api`                        | `ui` = por pantallas (respaldo, lento)                               |
+| `WORKERS`                         | `8`                          | Pedidos a SUNAT en paralelo                                          |
+| `LIMITE`                          | `0`                          | Cuántos procesar (0 = todos)                                         |
+| `ORDEN`                           | `antiguo`                    | `reciente` = lo más nuevo primero                                    |
+| `SUBIDAS` · `PDF_EN_PARALELO`     | `6` · `6`                    | Paralelo en Drive y en PDF                                           |
+| `MAX_INTENTOS` · `ESPERA_CAIDO_S` | `6` · `30`                   | Reintentos por comprobante y espera tras un 500                      |
+| `LOTE_GUARDADO`                   | `20`                         | Cada cuántos se guarda en Supabase                                   |
+| `PUBLICAR`                        | `fin`                        | `nunca` = no republicar la hoja de detalle al final                  |
+| `HEADLESS` · `BARRA`              | `1` · `1`                    | `0` = ver el navegador · `0` = sin barra de progreso                 |
 
 ## 5. Qué mirar
 
 **En la terminal:** abajo, la barra; arriba, los logs de siempre.
+
 ```
 [██████████░░░░░░]  40% 950/2362 guardados · SUNAT listo · 1400 en PDF/Drive · 0 por reintentar · 80/min · ETA 17m40s · 12m03s
 ```
+
 «Guardados» = terminado de punta a punta (en Supabase). Que diga «SUNAT listo»
 con la barra a medias es normal: Drive es más lento que SUNAT.
 
@@ -172,32 +174,33 @@ la corrida sigue viva (sale `¿DETENIDA?` si pasó más de 90 s sin latido).
 
 **En `scripts/out/logs/cpe-api-<fecha>/`** (una carpeta por corrida):
 
-| Archivo | Qué tiene |
-|---|---|
-| `eventos.jsonl` | Todo lo que salió por consola, con datos extra |
-| `intentos.jsonl` | Un renglón por pedido a SUNAT: clase, estado HTTP, ms, cuerpo crudo si falló |
-| `http.jsonl` | Toda respuesta HTTP ≥ 400, con el cuerpo tal cual |
-| `estado.json` | El estado por etapa (se reescribe cada 30 s) |
-| `resumen.json` | Al final: totales por etapa, por clase y por código HTTP |
-| `agotados.jsonl` | Los que fallaron 6 veces (siguen pendientes: la próxima corrida los reintenta) |
-| `pdf-faltantes.jsonl` | Guardados sin PDF (para `MODO=pdf`) |
-| `subidas-fallidas.jsonl` | Lo que no subió a Drive (quedó en `scripts/out/salida/cpe/<mes>/`) |
+| Archivo                  | Qué tiene                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `eventos.jsonl`          | Todo lo que salió por consola, con datos extra                                 |
+| `intentos.jsonl`         | Un renglón por pedido a SUNAT: clase, estado HTTP, ms, cuerpo crudo si falló   |
+| `http.jsonl`             | Toda respuesta HTTP ≥ 400, con el cuerpo tal cual                              |
+| `estado.json`            | El estado por etapa (se reescribe cada 30 s)                                   |
+| `resumen.json`           | Al final: totales por etapa, por clase y por código HTTP                       |
+| `agotados.jsonl`         | Los que fallaron 6 veces (siguen pendientes: la próxima corrida los reintenta) |
+| `pdf-faltantes.jsonl`    | Guardados sin PDF (para `MODO=pdf`)                                            |
+| `subidas-fallidas.jsonl` | Lo que no subió a Drive (quedó en `scripts/out/salida/cpe/<mes>/`)             |
 
 `scripts/out/logs/cpe-no-existe.jsonl` (fuera de las carpetas, acumulado): lo que SUNAT
 dijo que no existe. No se vuelve a pedir salvo con `REINTENTAR_NO_EXISTE=1`.
 
 ## 6. Errores y qué hace con cada uno
 
-| Clase | Qué es | Qué hace |
-|---|---|---|
-| `SUNAT_CAIDO` | HTTP 5xx («There was an error processing your request») | Al final de la cola, 30 s después. Si más del 80% de los últimos 2 min fue esto, **todos** pausan 2 min |
-| `TIMEOUT` | SUNAT no respondió en 30 s | Reintenta con espera creciente |
-| `SESION` | 401/403: token vencido | Renueva el token (reabre la pantalla una vez) y reintenta sin gastar intento |
-| `LIMITE` | 429: demasiado rápido | Espera 1 min × intento |
-| `NO_EXISTE` | 404, o SUNAT dice que no está | Se anota y no se vuelve a pedir |
-| Drive «User rate limit» / 5xx | Cupo de Google | 5 reintentos espaciados; si no, queda en disco y pendiente |
+| Clase                         | Qué es                                                  | Qué hace                                                                                                |
+| ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `SUNAT_CAIDO`                 | HTTP 5xx («There was an error processing your request») | Al final de la cola, 30 s después. Si más del 80% de los últimos 2 min fue esto, **todos** pausan 2 min |
+| `TIMEOUT`                     | SUNAT no respondió en 30 s                              | Reintenta con espera creciente                                                                          |
+| `SESION`                      | 401/403: token vencido                                  | Renueva el token (reabre la pantalla una vez) y reintenta sin gastar intento                            |
+| `LIMITE`                      | 429: demasiado rápido                                   | Espera 1 min × intento                                                                                  |
+| `NO_EXISTE`                   | 404, o SUNAT dice que no está                           | Se anota y no se vuelve a pedir                                                                         |
+| Drive «User rate limit» / 5xx | Cupo de Google                                          | 5 reintentos espaciados; si no, queda en disco y pendiente                                              |
 
 **Conocido al 30/09/2026:**
+
 - El RUC **20100047218** (series FE01/FI01/FN01/FC03) da 500 siempre por API:
   11 agotados en ago+sep. Pendiente probar esos por pantalla (`VIA=ui`).
 - El PDF da 500 mucho más que el XML; por eso tiene su cola con 4 intentos
@@ -209,6 +212,7 @@ dijo que no existe. No se vuelve a pedir salvo con `REINTENTAR_NO_EXISTE=1`.
 
 Workflow **«SUNAT CPE por API»** (`.github/workflows/sunat-cpe-api.yml`), el
 mismo script:
+
 - **Cron 8:30 (Lima)**: mes anterior + actual, lo más reciente primero.
   Tomó el horario de «SUNAT consultar CPE individual», que queda **solo manual**
   como respaldo por pantallas.
@@ -268,16 +272,17 @@ y ~89 que SUNAT responde «no existe». Notas E001 y PDF: completos.
 facturas E001 recibidas). La descarga real desde GitHub se verá en el primer
 cron con pendientes (el de prueba solo tenía comprobantes del BCP).
 
-| # | Qué | Estado / cómo |
-|---|---|---|
-| 1 | **BCP (RUC 20100047218)** | Se comunica a Contabilidad: pedirlos al banco o dejarlos como excepción |
-| 2 | **Padrón de RUC** | 531 proveedores de 2026 sin consultar al 30/09; puesta al día local ese día (`DEBUG=0 MAX_CONSULTAS=600 pnpm padron:local`). El cron consulta 80 por día, con 2026 primero |
-| 3 | **Sep–dic 2025** | No hace falta por ahora. El SIRE ya los trae: van a hojas aparte («… 2025») y el padrón los deja al final |
-| 4 | **Drive es el cuello (~70-100/min)** | Idea: guardar en la base antes de subir a Drive |
-| 5 | **Padrón reducido de SUNAT** (archivo de 393 MB) | Solo estado y condición; buen contribuyente y agentes siguen por consulta |
-| 6 | **Hoja «COBERTURA»** desactualizada | Es de la app web |
+| #   | Qué                                              | Estado / cómo                                                                                                                                                              |
+| --- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **BCP (RUC 20100047218)**                        | Se comunica a Contabilidad: pedirlos al banco o dejarlos como excepción                                                                                                    |
+| 2   | **Padrón de RUC**                                | 531 proveedores de 2026 sin consultar al 30/09; puesta al día local ese día (`DEBUG=0 MAX_CONSULTAS=600 pnpm padron:local`). El cron consulta 80 por día, con 2026 primero |
+| 3   | **Sep–dic 2025**                                 | No hace falta por ahora. El SIRE ya los trae: van a hojas aparte («… 2025») y el padrón los deja al final                                                                  |
+| 4   | **Drive es el cuello (~70-100/min)**             | Idea: guardar en la base antes de subir a Drive                                                                                                                            |
+| 5   | **Padrón reducido de SUNAT** (archivo de 393 MB) | Solo estado y condición; buen contribuyente y agentes siguen por consulta                                                                                                  |
+| 6   | **Hoja «COBERTURA»** desactualizada              | Es de la app web                                                                                                                                                           |
 
 **Aprendido el 30/09 sobre el login a SOL** (`sol/sesion.mts`):
+
 - Recargar o salir del menú cierra la sesión (`…?logout`): el formulario se abre sin salir del menú, y para renovar el token se recarga solo su recuadro.
 - Se espera a VER el menú («Bienvenido,» / «Empresas»), no la URL (esperar la URL tardaba 64 s en GitHub).
 - A veces la autenticación termina en la portada de `api-seguridad` («Bienvenidos a SUNAT»): se pide el menú de nuevo y, si vuelve el formulario, se ingresa otra vez.
@@ -289,11 +294,11 @@ cron con pendientes (el de prueba solo tenía comprobantes del BCP).
 
 ### Qué baja cada workflow desde el 30/09/2026
 
-| Workflow | Qué baja |
-|---|---|
-| **SUNAT CPE por API** (8:30) | Todo lo recibido que está en el SIRE: facturas y notas de serie F…, facturas E001 |
-| **SUNAT descargar XML** (8:00) | Lo que la API no cubre: emitido (tus ventas), notas E001 recibidas, boletas |
-| **SUNAT diario** (8:00) | La lista del SIRE (qué existe). ~2 min, casi todo espera a SUNAT |
+| Workflow                       | Qué baja                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| **SUNAT CPE por API** (8:30)   | Todo lo recibido que está en el SIRE: facturas y notas de serie F…, facturas E001 |
+| **SUNAT descargar XML** (8:00) | Lo que la API no cubre: emitido (tus ventas), notas E001 recibidas, boletas       |
+| **SUNAT diario** (8:00)        | La lista del SIRE (qué existe). ~2 min, casi todo espera a SUNAT                  |
 
 ## 10. Para continuar en otra laptop (entrega del 30/09/2026)
 

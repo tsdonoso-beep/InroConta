@@ -6,14 +6,14 @@
 // pedido de exportación encola un proceso del lado de SUNAT.
 
 export interface PeriodoInvalido {
-  ok: false;
-  motivo: string;
+    ok: false;
+    motivo: string;
 }
 export interface PeriodoValido {
-  ok: true;
-  periodo: string;
-  anio: number;
-  mes: number;
+    ok: true;
+    periodo: string;
+    anio: number;
+    mes: number;
 }
 
 const RE = /^(\d{4})(0[1-9]|1[0-2])$/;
@@ -26,36 +26,36 @@ const RE = /^(\d{4})(0[1-9]|1[0-2])$/;
  * corra.
  */
 export function validarPeriodo(valor: string, hoy: Date): PeriodoValido | PeriodoInvalido {
-  const limpio = (valor ?? "").trim();
-  const m = RE.exec(limpio);
+    const limpio = (valor ?? '').trim();
+    const m = RE.exec(limpio);
 
-  if (!m) {
-    return {
-      ok: false,
-      motivo: `«${limpio}» no tiene el formato yyyymm que pide SUNAT (por ejemplo 202607).`,
-    };
-  }
+    if (!m) {
+        return {
+            ok: false,
+            motivo: `«${limpio}» no tiene el formato yyyymm que pide SUNAT (por ejemplo 202607).`,
+        };
+    }
 
-  const anio = Number(m[1]);
-  const mes = Number(m[2]);
-  const actual = periodoDe(hoy);
+    const anio = Number(m[1]);
+    const mes = Number(m[2]);
+    const actual = periodoDe(hoy);
 
-  if (limpio > actual) {
-    return { ok: false, motivo: `El período ${limpio} todavía no existe: el actual es ${actual}.` };
-  }
-  if (anio < 2022) {
-    // El SIRE arrancó en 2022; pedir antes devuelve vacío sin decir por qué.
-    return { ok: false, motivo: `El SIRE no tiene datos anteriores a 2022 y pediste ${limpio}.` };
-  }
+    if (limpio > actual) {
+        return { ok: false, motivo: `El período ${limpio} todavía no existe: el actual es ${actual}.` };
+    }
+    if (anio < 2022) {
+        // El SIRE arrancó en 2022; pedir antes devuelve vacío sin decir por qué.
+        return { ok: false, motivo: `El SIRE no tiene datos anteriores a 2022 y pediste ${limpio}.` };
+    }
 
-  return { ok: true, periodo: limpio, anio, mes };
+    return { ok: true, periodo: limpio, anio, mes };
 }
 
 /** El período tributario de una fecha. */
 export function periodoDe(fecha: Date): string {
-  const a = fecha.getUTCFullYear();
-  const m = String(fecha.getUTCMonth() + 1).padStart(2, "0");
-  return `${a}${m}`;
+    const a = fecha.getUTCFullYear();
+    const m = String(fecha.getUTCMonth() + 1).padStart(2, '0');
+    return `${a}${m}`;
 }
 
 /**
@@ -66,6 +66,6 @@ export function periodoDe(fecha: Date): string {
  * cerrado.
  */
 export function periodoCerradoAnterior(hoy: Date): string {
-  const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1));
-  return periodoDe(d);
+    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1));
+    return periodoDe(d);
 }

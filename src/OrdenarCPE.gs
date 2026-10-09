@@ -33,11 +33,19 @@
 // vuelve a aparecer en la carpeta raíz, y `guardar_cpe` actualiza el
 // comprobante que ya existía en vez de repetirlo.
 
-function revisarOrdenSunat() { procesar(true); }
-function ordenarComprobantesSunat() { procesar(false); }
+function revisarOrdenSunat() {
+    procesar(true);
+}
+function ordenarComprobantesSunat() {
+    procesar(false);
+}
 
-function revisarPdfsSueltos() { ordenarPdfsSueltos(true); }
-function moverPdfsSueltos() { ordenarPdfsSueltos(false); }
+function revisarPdfsSueltos() {
+    ordenarPdfsSueltos(true);
+}
+function moverPdfsSueltos() {
+    ordenarPdfsSueltos(false);
+}
 
 /**
  * Para cuando el XML de un comprobante ya se movió —quedó en
@@ -50,56 +58,61 @@ function moverPdfsSueltos() { ordenarPdfsSueltos(false); }
  * XML, sacando esa misma clave de su propio nombre.
  */
 function ordenarPdfsSueltos(soloRevisar) {
-  var cfg = configuracion();
-  var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
-  var mapa = mapaXmlsYaOrdenados(raiz, cfg);
+    var cfg = configuracion();
+    var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
+    var mapa = mapaXmlsYaOrdenados(raiz, cfg);
 
-  var movidos = 0;
-  var sinPareja = [];
-  var it = raiz.getFiles();
-  while (it.hasNext()) {
-    var f = it.next();
-    if (!/\.pdf$/i.test(f.getName())) continue;
+    var movidos = 0;
+    var sinPareja = [];
+    var it = raiz.getFiles();
+    while (it.hasNext()) {
+        var f = it.next();
+        if (!/\.pdf$/i.test(f.getName())) continue;
 
-    var partes = partirNombrePdf(f.getName());
-    var destino = partes ? mapa[partes.serie + "|" + partes.numero + "|" + partes.ruc] : null;
-    if (!destino) { sinPareja.push(f.getName()); continue; }
+        var partes = partirNombrePdf(f.getName());
+        var destino = partes ? mapa[partes.serie + '|' + partes.numero + '|' + partes.ruc] : null;
+        if (!destino) {
+            sinPareja.push(f.getName());
+            continue;
+        }
 
-    if (!soloRevisar) f.moveTo(destino);
-    movidos++;
-  }
+        if (!soloRevisar) f.moveTo(destino);
+        movidos++;
+    }
 
-  Logger.log((soloRevisar ? "Se moverían " : "Se movieron ") + movidos + " PDF.");
-  if (sinPareja.length > 0) {
-    Logger.log("Sin XML con el que emparejar (" + sinPareja.length + "):");
-    for (var i = 0; i < sinPareja.length; i++) Logger.log("  · " + sinPareja[i]);
-  }
+    Logger.log((soloRevisar ? 'Se moverían ' : 'Se movieron ') + movidos + ' PDF.');
+    if (sinPareja.length > 0) {
+        Logger.log('Sin XML con el que emparejar (' + sinPareja.length + '):');
+        for (var i = 0; i < sinPareja.length; i++) Logger.log('  · ' + sinPareja[i]);
+    }
 }
 
 /** clave "serie|número|RUC del proveedor" → la carpeta AAAA-MM donde ya quedó ese XML. */
 function mapaXmlsYaOrdenados(raiz, cfg) {
-  var mapa = {};
-  var subcarpetas = raiz.getFolders();
-  while (subcarpetas.hasNext()) {
-    var sub = subcarpetas.next(); // Emitidas / Recibidas / Otros
-    var meses = sub.getFolders();
-    while (meses.hasNext()) {
-      var mes = meses.next(); // AAAA-MM / Sin fecha
-      var archivos = mes.getFiles();
-      while (archivos.hasNext()) {
-        var f = archivos.next();
-        if (!/\.(xml|zip)$/i.test(f.getName())) continue;
-        try {
-          var texto = leerXmlDeArchivo(f);
-          if (!texto) continue;
-          var c = leerComprobante(texto, cfg.rucEmpresa);
-          if (!c.serie || !c.numero) continue;
-          mapa[c.serie + "|" + c.numero + "|" + c.proveedorRuc] = mes;
-        } catch (e) { /* un XML raro no debe tumbar el resto */ }
-      }
+    var mapa = {};
+    var subcarpetas = raiz.getFolders();
+    while (subcarpetas.hasNext()) {
+        var sub = subcarpetas.next(); // Emitidas / Recibidas / Otros
+        var meses = sub.getFolders();
+        while (meses.hasNext()) {
+            var mes = meses.next(); // AAAA-MM / Sin fecha
+            var archivos = mes.getFiles();
+            while (archivos.hasNext()) {
+                var f = archivos.next();
+                if (!/\.(xml|zip)$/i.test(f.getName())) continue;
+                try {
+                    var texto = leerXmlDeArchivo(f);
+                    if (!texto) continue;
+                    var c = leerComprobante(texto, cfg.rucEmpresa);
+                    if (!c.serie || !c.numero) continue;
+                    mapa[c.serie + '|' + c.numero + '|' + c.proveedorRuc] = mes;
+                } catch (e) {
+                    /* un XML raro no debe tumbar el resto */
+                }
+            }
+        }
     }
-  }
-  return mapa;
+    return mapa;
 }
 
 /**
@@ -108,88 +121,97 @@ function mapaXmlsYaOrdenados(raiz, cfg) {
  * dígito que a simple vista no se ve— sin mover ni guardar nada.
  */
 function diagnosticoEmparejado() {
-  var cfg = configuracion();
-  var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
-  var listado = listarArchivos(raiz);
-  Logger.log("XML/ZIP: " + listado.xmls.length + ". PDF: " + listado.pdfs.length);
+    var cfg = configuracion();
+    var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
+    var listado = listarArchivos(raiz);
+    Logger.log('XML/ZIP: ' + listado.xmls.length + '. PDF: ' + listado.pdfs.length);
 
-  for (var i = 0; i < Math.min(5, listado.xmls.length); i++) {
-    var xmlTexto = leerXmlDeArchivo(listado.xmls[i]);
-    var c = leerComprobante(xmlTexto, cfg.rucEmpresa);
-    Logger.log("XML " + listado.xmls[i].getName()
-      + " -> serie=[" + c.serie + "] numero=[" + c.numero + "] proveedorRuc=[" + c.proveedorRuc + "]");
-  }
+    for (var i = 0; i < Math.min(5, listado.xmls.length); i++) {
+        var xmlTexto = leerXmlDeArchivo(listado.xmls[i]);
+        var c = leerComprobante(xmlTexto, cfg.rucEmpresa);
+        Logger.log('XML ' + listado.xmls[i].getName() + ' -> serie=[' + c.serie + '] numero=[' + c.numero + '] proveedorRuc=[' + c.proveedorRuc + ']');
+    }
 
-  for (var j = 0; j < Math.min(5, listado.pdfs.length); j++) {
-    var nombre = listado.pdfs[j].getName();
-    var partes = partirNombrePdf(nombre);
-    Logger.log("PDF " + nombre + " -> " + (partes
-      ? ("serie=[" + partes.serie + "] numero=[" + partes.numero + "] ruc=[" + partes.ruc + "]")
-      : "no calzó el patrón PDF-DOC-...pdf"));
-  }
+    for (var j = 0; j < Math.min(5, listado.pdfs.length); j++) {
+        var nombre = listado.pdfs[j].getName();
+        var partes = partirNombrePdf(nombre);
+        Logger.log(
+            'PDF ' +
+                nombre +
+                ' -> ' +
+                (partes ? 'serie=[' + partes.serie + '] numero=[' + partes.numero + '] ruc=[' + partes.ruc + ']' : 'no calzó el patrón PDF-DOC-...pdf'),
+        );
+    }
 }
 
 function procesar(soloRevisar) {
-  var cfg = configuracion();
-  if (!cfg.carpetaRaiz) throw new Error("Falta CARPETA_RAIZ en las Propiedades del script.");
+    var cfg = configuracion();
+    if (!cfg.carpetaRaiz) throw new Error('Falta CARPETA_RAIZ en las Propiedades del script.');
 
-  var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
-  var listado = listarArchivos(raiz);
-  var pdfsLibres = listado.pdfs.slice();
+    var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
+    var listado = listarArchivos(raiz);
+    var pdfsLibres = listado.pdfs.slice();
 
-  var doclotes = [];
-  var porCarpeta = {};
-  var sinXml = 0, errores = 0;
+    var doclotes = [];
+    var porCarpeta = {};
+    var sinXml = 0,
+        errores = 0;
 
-  for (var i = 0; i < listado.xmls.length; i++) {
-    var archivoXml = listado.xmls[i];
-    try {
-      var xmlTexto = leerXmlDeArchivo(archivoXml);
-      if (!xmlTexto) { sinXml++; continue; }
+    for (var i = 0; i < listado.xmls.length; i++) {
+        var archivoXml = listado.xmls[i];
+        try {
+            var xmlTexto = leerXmlDeArchivo(archivoXml);
+            if (!xmlTexto) {
+                sinXml++;
+                continue;
+            }
 
-      var c = leerComprobante(xmlTexto, cfg.rucEmpresa);
-      if (!c.serie || !c.numero) { sinXml++; continue; }
+            var c = leerComprobante(xmlTexto, cfg.rucEmpresa);
+            if (!c.serie || !c.numero) {
+                sinXml++;
+                continue;
+            }
 
-      var origen = c.origen;
-      var periodo = periodoDe(c.fechaEmision);
-      var ruta = rutaDe(origen, periodo);
-      var clave = ruta.join("/");
-      porCarpeta[clave] = (porCarpeta[clave] || 0) + 1;
+            var origen = c.origen;
+            var periodo = periodoDe(c.fechaEmision);
+            var ruta = rutaDe(origen, periodo);
+            var clave = ruta.join('/');
+            porCarpeta[clave] = (porCarpeta[clave] || 0) + 1;
 
-      // El PDF de SUNAT no siempre lleva el mismo nombre que el XML: se
-      // busca por el mismo nombre primero y, si no, por si el nombre del PDF
-      // contiene la serie-número del comprobante (con o sin el guion).
-      var pdfPar = emparejarPdf(archivoXml, c, pdfsLibres);
-      if (pdfPar) quitarDeLista(pdfsLibres, pdfPar);
+            // El PDF de SUNAT no siempre lleva el mismo nombre que el XML: se
+            // busca por el mismo nombre primero y, si no, por si el nombre del PDF
+            // contiene la serie-número del comprobante (con o sin el guion).
+            var pdfPar = emparejarPdf(archivoXml, c, pdfsLibres);
+            if (pdfPar) quitarDeLista(pdfsLibres, pdfPar);
 
-      if (!soloRevisar) {
-        var destino = carpetaAnidada(raiz, ruta);
-        mover(archivoXml, destino, raiz);
-        if (pdfPar) mover(pdfPar, destino, raiz);
-        doclotes.push(aDocLote(c, archivoXml.getUrl(), pdfPar ? pdfPar.getUrl() : null));
-      }
-    } catch (e) {
-      errores++;
-      Logger.log("✗ " + archivoXml.getName() + ": " + e);
+            if (!soloRevisar) {
+                var destino = carpetaAnidada(raiz, ruta);
+                mover(archivoXml, destino, raiz);
+                if (pdfPar) mover(pdfPar, destino, raiz);
+                doclotes.push(aDocLote(c, archivoXml.getUrl(), pdfPar ? pdfPar.getUrl() : null));
+            }
+        } catch (e) {
+            errores++;
+            Logger.log('✗ ' + archivoXml.getName() + ': ' + e);
+        }
     }
-  }
 
-  Logger.log("— Resumen —");
-  for (var k in porCarpeta) Logger.log(k + ": " + porCarpeta[k]);
-  Logger.log("Sin XML legible: " + sinXml + ". Errores: " + errores + ".");
+    Logger.log('— Resumen —');
+    for (var k in porCarpeta) Logger.log(k + ': ' + porCarpeta[k]);
+    Logger.log('Sin XML legible: ' + sinXml + '. Errores: ' + errores + '.');
 
-  if (pdfsLibres.length > 0) {
-    Logger.log("PDF sin pareja encontrada (se quedaron donde estaban): " + pdfsLibres.length);
-    for (var p = 0; p < pdfsLibres.length; p++) Logger.log("  · " + pdfsLibres[p].getName());
-  }
+    if (pdfsLibres.length > 0) {
+        Logger.log('PDF sin pareja encontrada (se quedaron donde estaban): ' + pdfsLibres.length);
+        for (var p = 0; p < pdfsLibres.length; p++) Logger.log('  · ' + pdfsLibres[p].getName());
+    }
 
-  if (soloRevisar) {
-    Logger.log("Solo revisión: no se movió ni se guardó nada. Corre ordenarComprobantesSunat() para aplicarlo.");
-  } else if (doclotes.length > 0) {
-    guardarEnBase(doclotes, cfg);
-  } else {
-    Logger.log("No había nada que mover.");
-  }
+    if (soloRevisar) {
+        Logger.log('Solo revisión: no se movió ni se guardó nada. Corre ordenarComprobantesSunat() para aplicarlo.');
+    } else if (doclotes.length > 0) {
+        guardarEnBase(doclotes, cfg);
+    } else {
+        Logger.log('No había nada que mover.');
+    }
 }
 
 /**
@@ -203,44 +225,44 @@ function procesar(soloRevisar) {
  * substring, que con números cortos (2-3 dígitos) daría falsos positivos.
  */
 function emparejarPdf(archivoXml, c, pdfsLibres) {
-  for (var i = 0; i < pdfsLibres.length; i++) {
-    var partes = partirNombrePdf(pdfsLibres[i].getName());
-    if (partes && partes.serie === c.serie && partes.numero === c.numero && partes.ruc === c.proveedorRuc) {
-      return pdfsLibres[i];
+    for (var i = 0; i < pdfsLibres.length; i++) {
+        var partes = partirNombrePdf(pdfsLibres[i].getName());
+        if (partes && partes.serie === c.serie && partes.numero === c.numero && partes.ruc === c.proveedorRuc) {
+            return pdfsLibres[i];
+        }
     }
-  }
-  return null;
+    return null;
 }
 
 function partirNombrePdf(nombre) {
-  var m = /^PDF-DOC-(.+)\.pdf$/i.exec(nombre);
-  if (!m) return null;
-  var cuerpo = m[1];
-  if (cuerpo.length < 16) return null; // 4 de serie + al menos 1 de número + 11 de RUC
-  return {
-    serie: cuerpo.substring(0, 4).toUpperCase(),
-    numero: cuerpo.substring(4, cuerpo.length - 11).replace(/^0+/, "") || "0",
-    ruc: cuerpo.substring(cuerpo.length - 11),
-  };
+    var m = /^PDF-DOC-(.+)\.pdf$/i.exec(nombre);
+    if (!m) return null;
+    var cuerpo = m[1];
+    if (cuerpo.length < 16) return null; // 4 de serie + al menos 1 de número + 11 de RUC
+    return {
+        serie: cuerpo.substring(0, 4).toUpperCase(),
+        numero: cuerpo.substring(4, cuerpo.length - 11).replace(/^0+/, '') || '0',
+        ruc: cuerpo.substring(cuerpo.length - 11),
+    };
 }
 
 function quitarDeLista(lista, item) {
-  var idx = lista.indexOf(item);
-  if (idx >= 0) lista.splice(idx, 1);
+    var idx = lista.indexOf(item);
+    if (idx >= 0) lista.splice(idx, 1);
 }
 
 // ── Configuración ──────────────────────────────────────────────────
 
 function configuracion() {
-  var p = PropertiesService.getScriptProperties();
-  return {
-    carpetaRaiz: p.getProperty("CARPETA_RAIZ"),
-    rucEmpresa: p.getProperty("RUC_EMPRESA") || "20512201611",
-    supabaseUrl: p.getProperty("SUPABASE_URL"),
-    anonKey: p.getProperty("SUPABASE_ANON_KEY"),
-    robotCorreo: p.getProperty("ROBOT_CORREO"),
-    robotClave: p.getProperty("ROBOT_CLAVE"),
-  };
+    var p = PropertiesService.getScriptProperties();
+    return {
+        carpetaRaiz: p.getProperty('CARPETA_RAIZ'),
+        rucEmpresa: p.getProperty('RUC_EMPRESA') || '20512201611',
+        supabaseUrl: p.getProperty('SUPABASE_URL'),
+        anonKey: p.getProperty('SUPABASE_ANON_KEY'),
+        robotCorreo: p.getProperty('ROBOT_CORREO'),
+        robotClave: p.getProperty('ROBOT_CLAVE'),
+    };
 }
 
 // ── Qué hay suelto en la carpeta raíz ─────────────────────────────
@@ -254,29 +276,30 @@ function configuracion() {
 // adelante por serie-número, leyendo el XML.
 
 function listarArchivos(raiz) {
-  var xmls = [], pdfs = [];
-  var it = raiz.getFiles();
-  while (it.hasNext()) {
-    var f = it.next();
-    var nombre = f.getName();
-    if (/\.pdf$/i.test(nombre)) pdfs.push(f);
-    else if (/\.(xml|zip)$/i.test(nombre)) xmls.push(f);
-  }
-  return { xmls: xmls, pdfs: pdfs };
+    var xmls = [],
+        pdfs = [];
+    var it = raiz.getFiles();
+    while (it.hasNext()) {
+        var f = it.next();
+        var nombre = f.getName();
+        if (/\.pdf$/i.test(nombre)) pdfs.push(f);
+        else if (/\.(xml|zip)$/i.test(nombre)) xmls.push(f);
+    }
+    return { xmls: xmls, pdfs: pdfs };
 }
 
 /** El texto del XML de un archivo, sacándolo del ZIP si hace falta. */
 function leerXmlDeArchivo(archivo) {
-  var nombre = archivo.getName();
-  if (/\.zip$/i.test(nombre)) {
-    var partes = Utilities.unzip(archivo.getBlob());
-    for (var i = 0; i < partes.length; i++) {
-      if (/\.xml$/i.test(partes[i].getName())) return decodificarBlob(partes[i]);
+    var nombre = archivo.getName();
+    if (/\.zip$/i.test(nombre)) {
+        var partes = Utilities.unzip(archivo.getBlob());
+        for (var i = 0; i < partes.length; i++) {
+            if (/\.xml$/i.test(partes[i].getName())) return decodificarBlob(partes[i]);
+        }
+        return null;
     }
+    if (/\.xml$/i.test(nombre)) return decodificarBlob(archivo.getBlob());
     return null;
-  }
-  if (/\.xml$/i.test(nombre)) return decodificarBlob(archivo.getBlob());
-  return null;
 }
 
 /**
@@ -289,9 +312,7 @@ function leerXmlDeArchivo(archivo) {
  * prueba estricto primero y solo se cae a Latin-1 cuando de verdad no lo es.
  */
 function decodificarBlob(blob) {
-  return esUtf8Valido(blob.getBytes())
-    ? blob.getDataAsString("UTF-8")
-    : blob.getDataAsString("ISO-8859-1");
+    return esUtf8Valido(blob.getBytes()) ? blob.getDataAsString('UTF-8') : blob.getDataAsString('ISO-8859-1');
 }
 
 /**
@@ -304,43 +325,50 @@ function decodificarBlob(blob) {
  * sin depender de esa API.
  */
 function esUtf8Valido(bytes) {
-  var i = 0, n = bytes.length;
-  while (i < n) {
-    var b = bytes[i] & 0xff; // Apps Script los da con signo (-128..127)
-    if (b <= 0x7f) { i++; continue; }
+    var i = 0,
+        n = bytes.length;
+    while (i < n) {
+        var b = bytes[i] & 0xff; // Apps Script los da con signo (-128..127)
+        if (b <= 0x7f) {
+            i++;
+            continue;
+        }
 
-    var extra;
-    if ((b & 0xe0) === 0xc0) extra = 1;       // 110xxxxx
-    else if ((b & 0xf0) === 0xe0) extra = 2;  // 1110xxxx
-    else if ((b & 0xf8) === 0xf0) extra = 3;  // 11110xxx
-    else return false;                        // no es un byte de inicio válido
+        var extra;
+        if ((b & 0xe0) === 0xc0)
+            extra = 1; // 110xxxxx
+        else if ((b & 0xf0) === 0xe0)
+            extra = 2; // 1110xxxx
+        else if ((b & 0xf8) === 0xf0)
+            extra = 3; // 11110xxx
+        else return false; // no es un byte de inicio válido
 
-    if (i + extra >= n) return false;
-    for (var j = 1; j <= extra; j++) {
-      if (((bytes[i + j] & 0xff) & 0xc0) !== 0x80) return false; // 10xxxxxx
+        if (i + extra >= n) return false;
+        for (var j = 1; j <= extra; j++) {
+            if ((bytes[i + j] & 0xff & 0xc0) !== 0x80) return false; // 10xxxxxx
+        }
+        i += extra + 1;
     }
-    i += extra + 1;
-  }
-  return true;
+    return true;
 }
 
 // ── Mover ──────────────────────────────────────────────────────────
 
 function rutaDe(origen, periodo) {
-  var sub = origen === "RECIBIDO" ? "Recibidas" : origen === "EMITIDO" ? "Emitidas" : "Otros";
-  var mes = (periodo && /^\d{6}$/.test(periodo)) ? (periodo.substring(0, 4) + "-" + periodo.substring(4, 6)) : "Sin fecha";
-  return [sub, mes];
+    var sub = origen === 'RECIBIDO' ? 'Recibidas' : origen === 'EMITIDO' ? 'Emitidas' : 'Otros';
+    var mes = periodo && /^\d{6}$/.test(periodo) ? periodo.substring(0, 4) + '-' + periodo.substring(4, 6) : 'Sin fecha';
+    return [sub, mes];
 }
 
 function carpetaAnidada(raiz, segmentos) {
-  var actual = raiz;
-  for (var i = 0; i < segmentos.length; i++) actual = subcarpeta(actual, segmentos[i]);
-  return actual;
+    var actual = raiz;
+    for (var i = 0; i < segmentos.length; i++) actual = subcarpeta(actual, segmentos[i]);
+    return actual;
 }
 
 function subcarpeta(padre, nombre) {
-  var it = padre.getFoldersByName(nombre);
-  return it.hasNext() ? it.next() : padre.createFolder(nombre);
+    var it = padre.getFoldersByName(nombre);
+    return it.hasNext() ? it.next() : padre.createFolder(nombre);
 }
 
 /**
@@ -349,8 +377,8 @@ function subcarpeta(padre, nombre) {
  * drive item». `moveTo` sí, y sirve igual para Mi unidad.
  */
 function mover(archivo, destino, origen) {
-  if (destino.getId() === origen.getId()) return;
-  archivo.moveTo(destino);
+    if (destino.getId() === origen.getId()) return;
+    archivo.moveTo(destino);
 }
 
 // ── Leer el XML (UBL 2.1), con XmlService en vez de a mano ─────────
@@ -361,55 +389,63 @@ function mover(archivo, destino, origen) {
 // ignora el prefijo; acá sale gratis con la API del propio Apps Script.
 
 function leerComprobante(xmlTexto, rucEmpresa) {
-  var raizXml = XmlService.parse(xmlTexto).getRootElement();
-  var tipoInfo = tipoDe(raizXml);
+    var raizXml = XmlService.parse(xmlTexto).getRootElement();
+    var tipoInfo = tipoDe(raizXml);
 
-  // El ID del documento es el primer «ID» con forma serie-número: no la del
-  // RUC de una parte (esos son solo dígitos) ni la de la firma.
-  var ids = buscarTodos(raizXml, "ID");
-  var idDoc = null;
-  for (var i = 0; i < ids.length; i++) {
-    var t = textoDe(ids[i]);
-    if (t && /^[A-Za-z0-9]{1,4}-\d+$/.test(t)) { idDoc = t; break; }
-  }
-  var partes = partirSerieNumero(idDoc);
+    // El ID del documento es el primer «ID» con forma serie-número: no la del
+    // RUC de una parte (esos son solo dígitos) ni la de la firma.
+    var ids = buscarTodos(raizXml, 'ID');
+    var idDoc = null;
+    for (var i = 0; i < ids.length; i++) {
+        var t = textoDe(ids[i]);
+        if (t && /^[A-Za-z0-9]{1,4}-\d+$/.test(t)) {
+            idDoc = t;
+            break;
+        }
+    }
+    var partes = partirSerieNumero(idDoc);
 
-  var proveedor = parteDe(buscarUno(raizXml, "AccountingSupplierParty"));
-  var adquiriente = parteDe(buscarUno(raizXml, "AccountingCustomerParty"));
-  var totales = buscarUno(raizXml, "LegalMonetaryTotal");
-  var taxTotal = buscarUno(raizXml, "TaxTotal"); // el primero es el del documento
+    var proveedor = parteDe(buscarUno(raizXml, 'AccountingSupplierParty'));
+    var adquiriente = parteDe(buscarUno(raizXml, 'AccountingCustomerParty'));
+    var totales = buscarUno(raizXml, 'LegalMonetaryTotal');
+    var taxTotal = buscarUno(raizXml, 'TaxTotal'); // el primero es el del documento
 
-  var lineas = buscarTodos(raizXml, tipoInfo.lineaTag);
-  var items = [];
-  for (var j = 0; j < lineas.length; j++) items.push(itemDe(lineas[j], tipoInfo.cantidadTag));
-  items.sort(function (a, b) { return (a.linea || 0) - (b.linea || 0); });
+    var lineas = buscarTodos(raizXml, tipoInfo.lineaTag);
+    var items = [];
+    for (var j = 0; j < lineas.length; j++) items.push(itemDe(lineas[j], tipoInfo.cantidadTag));
+    items.sort(function (a, b) {
+        return (a.linea || 0) - (b.linea || 0);
+    });
 
-  var ruc = (rucEmpresa || "").trim();
-  var origen = adquiriente.ruc === ruc ? "RECIBIDO" : proveedor.ruc === ruc ? "EMITIDO" : "OTRO";
-  var pago = pagoDe(raizXml);
-  var relacionado = buscarUno(raizXml, "AdditionalDocumentReference");
+    var ruc = (rucEmpresa || '').trim();
+    var origen = adquiriente.ruc === ruc ? 'RECIBIDO' : proveedor.ruc === ruc ? 'EMITIDO' : 'OTRO';
+    var pago = pagoDe(raizXml);
+    var relacionado = buscarUno(raizXml, 'AdditionalDocumentReference');
 
-  return {
-    origen: origen,
-    tipoComprobante: tipoInfo.tipo,
-    serie: partes.serie, numero: partes.numero,
-    fechaEmision: aFecha(valorDe(raizXml, "IssueDate")),
-    moneda: valorDe(raizXml, "DocumentCurrencyCode"),
-    proveedorRuc: proveedor.ruc, proveedorNombre: proveedor.nombre,
-    adquirienteRuc: adquiriente.ruc, adquirienteNombre: adquiriente.nombre,
-    subtotal: aMonto(valorDe(totales, "LineExtensionAmount")),
-    igv: aMonto(valorDe(taxTotal, "TaxAmount")),
-    total: aMonto(valorDe(totales, "PayableAmount")),
-    formaPago: pago.formaPago,
-    cuotas: pago.cuotas,
-    detraccion: pago.detraccion,
-    guiaRemision: valorDe(buscarUno(raizXml, "DespatchDocumentReference"), "ID"),
-    ordenCompra: valorDe(buscarUno(raizXml, "OrderReference"), "ID"),
-    anticipoAplicado: aMonto(valorDe(totales, "PrepaidAmount")),
-    documentoRelacionado: valorDe(relacionado, "ID"),
-    tipoDocumentoRelacionado: valorDe(relacionado, "DocumentType"),
-    items: items,
-  };
+    return {
+        origen: origen,
+        tipoComprobante: tipoInfo.tipo,
+        serie: partes.serie,
+        numero: partes.numero,
+        fechaEmision: aFecha(valorDe(raizXml, 'IssueDate')),
+        moneda: valorDe(raizXml, 'DocumentCurrencyCode'),
+        proveedorRuc: proveedor.ruc,
+        proveedorNombre: proveedor.nombre,
+        adquirienteRuc: adquiriente.ruc,
+        adquirienteNombre: adquiriente.nombre,
+        subtotal: aMonto(valorDe(totales, 'LineExtensionAmount')),
+        igv: aMonto(valorDe(taxTotal, 'TaxAmount')),
+        total: aMonto(valorDe(totales, 'PayableAmount')),
+        formaPago: pago.formaPago,
+        cuotas: pago.cuotas,
+        detraccion: pago.detraccion,
+        guiaRemision: valorDe(buscarUno(raizXml, 'DespatchDocumentReference'), 'ID'),
+        ordenCompra: valorDe(buscarUno(raizXml, 'OrderReference'), 'ID'),
+        anticipoAplicado: aMonto(valorDe(totales, 'PrepaidAmount')),
+        documentoRelacionado: valorDe(relacionado, 'ID'),
+        tipoDocumentoRelacionado: valorDe(relacionado, 'DocumentType'),
+        items: items,
+    };
 }
 
 /**
@@ -428,37 +464,39 @@ function leerComprobante(xmlTexto, rucEmpresa) {
  * cuenta real está en `cac:PaymentMeans`, un bloque aparte.
  */
 function pagoDe(raizXml) {
-  var formaPago = null;
-  var detraccion = null;
-  var cuotas = [];
+    var formaPago = null;
+    var detraccion = null;
+    var cuotas = [];
 
-  var bloquesPago = buscarTodos(raizXml, "PaymentTerms");
-  for (var i = 0; i < bloquesPago.length; i++) {
-    var b = bloquesPago[i];
-    var id = valorDe(b, "ID");
-    var medio = valorDe(b, "PaymentMeansID");
+    var bloquesPago = buscarTodos(raizXml, 'PaymentTerms');
+    for (var i = 0; i < bloquesPago.length; i++) {
+        var b = bloquesPago[i];
+        var id = valorDe(b, 'ID');
+        var medio = valorDe(b, 'PaymentMeansID');
 
-    if (id === "Detraccion") {
-      detraccion = {
-        cuentaBanco: cuentaDetraccionDe(raizXml),
-        codigoBienServicio: medio,
-        porcentaje: aMonto(valorDe(b, "PaymentPercent")),
-        monto: aMonto(valorDe(b, "Amount")),
-      };
-    } else if (medio && /^cuota/i.test(medio)) {
-      var m = /\d+/.exec(medio);
-      cuotas.push({
-        numero: m ? Number(m[0]) : null,
-        monto: aMonto(valorDe(b, "Amount")),
-        fechaVencimiento: aFecha(valorDe(b, "PaymentDueDate")),
-      });
-    } else if (id === "FormaPago") {
-      formaPago = medio;
+        if (id === 'Detraccion') {
+            detraccion = {
+                cuentaBanco: cuentaDetraccionDe(raizXml),
+                codigoBienServicio: medio,
+                porcentaje: aMonto(valorDe(b, 'PaymentPercent')),
+                monto: aMonto(valorDe(b, 'Amount')),
+            };
+        } else if (medio && /^cuota/i.test(medio)) {
+            var m = /\d+/.exec(medio);
+            cuotas.push({
+                numero: m ? Number(m[0]) : null,
+                monto: aMonto(valorDe(b, 'Amount')),
+                fechaVencimiento: aFecha(valorDe(b, 'PaymentDueDate')),
+            });
+        } else if (id === 'FormaPago') {
+            formaPago = medio;
+        }
     }
-  }
 
-  cuotas.sort(function (a, b2) { return (a.numero || 0) - (b2.numero || 0); });
-  return { formaPago: formaPago, cuotas: cuotas, detraccion: detraccion };
+    cuotas.sort(function (a, b2) {
+        return (a.numero || 0) - (b2.numero || 0);
+    });
+    return { formaPago: formaPago, cuotas: cuotas, detraccion: detraccion };
 }
 
 /**
@@ -466,65 +504,64 @@ function pagoDe(raizXml) {
  * —no de `PaymentTerms`, que solo trae el código del bien/servicio—.
  */
 function cuentaDetraccionDe(raizXml) {
-  var bloquesMedio = buscarTodos(raizXml, "PaymentMeans");
-  for (var i = 0; i < bloquesMedio.length; i++) {
-    if (valorDe(bloquesMedio[i], "ID") === "Detraccion") {
-      return valorDe(buscarUno(bloquesMedio[i], "PayeeFinancialAccount"), "ID");
+    var bloquesMedio = buscarTodos(raizXml, 'PaymentMeans');
+    for (var i = 0; i < bloquesMedio.length; i++) {
+        if (valorDe(bloquesMedio[i], 'ID') === 'Detraccion') {
+            return valorDe(buscarUno(bloquesMedio[i], 'PayeeFinancialAccount'), 'ID');
+        }
     }
-  }
-  return null;
+    return null;
 }
 
 function tipoDe(raizXml) {
-  var nombre = raizXml.getName();
-  if (nombre === "CreditNote") return { tipo: "07", lineaTag: "CreditNoteLine", cantidadTag: "CreditedQuantity" };
-  if (nombre === "DebitNote") return { tipo: "08", lineaTag: "DebitNoteLine", cantidadTag: "DebitedQuantity" };
-  return { tipo: valorDe(raizXml, "InvoiceTypeCode"), lineaTag: "InvoiceLine", cantidadTag: "InvoicedQuantity" };
+    var nombre = raizXml.getName();
+    if (nombre === 'CreditNote') return { tipo: '07', lineaTag: 'CreditNoteLine', cantidadTag: 'CreditedQuantity' };
+    if (nombre === 'DebitNote') return { tipo: '08', lineaTag: 'DebitNoteLine', cantidadTag: 'DebitedQuantity' };
+    return { tipo: valorDe(raizXml, 'InvoiceTypeCode'), lineaTag: 'InvoiceLine', cantidadTag: 'InvoicedQuantity' };
 }
 
 function parteDe(bloqueParte) {
-  if (!bloqueParte) return { ruc: null, nombre: null };
-  var ruc = valorDe(buscarUno(bloqueParte, "PartyIdentification"), "ID");
-  var nombre = valorDe(buscarUno(bloqueParte, "PartyLegalEntity"), "RegistrationName")
-    || valorDe(buscarUno(bloqueParte, "PartyName"), "Name");
-  return { ruc: ruc, nombre: nombre };
+    if (!bloqueParte) return { ruc: null, nombre: null };
+    var ruc = valorDe(buscarUno(bloqueParte, 'PartyIdentification'), 'ID');
+    var nombre = valorDe(buscarUno(bloqueParte, 'PartyLegalEntity'), 'RegistrationName') || valorDe(buscarUno(bloqueParte, 'PartyName'), 'Name');
+    return { ruc: ruc, nombre: nombre };
 }
 
 function itemDe(bloqueLinea, cantidadTag) {
-  var linea = valorDe(bloqueLinea, "ID");
-  return {
-    linea: linea ? (Number(linea) || null) : null,
-    descripcion: valorDe(buscarUno(bloqueLinea, "Item"), "Description"),
-    cantidad: aMonto(valorDe(bloqueLinea, cantidadTag)),
-    unidad: atributoDe(bloqueLinea, cantidadTag, "unitCode"),
-    precioUnitario: aMonto(valorDe(buscarUno(bloqueLinea, "Price"), "PriceAmount")),
-    importe: aMonto(valorDe(bloqueLinea, "LineExtensionAmount")),
-  };
+    var linea = valorDe(bloqueLinea, 'ID');
+    return {
+        linea: linea ? Number(linea) || null : null,
+        descripcion: valorDe(buscarUno(bloqueLinea, 'Item'), 'Description'),
+        cantidad: aMonto(valorDe(bloqueLinea, cantidadTag)),
+        unidad: atributoDe(bloqueLinea, cantidadTag, 'unitCode'),
+        precioUnitario: aMonto(valorDe(buscarUno(bloqueLinea, 'Price'), 'PriceAmount')),
+        importe: aMonto(valorDe(bloqueLinea, 'LineExtensionAmount')),
+    };
 }
 
 /** Todos los descendientes con ese nombre local, en el orden del documento. */
 function buscarTodos(elemento, nombre) {
-  var out = [];
-  var hijos = elemento.getChildren();
-  for (var i = 0; i < hijos.length; i++) {
-    var h = hijos[i];
-    if (h.getName() === nombre) out.push(h);
-    out = out.concat(buscarTodos(h, nombre));
-  }
-  return out;
+    var out = [];
+    var hijos = elemento.getChildren();
+    for (var i = 0; i < hijos.length; i++) {
+        var h = hijos[i];
+        if (h.getName() === nombre) out.push(h);
+        out = out.concat(buscarTodos(h, nombre));
+    }
+    return out;
 }
 
 function buscarUno(elemento, nombre) {
-  if (!elemento) return null;
-  var t = buscarTodos(elemento, nombre);
-  return t.length ? t[0] : null;
+    if (!elemento) return null;
+    var t = buscarTodos(elemento, nombre);
+    return t.length ? t[0] : null;
 }
 
 function textoDe(elemento) {
-  var t = elemento.getText();
-  if (!t) return null;
-  t = t.trim();
-  return t ? deshacerDobleCodificacion(t) : null;
+    var t = elemento.getText();
+    if (!t) return null;
+    t = t.trim();
+    return t ? deshacerDobleCodificacion(t) : null;
 }
 
 /**
@@ -544,59 +581,58 @@ function textoDe(elemento) {
  * `src/shared/lib/sunat/cpe-xml.ts`.
  */
 function deshacerDobleCodificacion(s) {
-  if (!/[-]/.test(s)) return s;
-  var bytes = [];
-  for (var i = 0; i < s.length; i++) {
-    var b = s.charCodeAt(i) & 0xff;
-    bytes.push(b > 127 ? b - 256 : b);
-  }
-  if (!esUtf8Valido(bytes)) return s;
-  try {
-    return Utilities.newBlob(bytes).getDataAsString("UTF-8");
-  } catch (e) {
-    return s;
-  }
+    if (!/[-]/.test(s)) return s;
+    var bytes = [];
+    for (var i = 0; i < s.length; i++) {
+        var b = s.charCodeAt(i) & 0xff;
+        bytes.push(b > 127 ? b - 256 : b);
+    }
+    if (!esUtf8Valido(bytes)) return s;
+    try {
+        return Utilities.newBlob(bytes).getDataAsString('UTF-8');
+    } catch (e) {
+        return s;
+    }
 }
 
 function valorDe(contenedor, nombre) {
-  var e = buscarUno(contenedor, nombre);
-  return e ? textoDe(e) : null;
+    var e = buscarUno(contenedor, nombre);
+    return e ? textoDe(e) : null;
 }
 
 function atributoDe(contenedor, nombre, attr) {
-  var e = buscarUno(contenedor, nombre);
-  if (!e) return null;
-  var a = e.getAttribute(attr);
-  return a ? a.getValue() : null;
+    var e = buscarUno(contenedor, nombre);
+    if (!e) return null;
+    var a = e.getAttribute(attr);
+    return a ? a.getValue() : null;
 }
 
 function partirSerieNumero(id) {
-  if (!id) return { serie: null, numero: null };
-  var m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(id.trim());
-  if (!m) return { serie: null, numero: null };
-  return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, "") || "0" };
+    if (!id) return { serie: null, numero: null };
+    var m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(id.trim());
+    if (!m) return { serie: null, numero: null };
+    return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, '') || '0' };
 }
 
 function aMonto(v) {
-  if (v == null) return null;
-  var s = v.replace(/\s/g, "");
-  if (!s) return null;
-  var limpio = (s.indexOf(",") >= 0 && s.indexOf(".") >= 0) ? s.replace(/,/g, "")
-    : s.indexOf(",") >= 0 ? s.replace(",", ".") : s;
-  var n = Number(limpio);
-  return isFinite(n) ? n : null;
+    if (v == null) return null;
+    var s = v.replace(/\s/g, '');
+    if (!s) return null;
+    var limpio = s.indexOf(',') >= 0 && s.indexOf('.') >= 0 ? s.replace(/,/g, '') : s.indexOf(',') >= 0 ? s.replace(',', '.') : s;
+    var n = Number(limpio);
+    return isFinite(n) ? n : null;
 }
 
 function aFecha(v) {
-  if (!v) return null;
-  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim());
-  return m ? (m[1] + "-" + m[2] + "-" + m[3]) : null;
+    if (!v) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim());
+    return m ? m[1] + '-' + m[2] + '-' + m[3] : null;
 }
 
 function periodoDe(fechaEmision) {
-  if (!fechaEmision) return null;
-  var m = /^(\d{4})-(\d{2})/.exec(fechaEmision);
-  return m ? (m[1] + m[2]) : null;
+    if (!fechaEmision) return null;
+    var m = /^(\d{4})-(\d{2})/.exec(fechaEmision);
+    return m ? m[1] + m[2] : null;
 }
 
 // ── Guardar en la base, con el enlace de Drive ─────────────────────
@@ -607,112 +643,125 @@ function periodoDe(fechaEmision) {
 // función nueva en la base para esto.
 
 function aDocLote(c, xmlUrl, pdfUrl) {
-  return {
-    origen: c.origen,
-    proveedorRuc: c.proveedorRuc, proveedorNombre: c.proveedorNombre,
-    adquirienteRuc: c.adquirienteRuc, adquirienteNombre: c.adquirienteNombre,
-    tipoComprobante: c.tipoComprobante, serie: c.serie, numero: c.numero,
-    fechaEmision: c.fechaEmision, moneda: c.moneda,
-    subtotal: c.subtotal, igv: c.igv, total: c.total,
-    periodo: periodoDe(c.fechaEmision),
-    xmlDriveUrl: xmlUrl,
-    pdfDriveUrl: pdfUrl || null,
-    formaPago: c.formaPago,
-    cuotas: c.cuotas,
-    detraccionCuentaBanco: c.detraccion ? c.detraccion.cuentaBanco : null,
-    detraccionCodigoBienServicio: c.detraccion ? c.detraccion.codigoBienServicio : null,
-    detraccionPorcentaje: c.detraccion ? c.detraccion.porcentaje : null,
-    detraccionMonto: c.detraccion ? c.detraccion.monto : null,
-    guiaRemision: c.guiaRemision,
-    ordenCompra: c.ordenCompra,
-    anticipoAplicado: c.anticipoAplicado,
-    documentoRelacionado: c.documentoRelacionado,
-    tipoDocumentoRelacionado: c.tipoDocumentoRelacionado,
-    items: c.items,
-  };
+    return {
+        origen: c.origen,
+        proveedorRuc: c.proveedorRuc,
+        proveedorNombre: c.proveedorNombre,
+        adquirienteRuc: c.adquirienteRuc,
+        adquirienteNombre: c.adquirienteNombre,
+        tipoComprobante: c.tipoComprobante,
+        serie: c.serie,
+        numero: c.numero,
+        fechaEmision: c.fechaEmision,
+        moneda: c.moneda,
+        subtotal: c.subtotal,
+        igv: c.igv,
+        total: c.total,
+        periodo: periodoDe(c.fechaEmision),
+        xmlDriveUrl: xmlUrl,
+        pdfDriveUrl: pdfUrl || null,
+        formaPago: c.formaPago,
+        cuotas: c.cuotas,
+        detraccionCuentaBanco: c.detraccion ? c.detraccion.cuentaBanco : null,
+        detraccionCodigoBienServicio: c.detraccion ? c.detraccion.codigoBienServicio : null,
+        detraccionPorcentaje: c.detraccion ? c.detraccion.porcentaje : null,
+        detraccionMonto: c.detraccion ? c.detraccion.monto : null,
+        guiaRemision: c.guiaRemision,
+        ordenCompra: c.ordenCompra,
+        anticipoAplicado: c.anticipoAplicado,
+        documentoRelacionado: c.documentoRelacionado,
+        tipoDocumentoRelacionado: c.tipoDocumentoRelacionado,
+        items: c.items,
+    };
 }
 
 function actualizarEnlacesPdf() {
-  var cfg = configuracion();
-  var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
-  var doclotes = [];
+    var cfg = configuracion();
+    var raiz = DriveApp.getFolderById(cfg.carpetaRaiz);
+    var doclotes = [];
 
-  var subcarpetas = raiz.getFolders();
-  while (subcarpetas.hasNext()) {
-    var sub = subcarpetas.next(); // Emitidas / Recibidas / Otros
-    var meses = sub.getFolders();
-    while (meses.hasNext()) {
-      var mes = meses.next(); // AAAA-MM / Sin fecha
-      var todos = [];
-      var it = mes.getFiles();
-      while (it.hasNext()) todos.push(it.next());
+    var subcarpetas = raiz.getFolders();
+    while (subcarpetas.hasNext()) {
+        var sub = subcarpetas.next(); // Emitidas / Recibidas / Otros
+        var meses = sub.getFolders();
+        while (meses.hasNext()) {
+            var mes = meses.next(); // AAAA-MM / Sin fecha
+            var todos = [];
+            var it = mes.getFiles();
+            while (it.hasNext()) todos.push(it.next());
 
-      var pdfsPorClave = {};
-      for (var i = 0; i < todos.length; i++) {
-        if (!/\.pdf$/i.test(todos[i].getName())) continue;
-        var partes = partirNombrePdf(todos[i].getName());
-        if (partes) pdfsPorClave[partes.serie + "|" + partes.numero + "|" + partes.ruc] = todos[i];
-      }
+            var pdfsPorClave = {};
+            for (var i = 0; i < todos.length; i++) {
+                if (!/\.pdf$/i.test(todos[i].getName())) continue;
+                var partes = partirNombrePdf(todos[i].getName());
+                if (partes) pdfsPorClave[partes.serie + '|' + partes.numero + '|' + partes.ruc] = todos[i];
+            }
 
-      for (var j = 0; j < todos.length; j++) {
-        var f = todos[j];
-        if (!/\.(xml|zip)$/i.test(f.getName())) continue;
-        try {
-          var texto = leerXmlDeArchivo(f);
-          if (!texto) continue;
-          var c = leerComprobante(texto, cfg.rucEmpresa);
-          if (!c.serie || !c.numero) continue;
-          var pdf = pdfsPorClave[c.serie + "|" + c.numero + "|" + c.proveedorRuc];
-          doclotes.push(aDocLote(c, f.getUrl(), pdf ? pdf.getUrl() : null));
-        } catch (e) { /* un XML raro no debe tumbar el resto */ }
-      }
+            for (var j = 0; j < todos.length; j++) {
+                var f = todos[j];
+                if (!/\.(xml|zip)$/i.test(f.getName())) continue;
+                try {
+                    var texto = leerXmlDeArchivo(f);
+                    if (!texto) continue;
+                    var c = leerComprobante(texto, cfg.rucEmpresa);
+                    if (!c.serie || !c.numero) continue;
+                    var pdf = pdfsPorClave[c.serie + '|' + c.numero + '|' + c.proveedorRuc];
+                    doclotes.push(aDocLote(c, f.getUrl(), pdf ? pdf.getUrl() : null));
+                } catch (e) {
+                    /* un XML raro no debe tumbar el resto */
+                }
+            }
+        }
     }
-  }
 
-  Logger.log("Comprobantes a re-guardar con su enlace de PDF: " + doclotes.length);
-  if (doclotes.length > 0) guardarEnBase(doclotes, cfg);
+    Logger.log('Comprobantes a re-guardar con su enlace de PDF: ' + doclotes.length);
+    if (doclotes.length > 0) guardarEnBase(doclotes, cfg);
 }
 
 function iniciarSesionRobot(cfg) {
-  var resp = UrlFetchApp.fetch(cfg.supabaseUrl + "/auth/v1/token?grant_type=password", {
-    method: "post",
-    contentType: "application/json",
-    headers: { apikey: cfg.anonKey },
-    payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
-    muteHttpExceptions: true,
-  });
-  if (resp.getResponseCode() >= 300) {
-    throw new Error("No se pudo iniciar sesión con la cuenta ROBOT: " + resp.getContentText());
-  }
-  return JSON.parse(resp.getContentText()).access_token;
+    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/auth/v1/token?grant_type=password', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { apikey: cfg.anonKey },
+        payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
+        muteHttpExceptions: true,
+    });
+    if (resp.getResponseCode() >= 300) {
+        throw new Error('No se pudo iniciar sesión con la cuenta ROBOT: ' + resp.getContentText());
+    }
+    return JSON.parse(resp.getContentText()).access_token;
 }
 
 function guardarEnBase(doclotes, cfg) {
-  if (!cfg.supabaseUrl || !cfg.anonKey || !cfg.robotCorreo || !cfg.robotClave) {
-    Logger.log("Faltan credenciales de la base en las Propiedades del script: no se guardó nada, pero los archivos ya se movieron.");
-    return;
-  }
-
-  var token = iniciarSesionRobot(cfg);
-  var LOTE = 25;
-  var nuevos = 0, actualizados = 0, items = 0;
-
-  for (var i = 0; i < doclotes.length; i += LOTE) {
-    var trozo = doclotes.slice(i, i + LOTE);
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + "/rest/v1/rpc/guardar_cpe", {
-      method: "post",
-      contentType: "application/json",
-      headers: { apikey: cfg.anonKey, Authorization: "Bearer " + token },
-      payload: JSON.stringify({ p_empresa_ruc: cfg.rucEmpresa, p_docs: trozo }),
-      muteHttpExceptions: true,
-    });
-    if (resp.getResponseCode() >= 300) {
-      Logger.log("✗ guardar_cpe falló en el lote " + i + ": " + resp.getContentText());
-      continue;
+    if (!cfg.supabaseUrl || !cfg.anonKey || !cfg.robotCorreo || !cfg.robotClave) {
+        Logger.log('Faltan credenciales de la base en las Propiedades del script: no se guardó nada, pero los archivos ya se movieron.');
+        return;
     }
-    var r = JSON.parse(resp.getContentText())[0];
-    nuevos += r.nuevos; actualizados += r.actualizados; items += r.items;
-  }
 
-  Logger.log("Base: " + nuevos + " nuevos, " + actualizados + " actualizados, " + items + " ítems.");
+    var token = iniciarSesionRobot(cfg);
+    var LOTE = 25;
+    var nuevos = 0,
+        actualizados = 0,
+        items = 0;
+
+    for (var i = 0; i < doclotes.length; i += LOTE) {
+        var trozo = doclotes.slice(i, i + LOTE);
+        var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/rest/v1/rpc/guardar_cpe', {
+            method: 'post',
+            contentType: 'application/json',
+            headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + token },
+            payload: JSON.stringify({ p_empresa_ruc: cfg.rucEmpresa, p_docs: trozo }),
+            muteHttpExceptions: true,
+        });
+        if (resp.getResponseCode() >= 300) {
+            Logger.log('✗ guardar_cpe falló en el lote ' + i + ': ' + resp.getContentText());
+            continue;
+        }
+        var r = JSON.parse(resp.getContentText())[0];
+        nuevos += r.nuevos;
+        actualizados += r.actualizados;
+        items += r.items;
+    }
+
+    Logger.log('Base: ' + nuevos + ' nuevos, ' + actualizados + ' actualizados, ' + items + ' ítems.');
 }

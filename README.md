@@ -10,16 +10,16 @@ La guía completa (workflows, credenciales, base de datos, tareas comunes):
 
 ## Carpetas
 
-| Carpeta | Qué hay |
-|---|---|
-| `.github/workflows/` | Los workflows de GitHub Actions (SUNAT diario, XML, padrón, carpetas de OC…) |
-| `src/` | Google Apps Script: `.gs` y `.html` que se pegan en el libro (instalación en `docs/apps-script.md`) |
-| `src/shared/lib/` | Lógica compartida de los scripts: SUNAT, Drive, armado de hojas |
-| `scripts/` | Lo que corren los workflows y los comandos locales (`pnpm …`) |
-| `scripts/out/` | Resultados de cada corrida: `logs/`, `salida/`, `capturas/` (fuera de git) |
-| `docs/` | Documentación |
-| `docs/database/` | `database.full.sql` y `migrations/` de Supabase |
-| `public/` | Archivos estáticos |
+| Carpeta              | Qué hay                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `.github/workflows/` | Los workflows de GitHub Actions (SUNAT diario, XML, padrón, carpetas de OC…)                        |
+| `src/`               | Google Apps Script: `.gs` y `.html` que se pegan en el libro (instalación en `docs/apps-script.md`) |
+| `src/shared/lib/`    | Lógica compartida de los scripts: SUNAT, Drive, armado de hojas                                     |
+| `scripts/`           | Lo que corren los workflows y los comandos locales (`pnpm …`)                                       |
+| `scripts/out/`       | Resultados de cada corrida: `logs/`, `salida/`, `capturas/` (fuera de git)                          |
+| `docs/`              | Documentación                                                                                       |
+| `docs/database/`     | `database.full.sql` y `migrations/` de Supabase                                                     |
+| `public/`            | Archivos estáticos                                                                                  |
 
 ## En una computadora
 

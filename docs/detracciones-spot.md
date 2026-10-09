@@ -45,24 +45,24 @@ Como todos los que usan la cuenta de SOL: **nunca a la vez** que
 
 Pantallazos del usuario del 07/10/2026.
 
-| # | Pantalla | Qué se hace | Notas para el script |
-|---|---|---|---|
-| 1 | `sunat.gob.pe/sol.html` | «Ingresar» del recuadro **MIS DECLARACIONES Y PAGOS** (no el de Trámites y consultas) | El script no necesita esta página: va directo al menú (paso 2) |
-| 2 | Ingreso (`api-seguridad.sunat.gob.pe/…/loginMenuSol?…&state=…`) | RUC + usuario + clave, «Iniciar sesión» | Mismo formulario que ya llena `entrar()` (`#txtRuc`, `#txtUsuario`, `#txtContrasena`). El `state` del enlace es **temporal**: no se guarda; se pide el menú y SUNAT redirige al ingreso con uno nuevo. Usuario: el **ampliado** (`SUNAT_SOL_USUARIO`), no el del SIRE |
-| 3 | Menú nuevo (`e-menu.sunat.gob.pe/cl-ti-itmenu2/MenuInternetPlataforma.htm?pestana=*&agrupacion=*`) | Clic en «Opciones»: el árbol aparece recién ahí | Es **otro menú** que el de los XML (`cl-ti-itmenu/MenuInternet.htm` → «Empresas»). «Bienvenido,» también aparece, así que `menuVisible()` sirve |
-| 4 | Árbol del menú | Mis declaraciones y pagos → Consultas → Consultas de Presentación y Pago → **Consulta de Pago de Detracciones** | Cada nivel se despliega con un clic. La opción es el código **`55.2.1.1.4`** (`#nivel4_55_2_1_1_4`), y el script la elige por código (§7) |
-| 5 | «Consulta - Sistema de Pago de Obligaciones Tributarias (SPOT)» | Filtros y «Consultar» → tabla | Ver §4.1 y §4.2 |
-| 6 | Constancia (ventana encima de la tabla) | Clic en el **número azul** de la columna «Constancia» | Abre un modal «CONSTANCIA DE DEPÓSITO — SISTEMA DE PAGO DE OBLIGACIONES TRIBUTARIAS D.LEG. 940», con botones Imprimir, Guardar y E-mail. Datos en §5 |
-| 7 | Descarga | «Guardar» | Baja **`constancia_dtr_<número>.html`** (~5 KB). Es un **HTML, no un PDF**. En Playwright: `page.waitForEvent("download")` antes del clic. Después cerrar el modal (×) y seguir con la fila siguiente |
+| #   | Pantalla                                                                                           | Qué se hace                                                                                                     | Notas para el script                                                                                                                                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `sunat.gob.pe/sol.html`                                                                            | «Ingresar» del recuadro **MIS DECLARACIONES Y PAGOS** (no el de Trámites y consultas)                           | El script no necesita esta página: va directo al menú (paso 2)                                                                                                                                                                                                        |
+| 2   | Ingreso (`api-seguridad.sunat.gob.pe/…/loginMenuSol?…&state=…`)                                    | RUC + usuario + clave, «Iniciar sesión»                                                                         | Mismo formulario que ya llena `entrar()` (`#txtRuc`, `#txtUsuario`, `#txtContrasena`). El `state` del enlace es **temporal**: no se guarda; se pide el menú y SUNAT redirige al ingreso con uno nuevo. Usuario: el **ampliado** (`SUNAT_SOL_USUARIO`), no el del SIRE |
+| 3   | Menú nuevo (`e-menu.sunat.gob.pe/cl-ti-itmenu2/MenuInternetPlataforma.htm?pestana=*&agrupacion=*`) | Clic en «Opciones»: el árbol aparece recién ahí                                                                 | Es **otro menú** que el de los XML (`cl-ti-itmenu/MenuInternet.htm` → «Empresas»). «Bienvenido,» también aparece, así que `menuVisible()` sirve                                                                                                                       |
+| 4   | Árbol del menú                                                                                     | Mis declaraciones y pagos → Consultas → Consultas de Presentación y Pago → **Consulta de Pago de Detracciones** | Cada nivel se despliega con un clic. La opción es el código **`55.2.1.1.4`** (`#nivel4_55_2_1_1_4`), y el script la elige por código (§7)                                                                                                                             |
+| 5   | «Consulta - Sistema de Pago de Obligaciones Tributarias (SPOT)»                                    | Filtros y «Consultar» → tabla                                                                                   | Ver §4.1 y §4.2                                                                                                                                                                                                                                                       |
+| 6   | Constancia (ventana encima de la tabla)                                                            | Clic en el **número azul** de la columna «Constancia»                                                           | Abre un modal «CONSTANCIA DE DEPÓSITO — SISTEMA DE PAGO DE OBLIGACIONES TRIBUTARIAS D.LEG. 940», con botones Imprimir, Guardar y E-mail. Datos en §5                                                                                                                  |
+| 7   | Descarga                                                                                           | «Guardar»                                                                                                       | Baja **`constancia_dtr_<número>.html`** (~5 KB). Es un **HTML, no un PDF**. En Playwright: `page.waitForEvent("download")` antes del clic. Después cerrar el modal (×) y seguir con la fila siguiente                                                                 |
 
 ### 4.1 Filtros de la consulta SPOT
 
-| Filtro | Por omisión | Notas |
-|---|---|---|
-| Fecha de pago Desde / Hasta | Últimos 3 días (04/10 a 07/10) | **Se pueden dejar vacías** y consultar solo por período (probado el 07/10/2026 con 202609) |
-| Tipo de Cuenta | «Seleccione Tipo de Cuenta» | En la prueba: «Cuenta de Detracciones Convencional». Las demás opciones, por ver |
-| Pagos | «Pagos individuales» | Opciones por ver (¿«masivos»?) |
-| Periodo Tributario | vacío (`aaaamm`) | Al hacer clic abre un selector de mes (año + Ene…Dic). Probar si acepta escribir `202609` directo; si no, usar el selector |
+| Filtro                      | Por omisión                    | Notas                                                                                                                      |
+| --------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Fecha de pago Desde / Hasta | Últimos 3 días (04/10 a 07/10) | **Se pueden dejar vacías** y consultar solo por período (probado el 07/10/2026 con 202609)                                 |
+| Tipo de Cuenta              | «Seleccione Tipo de Cuenta»    | En la prueba: «Cuenta de Detracciones Convencional». Las demás opciones, por ver                                           |
+| Pagos                       | «Pagos individuales»           | Opciones por ver (¿«masivos»?)                                                                                             |
+| Periodo Tributario          | vacío (`aaaamm`)               | Al hacer clic abre un selector de mes (año + Ene…Dic). Probar si acepta escribir `202609` directo; si no, usar el selector |
 
 ### 4.2 La tabla de resultado
 
@@ -91,25 +91,25 @@ Lo que se ve en el ejemplo:
 Ejemplo del 07/10/2026 (constancia 317405442). Campos del modal y del HTML
 que se descarga:
 
-| Campo | Ejemplo | Para qué sirve |
-|---|---|---|
-| Número de constancia | 317405442 | **Identidad** de la constancia (no se repite) y nombre del archivo |
-| Usuario SOL | TESCRAFT | Quién hizo el depósito |
-| N° Cuenta de detracciones (Banco de la Nación) | 00046129075 | Contrastar con la cuenta que trae el XML de la factura |
-| Tipo de Cuenta | Cuenta de Detracciones Convencional | |
-| Ruc del Proveedor | 20554893784 | **Cruce** con la factura |
-| Nombre/Razón Social del Proveedor | CRAFT MULTIMODAL PERU SOCIEDAD ANON | |
-| Tipo / Número de Documento del Adquiriente | 06 - RUC / 20512201611 | Si es nuestro RUC: compra; si no: venta |
-| Nombre/Razón Social del Adquiriente | INDUSTRIAS ROLAND PRINT S.A.C - INR | |
-| Tipo de Operación | 01 - Venta de bienes o prestación de servicio | |
-| Tipo de Bien ó servicio | 037 - Demás Servicios gravados con el IGV | Contrastar con el código y el % del XML (`porcentaje_detraccion`) |
-| Monto del depósito | S/166.00 | Contrastar con el monto de detracción del SIRE y del XML |
-| Fecha y hora de pago | 06/10/2026 17:58:29 | |
-| Periodo Tributario | 202609 | Carpeta de Drive |
-| Tipo de Comprobante | 01 - FACTURA | **Cruce** |
-| Número de Comprobante | FE02 - 00070678 | **Cruce** (serie y número, sin ceros a la izquierda) |
-| Número de operación | 7847135864 | Operación del banco |
-| Número de Pago de Detracciones | *(vacío)* | |
+| Campo                                          | Ejemplo                                       | Para qué sirve                                                     |
+| ---------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------ |
+| Número de constancia                           | 317405442                                     | **Identidad** de la constancia (no se repite) y nombre del archivo |
+| Usuario SOL                                    | TESCRAFT                                      | Quién hizo el depósito                                             |
+| N° Cuenta de detracciones (Banco de la Nación) | 00046129075                                   | Contrastar con la cuenta que trae el XML de la factura             |
+| Tipo de Cuenta                                 | Cuenta de Detracciones Convencional           |                                                                    |
+| Ruc del Proveedor                              | 20554893784                                   | **Cruce** con la factura                                           |
+| Nombre/Razón Social del Proveedor              | CRAFT MULTIMODAL PERU SOCIEDAD ANON           |                                                                    |
+| Tipo / Número de Documento del Adquiriente     | 06 - RUC / 20512201611                        | Si es nuestro RUC: compra; si no: venta                            |
+| Nombre/Razón Social del Adquiriente            | INDUSTRIAS ROLAND PRINT S.A.C - INR           |                                                                    |
+| Tipo de Operación                              | 01 - Venta de bienes o prestación de servicio |                                                                    |
+| Tipo de Bien ó servicio                        | 037 - Demás Servicios gravados con el IGV     | Contrastar con el código y el % del XML (`porcentaje_detraccion`)  |
+| Monto del depósito                             | S/166.00                                      | Contrastar con el monto de detracción del SIRE y del XML           |
+| Fecha y hora de pago                           | 06/10/2026 17:58:29                           |                                                                    |
+| Periodo Tributario                             | 202609                                        | Carpeta de Drive                                                   |
+| Tipo de Comprobante                            | 01 - FACTURA                                  | **Cruce**                                                          |
+| Número de Comprobante                          | FE02 - 00070678                               | **Cruce** (serie y número, sin ceros a la izquierda)               |
+| Número de operación                            | 7847135864                                    | Operación del banco                                                |
+| Número de Pago de Detracciones                 | _(vacío)_                                     |                                                                    |
 
 El cruce con la factura: **RUC del proveedor + tipo + serie + número**, igual
 que `vinculos_oc()` con `comprobantes_sunat`.
@@ -131,13 +131,13 @@ que `vinculos_oc()` con `comprobantes_sunat`.
 Corrida de prueba que **no guarda nada** en la base ni en Drive: recorre la
 ruta de §4 y deja la evidencia para armar el script de verdad.
 
-| Archivo | Qué hace |
-|---|---|
-| `reconocer.mts` | El principal: login, menú, filtros, tabla, constancias de prueba, `resumen.json` |
-| `menu.mts` | Del menú nuevo a la consulta SPOT: la opción por código y, de respaldo, el árbol o el buscador |
-| `api.mts` | La API de la consulta (§8), llamada desde la misma página: consultar y descargar la constancia |
-| `spot.mts` | La pantalla SPOT ya abierta: filtros, tabla, modal, «Guardar». Se reusará en el script de verdad |
-| `red.mts` | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
+| Archivo         | Qué hace                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| `reconocer.mts` | El principal: login, menú, filtros, tabla, constancias de prueba, `resumen.json`                 |
+| `menu.mts`      | Del menú nuevo a la consulta SPOT: la opción por código y, de respaldo, el árbol o el buscador   |
+| `api.mts`       | La API de la consulta (§8), llamada desde la misma página: consultar y descargar la constancia   |
+| `spot.mts`      | La pantalla SPOT ya abierta: filtros, tabla, modal, «Guardar». Se reusará en el script de verdad |
+| `red.mts`       | Registra lo que la página pide por debajo, **sin** claves, tokens ni cookies, y nada del ingreso |
 
 **Cómo entra** (`ENTRADA`, input `entrada` del workflow):
 
@@ -193,14 +193,14 @@ sin ventana no se imprime el PDF).
 
 Qué mirar en `scripts/out/logs/detracciones-reconocer-<fecha>/`:
 
-| Archivo | Para qué |
-|---|---|
-| `resumen.json` | Lo encontrado: URL de la consulta, opciones de los desplegables, filas, constancias bajadas, señales de paginación |
-| `capturas/` | Una imagen por paso; si algo falló, `errores/` tiene captura + HTML |
-| `controles-antes.json` / `-despues.json` | Los ids reales de cada campo, para fijar los selectores |
-| `resultado.html` / `.txt` | La página con la tabla |
-| `constancias/` | `constancia_dtr_<número>.html`, su `.pdf` y el texto del modal |
-| `red.jsonl`, `red/` | ¿Hay una API? Si la tabla o la constancia llegan como JSON, se pide directo, sin pantallas |
+| Archivo                                  | Para qué                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `resumen.json`                           | Lo encontrado: URL de la consulta, opciones de los desplegables, filas, constancias bajadas, señales de paginación |
+| `capturas/`                              | Una imagen por paso; si algo falló, `errores/` tiene captura + HTML                                                |
+| `controles-antes.json` / `-despues.json` | Los ids reales de cada campo, para fijar los selectores                                                            |
+| `resultado.html` / `.txt`                | La página con la tabla                                                                                             |
+| `constancias/`                           | `constancia_dtr_<número>.html`, su `.pdf` y el texto del modal                                                     |
+| `red.jsonl`, `red/`                      | ¿Hay una API? Si la tabla o la constancia llegan como JSON, se pide directo, sin pantallas                         |
 
 **Quinta corrida (08/10/2026, run 37812238507):** la opción por código
 **abrió la consulta SPOT** (con la tabla de los últimos días cargada), pero el
@@ -219,13 +219,13 @@ recuadro de `https://e-plataformaunica.sunat.gob.pe/app/recaudacion/tributaria/i
 `fconsultaDetracciones.html` y llama a esta API. Las rutas están en su código
 público (`constantes-fconsultaDetracciones.js`, `fconsultaDetracciones.service.js`):
 
-| Qué | Pedido | Respuesta |
-|---|---|---|
-| Consultar | `GET /v1/recaudacion/tributaria/declapago/detracciones/t/consultar?&fechaInicio=&fechaFin=&tipoCuenta=1&tipoConsulta=pagosIndividuales&periodo=202609` | `{ cod: 200, msg, resultado: [ … ] }`: una fila por depósito |
-| Descargar la constancia («Guardar») | `POST …/t/descargarconstancia?numeroConstancia={n}`, cuerpo `""` | El HTML `constancia_dtr_{n}.html` |
-| Ver la constancia (modal) | `GET …/e/obtenerconstancia?indice={i}&numeroConstancia={n}` | JSON. **Va antes de descargar**: sin él, `descargarconstancia` responde 500 |
-| Exportar la tabla | `POST …/t/descargararchivoexcel` · `…/t/descargararchivotexto` | `.csv` · `.txt` |
-| Parámetros | `GET …/t/obtenervaloresparametrosiniciales` | Catálogos: tipos de documento, bienes y servicios… |
+| Qué                                 | Pedido                                                                                                                                                 | Respuesta                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Consultar                           | `GET /v1/recaudacion/tributaria/declapago/detracciones/t/consultar?&fechaInicio=&fechaFin=&tipoCuenta=1&tipoConsulta=pagosIndividuales&periodo=202609` | `{ cod: 200, msg, resultado: [ … ] }`: una fila por depósito                |
+| Descargar la constancia («Guardar») | `POST …/t/descargarconstancia?numeroConstancia={n}`, cuerpo `""`                                                                                       | El HTML `constancia_dtr_{n}.html`                                           |
+| Ver la constancia (modal)           | `GET …/e/obtenerconstancia?indice={i}&numeroConstancia={n}`                                                                                            | JSON. **Va antes de descargar**: sin él, `descargarconstancia` responde 500 |
+| Exportar la tabla                   | `POST …/t/descargararchivoexcel` · `…/t/descargararchivotexto`                                                                                         | `.csv` · `.txt`                                                             |
+| Parámetros                          | `GET …/t/obtenervaloresparametrosiniciales`                                                                                                            | Catálogos: tipos de documento, bienes y servicios…                          |
 
 - **Cabeceras:** `IdCache: <sessionStorage.token de la página>` e
   `IdFormulario: *MENU*`. El script llama **desde la misma página**
@@ -235,17 +235,17 @@ público (`constantes-fconsultaDetracciones.js`, `fconsultaDetracciones.service.
   Al abrirse, la página consulta sola los últimos 3 días.
 - **Una fila de `resultado`** (constancia 317505340, una venta):
 
-  | Campo | Ejemplo | Campo | Ejemplo |
-  |---|---|---|---|
-  | `num_constancia` | 317505340 | `num_ruc_proveedor` | 20512201611 |
-  | `num_cuenta` | 00002003147 | `des_prov` | INDUSTRIAS ROLAND PRINT S.A.C - INR |
-  | `cod_tipcta` | 1 | `tip_doc_adq` / `num_doc_adq` | 06 / 20604269009 |
-  | `fec_pago_desc` | 2026-10-07 | `des_adq` | CHINA CIVIL ENGINEERING CONSTRUCTIO |
-  | `per_tributario` | 202608 | `tip_operacion` | 01 |
-  | `cod_tipcomprobante` | 01 | `tip_bien` | 037 |
-  | `num_serie` / `num_comprobante` | E001 / 00002283 | `mto_deposito` | 9406.0 |
-  | `num_pres` | 7847239999 (n.° de operación) | `origen_desc` | WEB SUNAT |
-  | `cod_usuario_sol` | CCECCPER | `num_npd` | *(vacío)* |
+  | Campo                           | Ejemplo                       | Campo                         | Ejemplo                             |
+  | ------------------------------- | ----------------------------- | ----------------------------- | ----------------------------------- |
+  | `num_constancia`                | 317505340                     | `num_ruc_proveedor`           | 20512201611                         |
+  | `num_cuenta`                    | 00002003147                   | `des_prov`                    | INDUSTRIAS ROLAND PRINT S.A.C - INR |
+  | `cod_tipcta`                    | 1                             | `tip_doc_adq` / `num_doc_adq` | 06 / 20604269009                    |
+  | `fec_pago_desc`                 | 2026-10-07                    | `des_adq`                     | CHINA CIVIL ENGINEERING CONSTRUCTIO |
+  | `per_tributario`                | 202608                        | `tip_operacion`               | 01                                  |
+  | `cod_tipcomprobante`            | 01                            | `tip_bien`                    | 037                                 |
+  | `num_serie` / `num_comprobante` | E001 / 00002283               | `mto_deposito`                | 9406.0                              |
+  | `num_pres`                      | 7847239999 (n.° de operación) | `origen_desc`                 | WEB SUNAT                           |
+  | `cod_usuario_sol`               | CCECCPER                      | `num_npd`                     | _(vacío)_                           |
 
   Si `num_ruc_proveedor` es nuestro RUC, es una **venta** (el cliente nos
   depositó); si no, una **compra**.
@@ -274,12 +274,12 @@ Toda la corrida dura ~20 s, sin contar la instalación del navegador.
 Desde el 08/10/2026. Hace lo mismo que el reconocimiento, pero con todas las
 constancias, y las guarda.
 
-| Archivo | Qué hace |
-|---|---|
+| Archivo            | Qué hace                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
 | `detracciones.mts` | El principal: login, consulta por fecha de pago, cada constancia nueva, lote a la base, pestañas |
-| `registro.mts` | Lo puro: compra o venta, nombre del archivo, carpeta, tramos de fechas, la fila de la base |
-| `archivo.mts` | Copia en disco, PDF y subida a Drive sin repetir |
-| `guardar.mts` | La base (`guardar_detracciones`, de a 20) y las pestañas |
+| `registro.mts`     | Lo puro: compra o venta, nombre del archivo, carpeta, tramos de fechas, la fila de la base       |
+| `archivo.mts`      | Copia en disco, PDF y subida a Drive sin repetir                                                 |
+| `guardar.mts`      | La base (`guardar_detracciones`, de a 20) y las pestañas                                         |
 
 **Cómo busca.** Por **fecha de pago**, mes calendario por mes calendario, en las
 tres cuentas (Convencional, IVAP, Ley 30737), en «Pagos individuales». El cron
@@ -318,14 +318,14 @@ la que lee la vista de Apps Script; decidido el 08/10/2026 en vez de pestañas
 aparte). Sale de `detalle_cpe_hoja_con_detraccion()` (migración 066), que es
 `detalle_cpe_hoja()` sin tocar más seis columnas al final:
 
-| Columna | Qué trae |
-|---|---|
-| Constancia de detracción | El número; si hay más de una (depósitos parciales), todas con « / » |
-| Fecha de pago (detracción) | La del último depósito |
-| Detracción depositada | La suma de lo depositado |
-| PDF constancia de detracción | Enlace al PDF en Drive |
-| HTML constancia de detracción | Enlace al HTML original de SUNAT en Drive |
-| Detracción: constancia | «Con constancia», «Revisar monto» (difiere en más de S/ 1 de la detracción del XML; SUNAT redondea el depósito a soles), «Falta constancia» (el XML dice que tiene detracción y no hay constancia) o vacío |
+| Columna                       | Qué trae                                                                                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constancia de detracción      | El número; si hay más de una (depósitos parciales), todas con « / »                                                                                                                                        |
+| Fecha de pago (detracción)    | La del último depósito                                                                                                                                                                                     |
+| Detracción depositada         | La suma de lo depositado                                                                                                                                                                                   |
+| PDF constancia de detracción  | Enlace al PDF en Drive                                                                                                                                                                                     |
+| HTML constancia de detracción | Enlace al HTML original de SUNAT en Drive                                                                                                                                                                  |
+| Detracción: constancia        | «Con constancia», «Revisar monto» (difiere en más de S/ 1 de la detracción del XML; SUNAT redondea el depósito a soles), «Falta constancia» (el XML dice que tiene detracción y no hay constancia) o vacío |
 
 La corrida republica esa hoja solo si bajó constancias nuevas.
 
@@ -345,16 +345,16 @@ rastrear los casos atípicos), que se publican en cada corrida:
 
 Al 08/10/2026 (634 constancias):
 
-| Caso | Compras | Ventas |
-|---|---:|---:|
-| Normal | 437 | 17 |
-| XML no declara detracción | 50 | — |
-| Factura de 2025 | 32 (S/ 58 706) | 32 (S/ 391 595) |
-| Revisar monto | 23 | — |
-| Pago 2+ meses después | 21 | 14 |
-| Sin factura | 1 | 7 | Solo aparecen
-las constancias de comprobantes que tienen XML (la hoja es del XML): las de
-facturas sin XML quedan en la base y en Drive.
+| Caso                                                                        |        Compras |          Ventas |
+| --------------------------------------------------------------------------- | -------------: | --------------: |
+| Normal                                                                      |            437 |              17 |
+| XML no declara detracción                                                   |             50 |               — |
+| Factura de 2025                                                             | 32 (S/ 58 706) | 32 (S/ 391 595) |
+| Revisar monto                                                               |             23 |               — |
+| Pago 2+ meses después                                                       |             21 |              14 |
+| Sin factura                                                                 |              1 |               7 | Solo aparecen |
+| las constancias de comprobantes que tienen XML (la hoja es del XML): las de |
+| facturas sin XML quedan en la base y en Drive.                              |
 
 **Primera carga:** Actions → **SUNAT detracciones** → Run workflow → `desde`
 `01/01/2026`. Para probar sin guardar: `guardar` desmarcado y `limite` 5.
@@ -367,10 +367,10 @@ función del detalle de siempre quedó igual (se comprobó con su huella md5).
 Prueba con 5 (run 37852656407) y carga completa por fecha de pago del
 01/01/2026 al 08/10/2026 (run 37854130482, 42 min, 0 fallidas):
 
-| | Constancias | Depositado | Con PDF y HTML | Con XML (en el DETALLE) | Revisar monto | XML sin detracción | Pagadas en un mes posterior al período |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Compras | 564 | S/ 604 392 | 564 | 531 | 23 | 50 | 199 |
-| Ventas | 70 | S/ 545 678 | 70 | 31 | 0 | — | 67 |
+|         | Constancias | Depositado | Con PDF y HTML | Con XML (en el DETALLE) | Revisar monto | XML sin detracción | Pagadas en un mes posterior al período |
+| ------- | ----------: | ---------: | -------------: | ----------------------: | ------------: | -----------------: | -------------------------------------: |
+| Compras |         564 | S/ 604 392 |            564 |                     531 |            23 |                 50 |                                    199 |
+| Ventas  |          70 | S/ 545 678 |             70 |                      31 |             0 |                  — |                                     67 |
 
 - 1 258 archivos en Drive (PDF + HTML), 0 fallidos; 30 consultas; 0 pagos masivos.
 - El período más antiguo depositado en 2026 es **202506** (compras) y

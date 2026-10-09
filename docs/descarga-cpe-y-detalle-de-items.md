@@ -36,14 +36,14 @@ descargar nada a mano.
 
 No hay que reconstruir el circuito. Se apoya en lo hecho:
 
-| Pieza | Archivo | Se reutiliza para |
-|---|---|---|
-| Token de SUNAT | `src/shared/lib/sunat/token.ts` | Auth (pero necesita un segundo scope, ver §4) |
-| Patrón de ticket asíncrono | `src/shared/lib/sunat/sire.ts` | El RCE ya lo resuelve; el CPE **no** usa ticket |
-| Almacén de comprobantes | tabla `comprobantes_sunat` (mig. 016) | De aquí sale la lista de qué CPE bajar |
-| Publicar a Sheets | `src/shared/lib/drive/servidor.ts` → `publicarHoja()` | La nueva pestaña de ítems usa la misma función |
-| Subir archivo a Drive | `app/api/drive-upload/route.ts` | Guardar el XML/PDF/CDR físico |
-| Cron fuera de Vercel | `scripts/sunat-diario.mts` + GitHub Actions | Bajar los CPE del día en el mismo proceso |
+| Pieza                      | Archivo                                               | Se reutiliza para                               |
+| -------------------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| Token de SUNAT             | `src/shared/lib/sunat/token.ts`                       | Auth (pero necesita un segundo scope, ver §4)   |
+| Patrón de ticket asíncrono | `src/shared/lib/sunat/sire.ts`                        | El RCE ya lo resuelve; el CPE **no** usa ticket |
+| Almacén de comprobantes    | tabla `comprobantes_sunat` (mig. 016)                 | De aquí sale la lista de qué CPE bajar          |
+| Publicar a Sheets          | `src/shared/lib/drive/servidor.ts` → `publicarHoja()` | La nueva pestaña de ítems usa la misma función  |
+| Subir archivo a Drive      | `app/api/drive-upload/route.ts`                       | Guardar el XML/PDF/CDR físico                   |
+| Cron fuera de Vercel       | `scripts/sunat-diario.mts` + GitHub Actions           | Bajar los CPE del día en el mismo proceso       |
 
 **Lo importante:** la lista de comprobantes a descargar ya la tenemos. Cada
 fila de `comprobantes_sunat` trae RUC del proveedor, tipo, serie y número —los
@@ -69,6 +69,7 @@ La descarga del CPE **no es SIRE**. Es otro servicio, en otro host:
   RUC de la empresa), que es justo el caso de las compras de INROPRIN.
 
 > **A verificar contra la doc vigente de SUNAT antes de escribir código:**
+>
 > 1. La ruta exacta del endpoint (`/v1/contribuyente/...`) y el nombre literal
 >    del recurso.
 > 2. El **scope del token**: `consultacpe` va habilitado aparte en la app de
@@ -97,7 +98,7 @@ El cambio es hacer el scope un parámetro, no una constante:
 
 ```ts
 export function cuerpoDeToken(c: CredencialesSunat, scope = SIRE): URLSearchParams {
-  return new URLSearchParams({ grant_type: "password", scope, /* ... */ });
+  return new URLSearchParams({ grant_type: 'password', scope /* ... */ });
 }
 ```
 

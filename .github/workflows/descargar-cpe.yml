@@ -35,22 +35,22 @@ name: SUNAT descargar XML
 on:
   schedule:
     # 08:00 en Lima (UTC-5 todo el año), igual que SUNAT diario.
-    - cron: "0 13 * * *"
+    - cron: '0 13 * * *'
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo entrar y capturar la pantalla, sin bajar (para fijar selectores)."
+        description: 'Solo entrar y capturar la pantalla, sin bajar (para fijar selectores).'
         type: boolean
         required: false
         default: true
       fecha_inicio:
-        description: "Desde (dd/mm/yyyy). Vacío = hace 30 días."
+        description: 'Desde (dd/mm/yyyy). Vacío = hace 30 días.'
         required: false
-        default: ""
+        default: ''
       fecha_fin:
-        description: "Hasta (dd/mm/yyyy). Vacío = hoy."
+        description: 'Hasta (dd/mm/yyyy). Vacío = hoy.'
         required: false
-        default: ""
+        default: ''
       tipo_consulta:
         description: >-
           Uno o varios tipos, separados por coma. El portal no tiene un «todo
@@ -60,7 +60,7 @@ on:
           factura y nota (FE/NC/ND) y cuatro de boleta (BVE/NC-BVE/ND-BVE). Un
           nombre que no esté en esa lista corta la corrida antes del login.
         required: false
-        default: "FE Emitidas,NC Emitidas,NC Recibidas,ND Emitidas,ND Recibidas,BVE Emitidas,BVE Recibidas,NC-BVE Emitidas,ND-BVE Emitidas"
+        default: 'FE Emitidas,NC Emitidas,NC Recibidas,ND Emitidas,ND Recibidas,BVE Emitidas,BVE Recibidas,NC-BVE Emitidas,ND-BVE Emitidas'
       rango_prueba_imprimir:
         description: >-
           Prueba puntual, apagada si se deja vacía: además de la consulta
@@ -70,7 +70,7 @@ on:
           de verdad o solo reimprime lo último corrido con Aceptar—. No baja
           ni guarda nada por su cuenta.
         required: false
-        default: ""
+        default: ''
 
 permissions:
   contents: read
@@ -94,7 +94,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

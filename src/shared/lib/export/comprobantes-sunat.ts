@@ -10,55 +10,55 @@
 // bajar el archivo a mano.
 
 export interface ComprobanteHistorico {
-  periodo: string;
-  proveedorRuc: string | null;
-  proveedorNombre: string | null;
-  tipoComprobante: string | null;
-  serie: string | null;
-  numero: string | null;
-  fechaEmision: string | null;
-  total: number | null;
-  moneda: string | null;
-  estado: string | null;
-  /** Base imponible: la suma de los tres destinos. */
-  base: number | null;
-  /** IGV: la suma de los tres destinos. El desglose vive en la base. */
-  igv: number | null;
-  detraccion: number | null;
-  tipoCambio: number | null;
-  tipoNota: string | null;
-  modificaTipo: string | null;
-  modificaSerie: string | null;
-  modificaNumero: string | null;
-  carSunat: string | null;
-  primeraVez: string;
-  ultimaVez: string;
-  /** Quién lo rindió en la aplicación, si alguien lo hizo. */
-  rendidoPor: string | null;
-  /** Si el comprobante cambió desde que lo vimos por primera vez. */
-  cambios: number;
-  /** La OC en cuya carpeta de Drive está la factura (varias, con « / »). */
-  ocCarpeta?: string | null;
-  /** El centro de costo de esa OC en la base de Control de Gestión. */
-  centroCostoCg?: string | null;
-  /** El código de CONCAR, solo si la equivalencia está confirmada. */
-  codigoConcar?: string | null;
-  /** Lo que conviene revisar del vínculo con la OC. */
-  alertasOc?: string | null;
-  /** El archivo (de la carpeta de OC en Drive) que confirmó este vínculo. */
-  archivoOc?: string | null;
-  /** Su enlace, para verificar el vínculo sin buscarlo a mano. */
-  archivoOcUrl?: string | null;
-  /**
-   * Lo que el legajo por OC sabe de esa OC (del cuadro de aprobaciones, en
-   * vivo): si ya se pagó, quién la compró, qué área debe completar su
-   * legajo y qué documento le falta. Vacío si la OC no está en el legajo.
-   */
-  situacionPagoOc?: string | null;
-  compradorOc?: string | null;
-  areaOc?: string | null;
-  legajoOc?: string | null;
-  carpetaOcUrl?: string | null;
+    periodo: string;
+    proveedorRuc: string | null;
+    proveedorNombre: string | null;
+    tipoComprobante: string | null;
+    serie: string | null;
+    numero: string | null;
+    fechaEmision: string | null;
+    total: number | null;
+    moneda: string | null;
+    estado: string | null;
+    /** Base imponible: la suma de los tres destinos. */
+    base: number | null;
+    /** IGV: la suma de los tres destinos. El desglose vive en la base. */
+    igv: number | null;
+    detraccion: number | null;
+    tipoCambio: number | null;
+    tipoNota: string | null;
+    modificaTipo: string | null;
+    modificaSerie: string | null;
+    modificaNumero: string | null;
+    carSunat: string | null;
+    primeraVez: string;
+    ultimaVez: string;
+    /** Quién lo rindió en la aplicación, si alguien lo hizo. */
+    rendidoPor: string | null;
+    /** Si el comprobante cambió desde que lo vimos por primera vez. */
+    cambios: number;
+    /** La OC en cuya carpeta de Drive está la factura (varias, con « / »). */
+    ocCarpeta?: string | null;
+    /** El centro de costo de esa OC en la base de Control de Gestión. */
+    centroCostoCg?: string | null;
+    /** El código de CONCAR, solo si la equivalencia está confirmada. */
+    codigoConcar?: string | null;
+    /** Lo que conviene revisar del vínculo con la OC. */
+    alertasOc?: string | null;
+    /** El archivo (de la carpeta de OC en Drive) que confirmó este vínculo. */
+    archivoOc?: string | null;
+    /** Su enlace, para verificar el vínculo sin buscarlo a mano. */
+    archivoOcUrl?: string | null;
+    /**
+     * Lo que el legajo por OC sabe de esa OC (del cuadro de aprobaciones, en
+     * vivo): si ya se pagó, quién la compró, qué área debe completar su
+     * legajo y qué documento le falta. Vacío si la OC no está en el legajo.
+     */
+    situacionPagoOc?: string | null;
+    compradorOc?: string | null;
+    areaOc?: string | null;
+    legajoOc?: string | null;
+    carpetaOcUrl?: string | null;
 }
 
 /**
@@ -67,11 +67,11 @@ export interface ComprobanteHistorico {
  * a la compra le corresponde o no la retención del IGV.
  */
 export interface CondicionProveedor {
-  /** "HABIDO" / "NO HABIDO". */
-  condicion: string | null;
-  buenContribuyente: boolean;
-  agenteRetencion: boolean;
-  agentePercepcion: boolean;
+    /** "HABIDO" / "NO HABIDO". */
+    condicion: string | null;
+    buenContribuyente: boolean;
+    agenteRetencion: boolean;
+    agentePercepcion: boolean;
 }
 
 /**
@@ -80,18 +80,18 @@ export interface CondicionProveedor {
  * conversión en cada sitio que publica la hoja.
  */
 export function mapaPadronPorRuc(filas: Array<Record<string, unknown>>): Map<string, CondicionProveedor> {
-  const mapa = new Map<string, CondicionProveedor>();
-  for (const f of filas) {
-    const ruc = f.ruc as string | null;
-    if (!ruc) continue;
-    mapa.set(ruc, {
-      condicion: (f.condicion as string) ?? null,
-      buenContribuyente: Boolean(f.buen_contribuyente),
-      agenteRetencion: Boolean(f.agente_retencion),
-      agentePercepcion: Boolean(f.agente_percepcion),
-    });
-  }
-  return mapa;
+    const mapa = new Map<string, CondicionProveedor>();
+    for (const f of filas) {
+        const ruc = f.ruc as string | null;
+        if (!ruc) continue;
+        mapa.set(ruc, {
+            condicion: (f.condicion as string) ?? null,
+            buenContribuyente: Boolean(f.buen_contribuyente),
+            agenteRetencion: Boolean(f.agente_retencion),
+            agentePercepcion: Boolean(f.agente_percepcion),
+        });
+    }
+    return mapa;
 }
 
 // El orden importa: lo que Contabilidad busca primero va a la izquierda, y
@@ -101,17 +101,43 @@ export function mapaPadronPorRuc(filas: Array<Record<string, unknown>>): Map<str
 // columnas que alguien ya tenga referenciadas. Lo mismo las de la OC (la
 // carpeta de Drive donde está la factura), que vienen de `vinculos_oc()`.
 export const CABECERAS_SUNAT = [
-  "Período", "RUC proveedor", "Proveedor", "Tipo", "Serie", "Número",
-  "Fecha de emisión", "Moneda", "Tipo de cambio",
-  "Base imponible", "IGV", "Total", "Detracción",
-  "Estado", "Es nota de", "Corrige a", "Lo rindió", "Cambios detectados",
-  "Visto por primera vez", "Visto por última vez", "CAR SUNAT",
-  "Condición SUNAT", "Buen Contribuyente", "Agente de Retención", "Agente de Percepción",
-  "OC (carpeta)", "Centro de costo (CG)", "Código CONCAR", "Revisar vínculo OC",
-  "Archivo que confirma la OC", "Enlace del archivo (OC)",
-  // Del legajo por OC (cuadro de aprobaciones), también al final.
-  "Situación del pago (OC)", "Comprador (OC)", "Área que completa el legajo",
-  "Legajo de la OC", "Carpeta de la OC",
+    'Período',
+    'RUC proveedor',
+    'Proveedor',
+    'Tipo',
+    'Serie',
+    'Número',
+    'Fecha de emisión',
+    'Moneda',
+    'Tipo de cambio',
+    'Base imponible',
+    'IGV',
+    'Total',
+    'Detracción',
+    'Estado',
+    'Es nota de',
+    'Corrige a',
+    'Lo rindió',
+    'Cambios detectados',
+    'Visto por primera vez',
+    'Visto por última vez',
+    'CAR SUNAT',
+    'Condición SUNAT',
+    'Buen Contribuyente',
+    'Agente de Retención',
+    'Agente de Percepción',
+    'OC (carpeta)',
+    'Centro de costo (CG)',
+    'Código CONCAR',
+    'Revisar vínculo OC',
+    'Archivo que confirma la OC',
+    'Enlace del archivo (OC)',
+    // Del legajo por OC (cuadro de aprobaciones), también al final.
+    'Situación del pago (OC)',
+    'Comprador (OC)',
+    'Área que completa el legajo',
+    'Legajo de la OC',
+    'Carpeta de la OC',
 ];
 
 /**
@@ -131,71 +157,74 @@ export const CABECERAS_SUNAT = [
  * Identificador es todo lo que se parece a un número pero no se suma —RUC,
  * serie, número, período, código— y va como texto a propósito.
  */
-export type TipoColumna = "texto" | "numero" | "fecha";
+export type TipoColumna = 'texto' | 'numero' | 'fecha';
 
 export const TIPOS_SUNAT: TipoColumna[] = [
-  "texto",  // Período
-  "texto",  // RUC proveedor
-  "texto",  // Proveedor
-  "texto",  // Tipo
-  "texto",  // Serie
-  "texto",  // Número
-  "fecha",  // Fecha de emisión
-  "texto",  // Moneda
-  "numero", // Tipo de cambio
-  "numero", // Base imponible
-  "numero", // IGV
-  "numero", // Total
-  "numero", // Detracción
-  "texto",  // Estado
-  "texto",  // Es nota de
-  "texto",  // Corrige a
-  "texto",  // Lo rindió
-  "texto",  // Cambios detectados
-  "fecha",  // Visto por primera vez
-  "fecha",  // Visto por última vez
-  "texto",  // CAR SUNAT
-  "texto",  // Condición SUNAT
-  "texto",  // Buen Contribuyente
-  "texto",  // Agente de Retención
-  "texto",  // Agente de Percepción
-  "texto",  // OC (carpeta)
-  "texto",  // Centro de costo (CG)
-  "texto",  // Código CONCAR
-  "texto",  // Revisar vínculo OC
-  "texto",  // Archivo que confirma la OC
-  "texto",  // Enlace del archivo (OC)
-  "texto",  // Situación del pago (OC)
-  "texto",  // Comprador (OC)
-  "texto",  // Área que completa el legajo
-  "texto",  // Legajo de la OC
-  "texto",  // Carpeta de la OC
+    'texto', // Período
+    'texto', // RUC proveedor
+    'texto', // Proveedor
+    'texto', // Tipo
+    'texto', // Serie
+    'texto', // Número
+    'fecha', // Fecha de emisión
+    'texto', // Moneda
+    'numero', // Tipo de cambio
+    'numero', // Base imponible
+    'numero', // IGV
+    'numero', // Total
+    'numero', // Detracción
+    'texto', // Estado
+    'texto', // Es nota de
+    'texto', // Corrige a
+    'texto', // Lo rindió
+    'texto', // Cambios detectados
+    'fecha', // Visto por primera vez
+    'fecha', // Visto por última vez
+    'texto', // CAR SUNAT
+    'texto', // Condición SUNAT
+    'texto', // Buen Contribuyente
+    'texto', // Agente de Retención
+    'texto', // Agente de Percepción
+    'texto', // OC (carpeta)
+    'texto', // Centro de costo (CG)
+    'texto', // Código CONCAR
+    'texto', // Revisar vínculo OC
+    'texto', // Archivo que confirma la OC
+    'texto', // Enlace del archivo (OC)
+    'texto', // Situación del pago (OC)
+    'texto', // Comprador (OC)
+    'texto', // Área que completa el legajo
+    'texto', // Legajo de la OC
+    'texto', // Carpeta de la OC
 ];
 
 const NOMBRE_TIPO: Record<string, string> = {
-  "01": "Factura", "03": "Boleta", "07": "Nota de crédito",
-  "08": "Nota de débito", "12": "Ticket",
+    '01': 'Factura',
+    '03': 'Boleta',
+    '07': 'Nota de crédito',
+    '08': 'Nota de débito',
+    '12': 'Ticket',
 };
 
 /** El tipo con su nombre, que es lo que alguien lee en una hoja. */
 export function nombreDeTipo(codigo: string | null): string {
-  if (!codigo) return "";
-  return NOMBRE_TIPO[codigo] ?? codigo;
+    if (!codigo) return '';
+    return NOMBRE_TIPO[codigo] ?? codigo;
 }
 
 // Vacío cuando no hay dato, no un cero: un IGV en cero es una operación
 // exonerada y uno vacío es un dato que no vino. Confundirlos haría que una
 // exoneración parezca un hueco, y al revés.
-const num = (v: number | null) => (v == null ? "" : Number(v).toFixed(2));
+const num = (v: number | null) => (v == null ? '' : Number(v).toFixed(2));
 
 /** El tipo de cambio lleva cuatro decimales, que es como lo publica SUNAT. */
-const cambio = (v: number | null) => (v == null ? "" : Number(v).toFixed(4));
+const cambio = (v: number | null) => (v == null ? '' : Number(v).toFixed(4));
 
 /** La fecha como la espera Excel en español. */
 export function fechaCorta(iso: string | null): string {
-  if (!iso) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+    if (!iso) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
 /**
@@ -204,65 +233,59 @@ export function fechaCorta(iso: string | null): string {
  * proveedor sin consultar y uno que de verdad no es Agente de Retención no
  * son el mismo dato.
  */
-export function filasComprobantesSunat(
-  cs: ComprobanteHistorico[], padronPorRuc?: Map<string, CondicionProveedor>
-): string[][] {
-  const siNo = (v: boolean) => (v ? "Sí" : "No");
+export function filasComprobantesSunat(cs: ComprobanteHistorico[], padronPorRuc?: Map<string, CondicionProveedor>): string[][] {
+    const siNo = (v: boolean) => (v ? 'Sí' : 'No');
 
-  return [
-    CABECERAS_SUNAT,
-    ...cs.map(c => {
-      const padron = c.proveedorRuc ? padronPorRuc?.get(c.proveedorRuc) : undefined;
-      return [
-      c.periodo,
-      c.proveedorRuc ?? "",
-      c.proveedorNombre ?? "",
-      nombreDeTipo(c.tipoComprobante),
-      c.serie ?? "",
-      c.numero ?? "",
-      fechaCorta(c.fechaEmision),
-      c.moneda ?? "",
-      cambio(c.tipoCambio),
-      num(c.base),
-      num(c.igv),
-      num(c.total),
-      num(c.detraccion),
-      c.estado ?? "",
-      c.tipoNota ?? "",
-      // Se escribe como un comprobante, no como tres columnas sueltas: quien
-      // lee la hoja busca «E001-500», no un tipo y una serie por separado.
-      c.modificaNumero
-        ? `${nombreDeTipo(c.modificaTipo)} ${[c.modificaSerie, c.modificaNumero].filter(Boolean).join("-")}`.trim()
-        : "",
-      c.rendidoPor ?? "",
-      c.cambios === 0 ? "" : String(c.cambios),
-      fechaCorta(c.primeraVez),
-      fechaCorta(c.ultimaVez),
-      c.carSunat ?? "",
-      padron?.condicion ?? "",
-      padron ? siNo(padron.buenContribuyente) : "",
-      padron ? siNo(padron.agenteRetencion) : "",
-      padron ? siNo(padron.agentePercepcion) : "",
-      c.ocCarpeta ?? "",
-      c.centroCostoCg ?? "",
-      // En blanco si la equivalencia no está confirmada: mejor vacío que dudoso.
-      c.codigoConcar ?? "",
-      c.alertasOc ?? "",
-      c.archivoOc ?? "",
-      c.archivoOcUrl ?? "",
-      c.situacionPagoOc ?? "",
-      c.compradorOc ?? "",
-      c.areaOc ?? "",
-      c.legajoOc ?? "",
-      c.carpetaOcUrl ?? "",
-      ];
-    }),
-  ];
+    return [
+        CABECERAS_SUNAT,
+        ...cs.map((c) => {
+            const padron = c.proveedorRuc ? padronPorRuc?.get(c.proveedorRuc) : undefined;
+            return [
+                c.periodo,
+                c.proveedorRuc ?? '',
+                c.proveedorNombre ?? '',
+                nombreDeTipo(c.tipoComprobante),
+                c.serie ?? '',
+                c.numero ?? '',
+                fechaCorta(c.fechaEmision),
+                c.moneda ?? '',
+                cambio(c.tipoCambio),
+                num(c.base),
+                num(c.igv),
+                num(c.total),
+                num(c.detraccion),
+                c.estado ?? '',
+                c.tipoNota ?? '',
+                // Se escribe como un comprobante, no como tres columnas sueltas: quien
+                // lee la hoja busca «E001-500», no un tipo y una serie por separado.
+                c.modificaNumero ? `${nombreDeTipo(c.modificaTipo)} ${[c.modificaSerie, c.modificaNumero].filter(Boolean).join('-')}`.trim() : '',
+                c.rendidoPor ?? '',
+                c.cambios === 0 ? '' : String(c.cambios),
+                fechaCorta(c.primeraVez),
+                fechaCorta(c.ultimaVez),
+                c.carSunat ?? '',
+                padron?.condicion ?? '',
+                padron ? siNo(padron.buenContribuyente) : '',
+                padron ? siNo(padron.agenteRetencion) : '',
+                padron ? siNo(padron.agentePercepcion) : '',
+                c.ocCarpeta ?? '',
+                c.centroCostoCg ?? '',
+                // En blanco si la equivalencia no está confirmada: mejor vacío que dudoso.
+                c.codigoConcar ?? '',
+                c.alertasOc ?? '',
+                c.archivoOc ?? '',
+                c.archivoOcUrl ?? '',
+                c.situacionPagoOc ?? '',
+                c.compradorOc ?? '',
+                c.areaOc ?? '',
+                c.legajoOc ?? '',
+                c.carpetaOcUrl ?? '',
+            ];
+        }),
+    ];
 }
 
 /** Un nombre que ordena bien cuando hay varios en una carpeta. */
 export function nombreArchivoSunat(periodo: string | null): string {
-  return periodo
-    ? `COMPROBANTES SUNAT ${periodo}.csv`
-    : "COMPROBANTES SUNAT historico.csv";
+    return periodo ? `COMPROBANTES SUNAT ${periodo}.csv` : 'COMPROBANTES SUNAT historico.csv';
 }

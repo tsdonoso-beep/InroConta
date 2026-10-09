@@ -18,70 +18,70 @@
 // facturas del lote.
 
 export interface ItemCpe {
-  /** El orden de la línea dentro del comprobante. */
-  linea: number | null;
-  descripcion: string | null;
-  cantidad: number | null;
-  /** El código de unidad de SUNAT: NIU (unidad), GLL (galón), ZZ (servicio)... */
-  unidad: string | null;
-  precioUnitario: number | null;
-  /** Lo que suma la línea. */
-  importe: number | null;
+    /** El orden de la línea dentro del comprobante. */
+    linea: number | null;
+    descripcion: string | null;
+    cantidad: number | null;
+    /** El código de unidad de SUNAT: NIU (unidad), GLL (galón), ZZ (servicio)... */
+    unidad: string | null;
+    precioUnitario: number | null;
+    /** Lo que suma la línea. */
+    importe: number | null;
 }
 
 /** La detracción (SPOT): a qué cuenta, qué porcentaje y cuánto se detrae. */
 export interface DetraccionCpe {
-  /** La cuenta del Banco de la Nación, de `cac:PaymentMeans`, no de `PaymentTerms`. */
-  cuentaBanco: string | null;
-  /** El código del bien/servicio detraído, catálogo 54 de SUNAT (ej. "037"). */
-  codigoBienServicio: string | null;
-  porcentaje: number | null;
-  monto: number | null;
+    /** La cuenta del Banco de la Nación, de `cac:PaymentMeans`, no de `PaymentTerms`. */
+    cuentaBanco: string | null;
+    /** El código del bien/servicio detraído, catálogo 54 de SUNAT (ej. "037"). */
+    codigoBienServicio: string | null;
+    porcentaje: number | null;
+    monto: number | null;
 }
 
 /** Una cuota de un comprobante al crédito. */
 export interface CuotaCpe {
-  numero: number | null;
-  monto: number | null;
-  /** yyyy-mm-dd */
-  fechaVencimiento: string | null;
+    numero: number | null;
+    monto: number | null;
+    /** yyyy-mm-dd */
+    fechaVencimiento: string | null;
 }
 
 export interface ComprobanteCpe {
-  /** Código SUNAT: 01 factura, 03 boleta, 07 nota de crédito, 08 nota de débito. */
-  tipoComprobante: string | null;
-  serie: string | null;
-  numero: string | null;
-  /** yyyy-mm-dd */
-  fechaEmision: string | null;
-  moneda: string | null;
-  /** RUC de quien emitió: el proveedor. */
-  proveedorRuc: string | null;
-  proveedorNombre: string | null;
-  /** RUC a nombre de quien se emitió: debe ser la empresa. */
-  adquirienteRuc: string | null;
-  adquirienteNombre: string | null;
-  /** Base imponible: la suma de las líneas antes de impuestos. */
-  subtotal: number | null;
-  igv: number | null;
-  total: number | null;
-  /** "Contado" o "Credito", tal como lo declara el emisor. */
-  formaPago: string | null;
-  /** Solo si formaPago es "Credito": una por cada PaymentTerms "CuotaNNN". */
-  cuotas: CuotaCpe[];
-  /** null si el comprobante no está sujeto a detracción. */
-  detraccion: DetraccionCpe | null;
-  /** El número de la guía de remisión relacionada, si la trae. */
-  guiaRemision: string | null;
-  /** El número de la orden de compra relacionada, si la trae. */
-  ordenCompra: string | null;
-  /** Cuánto se descontó del total por un anticipo ya facturado antes. */
-  anticipoAplicado: number | null;
-  /** El comprobante que referencia —típico en anticipos y valorizaciones de obra—. */
-  documentoRelacionado: string | null;
-  /** Qué es el documento relacionado, ej. "ANTICIPO". */
-  tipoDocumentoRelacionado: string | null;
-  items: ItemCpe[];
+    /** Código SUNAT: 01 factura, 03 boleta, 07 nota de crédito, 08 nota de débito. */
+    tipoComprobante: string | null;
+    serie: string | null;
+    numero: string | null;
+    /** yyyy-mm-dd */
+    fechaEmision: string | null;
+    moneda: string | null;
+    /** RUC de quien emitió: el proveedor. */
+    proveedorRuc: string | null;
+    proveedorNombre: string | null;
+    /** RUC a nombre de quien se emitió: debe ser la empresa. */
+    adquirienteRuc: string | null;
+    adquirienteNombre: string | null;
+    /** Base imponible: la suma de las líneas antes de impuestos. */
+    subtotal: number | null;
+    igv: number | null;
+    total: number | null;
+    /** "Contado" o "Credito", tal como lo declara el emisor. */
+    formaPago: string | null;
+    /** Solo si formaPago es "Credito": una por cada PaymentTerms "CuotaNNN". */
+    cuotas: CuotaCpe[];
+    /** null si el comprobante no está sujeto a detracción. */
+    detraccion: DetraccionCpe | null;
+    /** El número de la guía de remisión relacionada, si la trae. */
+    guiaRemision: string | null;
+    /** El número de la orden de compra relacionada, si la trae. */
+    ordenCompra: string | null;
+    /** Cuánto se descontó del total por un anticipo ya facturado antes. */
+    anticipoAplicado: number | null;
+    /** El comprobante que referencia —típico en anticipos y valorizaciones de obra—. */
+    documentoRelacionado: string | null;
+    /** Qué es el documento relacionado, ej. "ANTICIPO". */
+    tipoDocumentoRelacionado: string | null;
+    items: ItemCpe[];
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -93,7 +93,7 @@ export interface ComprobanteCpe {
 
 /** Un nombre de etiqueta, con prefijo opcional, listo para meter en un regex. */
 function conPrefijo(nombre: string): string {
-  return `<(?:[\\w.-]+:)?${nombre}\\b`;
+    return `<(?:[\\w.-]+:)?${nombre}\\b`;
 }
 
 /**
@@ -127,19 +127,24 @@ const CONTENIDO = `((?:<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|[^<])*)`;
  * ciegas rompería un nombre que sí tiene tildes normales—.
  */
 function deshacerDobleCodificacion(s: string): string {
-  if (!/[-]/.test(s)) return s;
-  try {
-    const bytes = Uint8Array.from(s, ch => ch.charCodeAt(0) & 0xff);
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return s;
-  }
+    if (!/[-]/.test(s)) return s;
+    try {
+        const bytes = Uint8Array.from(s, (ch) => ch.charCodeAt(0) & 0xff);
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+        return s;
+    }
 }
 
 /** Quita los marcadores de CDATA y los espacios de alrededor. */
 function limpiar(s: string): string | null {
-  const t = deshacerDobleCodificacion(s.replace(/<!\[CDATA\[/g, "").replace(/\]\]>/g, "").trim());
-  return t || null;
+    const t = deshacerDobleCodificacion(
+        s
+            .replace(/<!\[CDATA\[/g, '')
+            .replace(/\]\]>/g, '')
+            .trim(),
+    );
+    return t || null;
 }
 
 /**
@@ -148,20 +153,20 @@ function limpiar(s: string): string | null {
  * Sirve para valores sueltos —un ID, una fecha, un monto, un nombre—.
  */
 export function valor(xml: string, nombre: string): string | null {
-  const re = new RegExp(`${conPrefijo(nombre)}[^>]*>${CONTENIDO}</(?:[\\w.-]+:)?${nombre}>`);
-  const m = re.exec(xml);
-  return m ? limpiar(m[1]) : null;
+    const re = new RegExp(`${conPrefijo(nombre)}[^>]*>${CONTENIDO}</(?:[\\w.-]+:)?${nombre}>`);
+    const m = re.exec(xml);
+    return m ? limpiar(m[1]) : null;
 }
 
 /** Todos los textos hoja con ese nombre, en el orden en que aparecen. */
 export function valores(xml: string, nombre: string): string[] {
-  const re = new RegExp(`${conPrefijo(nombre)}[^>]*>${CONTENIDO}</(?:[\\w.-]+:)?${nombre}>`, "g");
-  const out: string[] = [];
-  for (let m = re.exec(xml); m; m = re.exec(xml)) {
-    const t = limpiar(m[1]);
-    if (t) out.push(t);
-  }
-  return out;
+    const re = new RegExp(`${conPrefijo(nombre)}[^>]*>${CONTENIDO}</(?:[\\w.-]+:)?${nombre}>`, 'g');
+    const out: string[] = [];
+    for (let m = re.exec(xml); m; m = re.exec(xml)) {
+        const t = limpiar(m[1]);
+        if (t) out.push(t);
+    }
+    return out;
 }
 
 /**
@@ -170,9 +175,9 @@ export function valores(xml: string, nombre: string): string[] {
  * La cantidad guarda su unidad ahí: `<cbc:InvoicedQuantity unitCode="NIU">`.
  */
 export function atributo(xml: string, nombre: string, attr: string): string | null {
-  const re = new RegExp(`${conPrefijo(nombre)}[^>]*\\b${attr}="([^"]*)"`);
-  const m = re.exec(xml);
-  return m ? m[1].trim() || null : null;
+    const re = new RegExp(`${conPrefijo(nombre)}[^>]*\\b${attr}="([^"]*)"`);
+    const m = re.exec(xml);
+    return m ? m[1].trim() || null : null;
 }
 
 /**
@@ -186,33 +191,33 @@ export function atributo(xml: string, nombre: string, attr: string): string | nu
  * Las etiquetas vacías (`<x/>`) no abren nada y se saltan.
  */
 export function bloques(xml: string, nombre: string): string[] {
-  const tag = new RegExp(`<(/?)(?:[\\w.-]+:)?${nombre}\\b([^>]*)>`, "g");
-  const out: string[] = [];
-  let profundidad = 0;
-  let inicio = -1;
+    const tag = new RegExp(`<(/?)(?:[\\w.-]+:)?${nombre}\\b([^>]*)>`, 'g');
+    const out: string[] = [];
+    let profundidad = 0;
+    let inicio = -1;
 
-  for (let m = tag.exec(xml); m; m = tag.exec(xml)) {
-    const esCierre = m[1] === "/";
-    const autocierre = /\/\s*$/.test(m[2]);
-    if (autocierre) continue;
+    for (let m = tag.exec(xml); m; m = tag.exec(xml)) {
+        const esCierre = m[1] === '/';
+        const autocierre = /\/\s*$/.test(m[2]);
+        if (autocierre) continue;
 
-    if (!esCierre) {
-      if (profundidad === 0) inicio = m.index + m[0].length;
-      profundidad++;
-    } else if (profundidad > 0) {
-      profundidad--;
-      if (profundidad === 0 && inicio >= 0) {
-        out.push(xml.slice(inicio, m.index));
-        inicio = -1;
-      }
+        if (!esCierre) {
+            if (profundidad === 0) inicio = m.index + m[0].length;
+            profundidad++;
+        } else if (profundidad > 0) {
+            profundidad--;
+            if (profundidad === 0 && inicio >= 0) {
+                out.push(xml.slice(inicio, m.index));
+                inicio = -1;
+            }
+        }
     }
-  }
-  return out;
+    return out;
 }
 
 /** El primer bloque con ese nombre, o cadena vacía si no hay. */
 export function bloque(xml: string, nombre: string): string {
-  return bloques(xml, nombre)[0] ?? "";
+    return bloques(xml, nombre)[0] ?? '';
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -223,20 +228,19 @@ export function bloque(xml: string, nombre: string): string {
  * pero se limpia por si un emisor se sale del estándar.
  */
 export function aMonto(v: string | null): number | null {
-  if (v == null) return null;
-  const s = v.replace(/\s/g, "");
-  if (!s) return null;
-  const limpio = s.includes(",") && s.includes(".") ? s.replace(/,/g, "")
-    : s.includes(",") ? s.replace(",", ".") : s;
-  const n = Number(limpio);
-  return Number.isFinite(n) ? n : null;
+    if (v == null) return null;
+    const s = v.replace(/\s/g, '');
+    if (!s) return null;
+    const limpio = s.includes(',') && s.includes('.') ? s.replace(/,/g, '') : s.includes(',') ? s.replace(',', '.') : s;
+    const n = Number(limpio);
+    return Number.isFinite(n) ? n : null;
 }
 
 /** La fecha de emisión de UBL ya viene como yyyy-mm-dd; se valida y se pasa. */
 export function aFechaXml(v: string | null): string | null {
-  if (!v) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim());
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+    if (!v) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim());
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
 /**
@@ -247,10 +251,10 @@ export function aFechaXml(v: string | null): string | null {
  * registro, que tampoco los trae.
  */
 export function partirSerieNumero(id: string | null): { serie: string | null; numero: string | null } {
-  if (!id) return { serie: null, numero: null };
-  const m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(id.trim());
-  if (!m) return { serie: null, numero: null };
-  return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, "") || "0" };
+    if (!id) return { serie: null, numero: null };
+    const m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(id.trim());
+    if (!m) return { serie: null, numero: null };
+    return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, '') || '0' };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -265,40 +269,38 @@ export function partirSerieNumero(id: string | null): { serie: string | null; nu
  * documento, así que ese se fija por la raíz.
  */
 function tipoDe(xml: string): { tipo: string | null; lineaTag: string; cantidadTag: string } {
-  if (/<(?:[\w.-]+:)?CreditNote\b/.test(xml)) {
-    return { tipo: "07", lineaTag: "CreditNoteLine", cantidadTag: "CreditedQuantity" };
-  }
-  if (/<(?:[\w.-]+:)?DebitNote\b/.test(xml)) {
-    return { tipo: "08", lineaTag: "DebitNoteLine", cantidadTag: "DebitedQuantity" };
-  }
-  // Factura o boleta: el código lo dice el propio documento.
-  const cod = valor(xml, "InvoiceTypeCode");
-  return { tipo: cod, lineaTag: "InvoiceLine", cantidadTag: "InvoicedQuantity" };
+    if (/<(?:[\w.-]+:)?CreditNote\b/.test(xml)) {
+        return { tipo: '07', lineaTag: 'CreditNoteLine', cantidadTag: 'CreditedQuantity' };
+    }
+    if (/<(?:[\w.-]+:)?DebitNote\b/.test(xml)) {
+        return { tipo: '08', lineaTag: 'DebitNoteLine', cantidadTag: 'DebitedQuantity' };
+    }
+    // Factura o boleta: el código lo dice el propio documento.
+    const cod = valor(xml, 'InvoiceTypeCode');
+    return { tipo: cod, lineaTag: 'InvoiceLine', cantidadTag: 'InvoicedQuantity' };
 }
 
 /** El RUC y el nombre de una de las partes (emisor o adquiriente). */
 function parte(bloqueParte: string): { ruc: string | null; nombre: string | null } {
-  const ident = bloque(bloqueParte, "PartyIdentification");
-  const ruc = valor(ident, "ID");
-  // La razón social vive en PartyLegalEntity; algunos emisores la repiten en
-  // PartyName. Se toma la legal primero, que es la que SUNAT valida.
-  const nombre =
-    valor(bloque(bloqueParte, "PartyLegalEntity"), "RegistrationName") ??
-    valor(bloque(bloqueParte, "PartyName"), "Name");
-  return { ruc, nombre };
+    const ident = bloque(bloqueParte, 'PartyIdentification');
+    const ruc = valor(ident, 'ID');
+    // La razón social vive en PartyLegalEntity; algunos emisores la repiten en
+    // PartyName. Se toma la legal primero, que es la que SUNAT valida.
+    const nombre = valor(bloque(bloqueParte, 'PartyLegalEntity'), 'RegistrationName') ?? valor(bloque(bloqueParte, 'PartyName'), 'Name');
+    return { ruc, nombre };
 }
 
 /** Una línea de detalle, a partir de su bloque. */
 function itemDe(bloqueLinea: string, cantidadTag: string): ItemCpe {
-  const linea = valor(bloqueLinea, "ID");
-  return {
-    linea: linea == null ? null : Number(linea) || null,
-    descripcion: valor(bloque(bloqueLinea, "Item"), "Description"),
-    cantidad: aMonto(valor(bloqueLinea, cantidadTag)),
-    unidad: atributo(bloqueLinea, cantidadTag, "unitCode"),
-    precioUnitario: aMonto(valor(bloque(bloqueLinea, "Price"), "PriceAmount")),
-    importe: aMonto(valor(bloqueLinea, "LineExtensionAmount")),
-  };
+    const linea = valor(bloqueLinea, 'ID');
+    return {
+        linea: linea == null ? null : Number(linea) || null,
+        descripcion: valor(bloque(bloqueLinea, 'Item'), 'Description'),
+        cantidad: aMonto(valor(bloqueLinea, cantidadTag)),
+        unidad: atributo(bloqueLinea, cantidadTag, 'unitCode'),
+        precioUnitario: aMonto(valor(bloque(bloqueLinea, 'Price'), 'PriceAmount')),
+        importe: aMonto(valor(bloqueLinea, 'LineExtensionAmount')),
+    };
 }
 
 /**
@@ -316,34 +318,34 @@ function itemDe(bloqueLinea: string, cantidadTag: string): ItemCpe {
  * cuenta real está en `cac:PaymentMeans`, un bloque aparte (`cuentaDetraccionDe`).
  */
 function pagoDe(xml: string): { formaPago: string | null; cuotas: CuotaCpe[]; detraccion: DetraccionCpe | null } {
-  let formaPago: string | null = null;
-  let detraccion: DetraccionCpe | null = null;
-  const cuotas: CuotaCpe[] = [];
+    let formaPago: string | null = null;
+    let detraccion: DetraccionCpe | null = null;
+    const cuotas: CuotaCpe[] = [];
 
-  for (const b of bloques(xml, "PaymentTerms")) {
-    const id = valor(b, "ID");
-    const medio = valor(b, "PaymentMeansID");
+    for (const b of bloques(xml, 'PaymentTerms')) {
+        const id = valor(b, 'ID');
+        const medio = valor(b, 'PaymentMeansID');
 
-    if (id === "Detraccion") {
-      detraccion = {
-        cuentaBanco: cuentaDetraccionDe(xml),
-        codigoBienServicio: medio,
-        porcentaje: aMonto(valor(b, "PaymentPercent")),
-        monto: aMonto(valor(b, "Amount")),
-      };
-    } else if (medio && /^cuota/i.test(medio)) {
-      cuotas.push({
-        numero: Number(/\d+/.exec(medio)?.[0] ?? "") || null,
-        monto: aMonto(valor(b, "Amount")),
-        fechaVencimiento: aFechaXml(valor(b, "PaymentDueDate")),
-      });
-    } else if (id === "FormaPago") {
-      formaPago = medio;
+        if (id === 'Detraccion') {
+            detraccion = {
+                cuentaBanco: cuentaDetraccionDe(xml),
+                codigoBienServicio: medio,
+                porcentaje: aMonto(valor(b, 'PaymentPercent')),
+                monto: aMonto(valor(b, 'Amount')),
+            };
+        } else if (medio && /^cuota/i.test(medio)) {
+            cuotas.push({
+                numero: Number(/\d+/.exec(medio)?.[0] ?? '') || null,
+                monto: aMonto(valor(b, 'Amount')),
+                fechaVencimiento: aFechaXml(valor(b, 'PaymentDueDate')),
+            });
+        } else if (id === 'FormaPago') {
+            formaPago = medio;
+        }
     }
-  }
 
-  cuotas.sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
-  return { formaPago, cuotas, detraccion };
+    cuotas.sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
+    return { formaPago, cuotas, detraccion };
 }
 
 /**
@@ -351,10 +353,10 @@ function pagoDe(xml: string): { formaPago: string | null; cuotas: CuotaCpe[]; de
  * —no de `PaymentTerms`, que solo trae el código del bien/servicio—.
  */
 function cuentaDetraccionDe(xml: string): string | null {
-  for (const b of bloques(xml, "PaymentMeans")) {
-    if (valor(b, "ID") === "Detraccion") return valor(bloque(b, "PayeeFinancialAccount"), "ID");
-  }
-  return null;
+    for (const b of bloques(xml, 'PaymentMeans')) {
+        if (valor(b, 'ID') === 'Detraccion') return valor(bloque(b, 'PayeeFinancialAccount'), 'ID');
+    }
+    return null;
 }
 
 /**
@@ -364,53 +366,53 @@ function cuentaDetraccionDe(xml: string): string | null {
  * comprobante es válido lo deciden capas de arriba, con lo que este devuelve.
  */
 export function leerComprobanteXml(xml: string): ComprobanteCpe {
-  const { tipo, lineaTag, cantidadTag } = tipoDe(xml);
+    const { tipo, lineaTag, cantidadTag } = tipoDe(xml);
 
-  // El ID del documento es el primer cbc:ID con forma «serie-número». Buscarlo
-  // por patrón y no por posición evita confundirlo con el ID de una parte o
-  // de la firma, que también son cbc:ID.
-  const idDoc = valores(xml, "ID").find(v => /^[A-Za-z0-9]{1,4}-\d+$/.test(v)) ?? null;
-  const { serie, numero } = partirSerieNumero(idDoc);
+    // El ID del documento es el primer cbc:ID con forma «serie-número». Buscarlo
+    // por patrón y no por posición evita confundirlo con el ID de una parte o
+    // de la firma, que también son cbc:ID.
+    const idDoc = valores(xml, 'ID').find((v) => /^[A-Za-z0-9]{1,4}-\d+$/.test(v)) ?? null;
+    const { serie, numero } = partirSerieNumero(idDoc);
 
-  const proveedor = parte(bloque(xml, "AccountingSupplierParty"));
-  const adquiriente = parte(bloque(xml, "AccountingCustomerParty"));
+    const proveedor = parte(bloque(xml, 'AccountingSupplierParty'));
+    const adquiriente = parte(bloque(xml, 'AccountingCustomerParty'));
 
-  const totales = bloque(xml, "LegalMonetaryTotal");
-  // El primer TaxTotal es el del documento; los de cada línea vienen dentro
-  // de su InvoiceLine y no llegan acá porque se lee sobre el XML completo,
-  // donde el de documento aparece primero.
-  const igv = aMonto(valor(bloque(xml, "TaxTotal"), "TaxAmount"));
+    const totales = bloque(xml, 'LegalMonetaryTotal');
+    // El primer TaxTotal es el del documento; los de cada línea vienen dentro
+    // de su InvoiceLine y no llegan acá porque se lee sobre el XML completo,
+    // donde el de documento aparece primero.
+    const igv = aMonto(valor(bloque(xml, 'TaxTotal'), 'TaxAmount'));
 
-  const items = bloques(xml, lineaTag)
-    .map(b => itemDe(b, cantidadTag))
-    .sort((a, b) => (a.linea ?? 0) - (b.linea ?? 0));
+    const items = bloques(xml, lineaTag)
+        .map((b) => itemDe(b, cantidadTag))
+        .sort((a, b) => (a.linea ?? 0) - (b.linea ?? 0));
 
-  const { formaPago, cuotas, detraccion } = pagoDe(xml);
-  const relacionado = bloque(xml, "AdditionalDocumentReference");
+    const { formaPago, cuotas, detraccion } = pagoDe(xml);
+    const relacionado = bloque(xml, 'AdditionalDocumentReference');
 
-  return {
-    tipoComprobante: tipo,
-    serie,
-    numero,
-    fechaEmision: aFechaXml(valor(xml, "IssueDate")),
-    moneda: valor(xml, "DocumentCurrencyCode"),
-    proveedorRuc: proveedor.ruc,
-    proveedorNombre: proveedor.nombre,
-    adquirienteRuc: adquiriente.ruc,
-    adquirienteNombre: adquiriente.nombre,
-    subtotal: aMonto(valor(totales, "LineExtensionAmount")),
-    igv,
-    total: aMonto(valor(totales, "PayableAmount")),
-    formaPago,
-    cuotas,
-    detraccion,
-    guiaRemision: valor(bloque(xml, "DespatchDocumentReference"), "ID"),
-    ordenCompra: valor(bloque(xml, "OrderReference"), "ID"),
-    anticipoAplicado: aMonto(valor(totales, "PrepaidAmount")),
-    documentoRelacionado: valor(relacionado, "ID"),
-    tipoDocumentoRelacionado: valor(relacionado, "DocumentType"),
-    items,
-  };
+    return {
+        tipoComprobante: tipo,
+        serie,
+        numero,
+        fechaEmision: aFechaXml(valor(xml, 'IssueDate')),
+        moneda: valor(xml, 'DocumentCurrencyCode'),
+        proveedorRuc: proveedor.ruc,
+        proveedorNombre: proveedor.nombre,
+        adquirienteRuc: adquiriente.ruc,
+        adquirienteNombre: adquiriente.nombre,
+        subtotal: aMonto(valor(totales, 'LineExtensionAmount')),
+        igv,
+        total: aMonto(valor(totales, 'PayableAmount')),
+        formaPago,
+        cuotas,
+        detraccion,
+        guiaRemision: valor(bloque(xml, 'DespatchDocumentReference'), 'ID'),
+        ordenCompra: valor(bloque(xml, 'OrderReference'), 'ID'),
+        anticipoAplicado: aMonto(valor(totales, 'PrepaidAmount')),
+        documentoRelacionado: valor(relacionado, 'ID'),
+        tipoDocumentoRelacionado: valor(relacionado, 'DocumentType'),
+        items,
+    };
 }
 
 /**
@@ -425,7 +427,7 @@ export function leerComprobanteXml(xml: string): ComprobanteCpe {
  * DebitNote; si ninguno la tiene, el primero que no sea una constancia.
  */
 export function documentoPrincipal(xmls: string[]): string | null {
-  const raiz = (x: string) => /<\s*(?:[\w-]+:)?(Invoice|CreditNote|DebitNote)[\s>]/.exec(x.slice(0, 4000))?.[1] ?? null;
-  const esConstancia = (x: string) => /<\s*(?:[\w-]+:)?ApplicationResponse[\s>]/.test(x.slice(0, 4000));
-  return xmls.find(x => raiz(x)) ?? xmls.find(x => !esConstancia(x)) ?? null;
+    const raiz = (x: string) => /<\s*(?:[\w-]+:)?(Invoice|CreditNote|DebitNote)[\s>]/.exec(x.slice(0, 4000))?.[1] ?? null;
+    const esConstancia = (x: string) => /<\s*(?:[\w-]+:)?ApplicationResponse[\s>]/.test(x.slice(0, 4000));
+    return xmls.find((x) => raiz(x)) ?? xmls.find((x) => !esConstancia(x)) ?? null;
 }

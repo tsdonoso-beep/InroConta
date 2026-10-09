@@ -51,24 +51,24 @@ on:
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo entrar, llenar el formulario y capturar el resultado, sin guardar (para fijar selectores)."
+        description: 'Solo entrar, llenar el formulario y capturar el resultado, sin guardar (para fijar selectores).'
         type: boolean
         required: false
         default: true
       periodo:
-        description: "Período(s) a revisar, yyyymm, separados por coma. Vacío = TODOS (incluye el backlog desde enero)."
+        description: 'Período(s) a revisar, yyyymm, separados por coma. Vacío = TODOS (incluye el backlog desde enero).'
         required: false
-        default: "202609"
+        default: '202609'
       orden:
-        description: "Qué procesar primero."
+        description: 'Qué procesar primero.'
         type: choice
         options: [antiguo, reciente]
         required: false
         default: antiguo
       limite:
-        description: "Cuántos pendientes procesar en esta corrida. 0 = todos los que falten."
+        description: 'Cuántos pendientes procesar en esta corrida. 0 = todos los que falten.'
         required: false
-        default: "3"
+        default: '3'
   # SIN cron desde el 30/09/2026: el horario de las 8:30 lo tomó «SUNAT CPE
   # por API» (sunat-cpe-api.yml), que baja lo mismo por la API de SUNAT, sin
   # pantallas. Este queda para correrlo a mano, como respaldo.
@@ -97,7 +97,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

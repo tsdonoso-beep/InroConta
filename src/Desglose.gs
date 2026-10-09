@@ -38,10 +38,22 @@ var RUC_EMPRESA = '20512201611';
 var PESTANA_DETALLE = 'DETALLE';
 
 var CABECERAS_DETALLE = [
-  'Período', 'Origen', 'RUC proveedor', 'Proveedor',
-  'Tipo', 'Serie', 'Número', 'Fecha de emisión', 'Moneda',
-  'Línea', 'Descripción', 'Cantidad', 'Unidad', 'Precio unitario', 'Importe',
-  'Total del comprobante'
+    'Período',
+    'Origen',
+    'RUC proveedor',
+    'Proveedor',
+    'Tipo',
+    'Serie',
+    'Número',
+    'Fecha de emisión',
+    'Moneda',
+    'Línea',
+    'Descripción',
+    'Cantidad',
+    'Unidad',
+    'Precio unitario',
+    'Importe',
+    'Total del comprobante',
 ];
 
 // ── Menú (se engancha desde onOpen de Codigo.gs) ──────────────────
@@ -51,11 +63,11 @@ var CABECERAS_DETALLE = [
  * onOpen para que haya un solo menú, no dos.
  */
 function itemsMenuDesglose_(menu) {
-  return menu
-    .addSeparator()
-    .addItem('Desglosar ZIPs de Drive (ítems)', 'desglosarComprobantes')
-    .addItem('Activar desglose automático', 'instalarDesgloseAutomatico')
-    .addItem('Desactivar desglose automático', 'quitarDesgloseAutomatico');
+    return menu
+        .addSeparator()
+        .addItem('Desglosar ZIPs de Drive (ítems)', 'desglosarComprobantes')
+        .addItem('Activar desglose automático', 'instalarDesgloseAutomatico')
+        .addItem('Desactivar desglose automático', 'quitarDesgloseAutomatico');
 }
 
 // ── Orquestación ──────────────────────────────────────────────────
@@ -67,54 +79,67 @@ function itemsMenuDesglose_(menu) {
  * para el aviso que muestra el menú.
  */
 function desglosarComprobantes() {
-  if (CARPETA_ZIPS === 'PON_AQUI_EL_ID_DE_LA_CARPETA') {
-    SpreadsheetApp.getUi().alert(
-      'Falta configurar la carpeta.\n\nEn Desglose.gs, pon en CARPETA_ZIPS el ID ' +
-      'de la carpeta de Drive donde dejas los ZIP de la descarga masiva.');
-    return;
-  }
-
-  var carpeta = DriveApp.getFolderById(CARPETA_ZIPS);
-  var procesados = subcarpeta_(carpeta, 'procesados');
-
-  var comprobantes = [];
-  var zips = 0, xmls = 0, errores = 0;
-
-  var it = carpeta.getFiles();
-  while (it.hasNext()) {
-    var archivo = it.next();
-    if (!/\.zip$/i.test(archivo.getName())) continue;
-    zips++;
-    try {
-      var textos = xmlsDeZip_(archivo.getBlob());
-      xmls += textos.length;
-      for (var i = 0; i < textos.length; i++) {
-        var c = leerComprobanteXml_(textos[i]);
-        if (c.serie && c.numero) comprobantes.push(c);
-      }
-      archivo.moveTo(procesados);
-    } catch (e) {
-      errores++;
+    if (CARPETA_ZIPS === 'PON_AQUI_EL_ID_DE_LA_CARPETA') {
+        SpreadsheetApp.getUi().alert(
+            'Falta configurar la carpeta.\n\nEn Desglose.gs, pon en CARPETA_ZIPS el ID ' + 'de la carpeta de Drive donde dejas los ZIP de la descarga masiva.',
+        );
+        return;
     }
-  }
 
-  var escritos = escribirDetalle_(comprobantes);
+    var carpeta = DriveApp.getFolderById(CARPETA_ZIPS);
+    var procesados = subcarpeta_(carpeta, 'procesados');
 
-  var msg = zips === 0
-    ? 'No había ZIP nuevos en la carpeta.'
-    : ('Procesados ' + zips + ' ZIP (' + xmls + ' XML). ' +
-       'Se escribieron ' + escritos + ' ítems nuevos en «' + PESTANA_DETALLE + '».' +
-       (errores ? ('\n' + errores + ' ZIP no se pudieron leer.') : ''));
+    var comprobantes = [];
+    var zips = 0,
+        xmls = 0,
+        errores = 0;
 
-  // Desde un disparador no hay interfaz; solo el menú muestra el aviso.
-  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
-  return msg;
+    var it = carpeta.getFiles();
+    while (it.hasNext()) {
+        var archivo = it.next();
+        if (!/\.zip$/i.test(archivo.getName())) continue;
+        zips++;
+        try {
+            var textos = xmlsDeZip_(archivo.getBlob());
+            xmls += textos.length;
+            for (var i = 0; i < textos.length; i++) {
+                var c = leerComprobanteXml_(textos[i]);
+                if (c.serie && c.numero) comprobantes.push(c);
+            }
+            archivo.moveTo(procesados);
+        } catch (e) {
+            errores++;
+        }
+    }
+
+    var escritos = escribirDetalle_(comprobantes);
+
+    var msg =
+        zips === 0
+            ? 'No había ZIP nuevos en la carpeta.'
+            : 'Procesados ' +
+              zips +
+              ' ZIP (' +
+              xmls +
+              ' XML). ' +
+              'Se escribieron ' +
+              escritos +
+              ' ítems nuevos en «' +
+              PESTANA_DETALLE +
+              '».' +
+              (errores ? '\n' + errores + ' ZIP no se pudieron leer.' : '');
+
+    // Desde un disparador no hay interfaz; solo el menú muestra el aviso.
+    try {
+        SpreadsheetApp.getUi().alert(msg);
+    } catch (e) {}
+    return msg;
 }
 
 /** La subcarpeta de procesados, creándola si no existe. */
 function subcarpeta_(padre, nombre) {
-  var it = padre.getFoldersByName(nombre);
-  return it.hasNext() ? it.next() : padre.createFolder(nombre);
+    var it = padre.getFoldersByName(nombre);
+    return it.hasNext() ? it.next() : padre.createFolder(nombre);
 }
 
 /**
@@ -125,18 +150,18 @@ function subcarpeta_(padre, nombre) {
  * dentro de uno grande.
  */
 function xmlsDeZip_(blob) {
-  var out = [];
-  blob.setContentType('application/zip');
-  var partes = Utilities.unzip(blob);
-  for (var i = 0; i < partes.length; i++) {
-    var nombre = partes[i].getName() || '';
-    if (/\.zip$/i.test(nombre)) {
-      out = out.concat(xmlsDeZip_(partes[i]));
-    } else if (/\.xml$/i.test(nombre)) {
-      out.push(decodificarXml_(partes[i]));
+    var out = [];
+    blob.setContentType('application/zip');
+    var partes = Utilities.unzip(blob);
+    for (var i = 0; i < partes.length; i++) {
+        var nombre = partes[i].getName() || '';
+        if (/\.zip$/i.test(nombre)) {
+            out = out.concat(xmlsDeZip_(partes[i]));
+        } else if (/\.xml$/i.test(nombre)) {
+            out.push(decodificarXml_(partes[i]));
+        }
     }
-  }
-  return out;
+    return out;
 }
 
 /**
@@ -146,11 +171,11 @@ function xmlsDeZip_(blob) {
  * UTF-8 parte tildes y eñes. Se mira el prólogo y se decodifica como diga.
  */
 function decodificarXml_(blob) {
-  var cabeza = blob.getDataAsString('ISO-8859-1').substring(0, 120).toLowerCase();
-  var m = /encoding=["']([^"']+)["']/.exec(cabeza);
-  var enc = (m ? m[1] : 'utf-8').trim();
-  var latin = /8859-1|latin1|windows-1252/.test(enc);
-  return blob.getDataAsString(latin ? 'ISO-8859-1' : 'UTF-8');
+    var cabeza = blob.getDataAsString('ISO-8859-1').substring(0, 120).toLowerCase();
+    var m = /encoding=["']([^"']+)["']/.exec(cabeza);
+    var enc = (m ? m[1] : 'utf-8').trim();
+    var latin = /8859-1|latin1|windows-1252/.test(enc);
+    return blob.getDataAsString(latin ? 'ISO-8859-1' : 'UTF-8');
 }
 
 /**
@@ -160,70 +185,81 @@ function decodificarXml_(blob) {
  * que ya se cargó no vuelve a escribir nada.
  */
 function escribirDetalle_(comprobantes) {
-  var libro = SpreadsheetApp.getActiveSpreadsheet();
-  var hoja = libro.getSheetByName(PESTANA_DETALLE);
-  if (!hoja) {
-    hoja = libro.insertSheet(PESTANA_DETALLE);
-    hoja.appendRow(CABECERAS_DETALLE);
-    hoja.setFrozenRows(1);
-  }
-
-  // Las llaves que ya están, para no duplicar.
-  var vistas = {};
-  var ultima = hoja.getLastRow();
-  if (ultima > 1) {
-    var previas = hoja.getRange(2, 1, ultima - 1, CABECERAS_DETALLE.length).getValues();
-    for (var i = 0; i < previas.length; i++) {
-      vistas[llaveItem_(previas[i][4], previas[i][5], previas[i][6], previas[i][2], previas[i][9])] = true;
+    var libro = SpreadsheetApp.getActiveSpreadsheet();
+    var hoja = libro.getSheetByName(PESTANA_DETALLE);
+    if (!hoja) {
+        hoja = libro.insertSheet(PESTANA_DETALLE);
+        hoja.appendRow(CABECERAS_DETALLE);
+        hoja.setFrozenRows(1);
     }
-  }
 
-  var filas = [];
-  for (var c = 0; c < comprobantes.length; c++) {
-    var cp = comprobantes[c];
-    var periodo = periodoDe_(cp.fechaEmision);
-    var origen = origenDe_(cp, RUC_EMPRESA);
-    for (var j = 0; j < cp.items.length; j++) {
-      var it = cp.items[j];
-      var llave = llaveItem_(nombreTipo_(cp.tipoComprobante), cp.serie, cp.numero, cp.proveedorRuc, it.linea);
-      if (vistas[llave]) continue;
-      vistas[llave] = true;
-      filas.push([
-        periodo, origen, cp.proveedorRuc || '', cp.proveedorNombre || '',
-        nombreTipo_(cp.tipoComprobante), cp.serie || '', cp.numero || '',
-        fechaCorta_(cp.fechaEmision), cp.moneda || '',
-        it.linea == null ? '' : it.linea, it.descripcion || '',
-        it.cantidad, it.unidad || '', it.precioUnitario, it.importe, cp.total
-      ]);
+    // Las llaves que ya están, para no duplicar.
+    var vistas = {};
+    var ultima = hoja.getLastRow();
+    if (ultima > 1) {
+        var previas = hoja.getRange(2, 1, ultima - 1, CABECERAS_DETALLE.length).getValues();
+        for (var i = 0; i < previas.length; i++) {
+            vistas[llaveItem_(previas[i][4], previas[i][5], previas[i][6], previas[i][2], previas[i][9])] = true;
+        }
     }
-  }
 
-  if (filas.length) {
-    hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, CABECERAS_DETALLE.length).setValues(filas);
-  }
-  return filas.length;
+    var filas = [];
+    for (var c = 0; c < comprobantes.length; c++) {
+        var cp = comprobantes[c];
+        var periodo = periodoDe_(cp.fechaEmision);
+        var origen = origenDe_(cp, RUC_EMPRESA);
+        for (var j = 0; j < cp.items.length; j++) {
+            var it = cp.items[j];
+            var llave = llaveItem_(nombreTipo_(cp.tipoComprobante), cp.serie, cp.numero, cp.proveedorRuc, it.linea);
+            if (vistas[llave]) continue;
+            vistas[llave] = true;
+            filas.push([
+                periodo,
+                origen,
+                cp.proveedorRuc || '',
+                cp.proveedorNombre || '',
+                nombreTipo_(cp.tipoComprobante),
+                cp.serie || '',
+                cp.numero || '',
+                fechaCorta_(cp.fechaEmision),
+                cp.moneda || '',
+                it.linea == null ? '' : it.linea,
+                it.descripcion || '',
+                it.cantidad,
+                it.unidad || '',
+                it.precioUnitario,
+                it.importe,
+                cp.total,
+            ]);
+        }
+    }
+
+    if (filas.length) {
+        hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, CABECERAS_DETALLE.length).setValues(filas);
+    }
+    return filas.length;
 }
 
 function llaveItem_(tipo, serie, numero, ruc, linea) {
-  return [tipo, serie, numero, ruc, linea].join('|');
+    return [tipo, serie, numero, ruc, linea].join('|');
 }
 
 // ── El disparador automático ──────────────────────────────────────
 
 /** Deja el desglose corriendo solo cada hora. */
 function instalarDesgloseAutomatico() {
-  quitarDesgloseAutomatico();
-  ScriptApp.newTrigger('desglosarComprobantes').timeBased().everyHours(1).create();
-  SpreadsheetApp.getUi().alert(
-    'Listo. Cada hora revisará la carpeta y desglosará los ZIP nuevos.\n\n' +
-    'Tú solo dejas el ZIP de la descarga masiva en la carpeta.');
+    quitarDesgloseAutomatico();
+    ScriptApp.newTrigger('desglosarComprobantes').timeBased().everyHours(1).create();
+    SpreadsheetApp.getUi().alert(
+        'Listo. Cada hora revisará la carpeta y desglosará los ZIP nuevos.\n\n' + 'Tú solo dejas el ZIP de la descarga masiva en la carpeta.',
+    );
 }
 
 /** Lo apaga. */
 function quitarDesgloseAutomatico() {
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'desglosarComprobantes') ScriptApp.deleteTrigger(t);
-  });
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+        if (t.getHandlerFunction() === 'desglosarComprobantes') ScriptApp.deleteTrigger(t);
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -236,149 +272,173 @@ function quitarDesgloseAutomatico() {
 var CONTENIDO_ = '((?:<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|[^<])*)';
 
 function limpiar_(s) {
-  var t = String(s).replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '').trim();
-  return t || null;
+    var t = String(s)
+        .replace(/<!\[CDATA\[/g, '')
+        .replace(/\]\]>/g, '')
+        .trim();
+    return t || null;
 }
 
 function valor_(xml, nombre) {
-  var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*>' + CONTENIDO_ + '</(?:[\\w.-]+:)?' + nombre + '>');
-  var m = re.exec(xml);
-  return m ? limpiar_(m[1]) : null;
+    var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*>' + CONTENIDO_ + '</(?:[\\w.-]+:)?' + nombre + '>');
+    var m = re.exec(xml);
+    return m ? limpiar_(m[1]) : null;
 }
 
 function valores_(xml, nombre) {
-  var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*>' + CONTENIDO_ + '</(?:[\\w.-]+:)?' + nombre + '>', 'g');
-  var out = [], m;
-  while ((m = re.exec(xml))) { var t = limpiar_(m[1]); if (t) out.push(t); }
-  return out;
+    var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*>' + CONTENIDO_ + '</(?:[\\w.-]+:)?' + nombre + '>', 'g');
+    var out = [],
+        m;
+    while ((m = re.exec(xml))) {
+        var t = limpiar_(m[1]);
+        if (t) out.push(t);
+    }
+    return out;
 }
 
 function atributo_(xml, nombre, attr) {
-  var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*\\b' + attr + '="([^"]*)"');
-  var m = re.exec(xml);
-  return m ? (m[1].trim() || null) : null;
+    var re = new RegExp('<(?:[\\w.-]+:)?' + nombre + '\\b[^>]*\\b' + attr + '="([^"]*)"');
+    var m = re.exec(xml);
+    return m ? m[1].trim() || null : null;
 }
 
 function bloques_(xml, nombre) {
-  var tag = new RegExp('<(/?)(?:[\\w.-]+:)?' + nombre + '\\b([^>]*)>', 'g');
-  var out = [], profundidad = 0, inicio = -1, m;
-  while ((m = tag.exec(xml))) {
-    var esCierre = m[1] === '/';
-    if (/\/\s*$/.test(m[2])) continue; // autocierre
-    if (!esCierre) {
-      if (profundidad === 0) inicio = m.index + m[0].length;
-      profundidad++;
-    } else if (profundidad > 0) {
-      profundidad--;
-      if (profundidad === 0 && inicio >= 0) { out.push(xml.slice(inicio, m.index)); inicio = -1; }
+    var tag = new RegExp('<(/?)(?:[\\w.-]+:)?' + nombre + '\\b([^>]*)>', 'g');
+    var out = [],
+        profundidad = 0,
+        inicio = -1,
+        m;
+    while ((m = tag.exec(xml))) {
+        var esCierre = m[1] === '/';
+        if (/\/\s*$/.test(m[2])) continue; // autocierre
+        if (!esCierre) {
+            if (profundidad === 0) inicio = m.index + m[0].length;
+            profundidad++;
+        } else if (profundidad > 0) {
+            profundidad--;
+            if (profundidad === 0 && inicio >= 0) {
+                out.push(xml.slice(inicio, m.index));
+                inicio = -1;
+            }
+        }
     }
-  }
-  return out;
+    return out;
 }
 
-function bloque_(xml, nombre) { return bloques_(xml, nombre)[0] || ''; }
+function bloque_(xml, nombre) {
+    return bloques_(xml, nombre)[0] || '';
+}
 
 function aMonto_(v) {
-  if (v == null) return '';
-  var s = String(v).replace(/\s/g, '');
-  if (!s) return '';
-  var limpio = (s.indexOf(',') >= 0 && s.indexOf('.') >= 0) ? s.replace(/,/g, '')
-    : (s.indexOf(',') >= 0 ? s.replace(',', '.') : s);
-  var n = Number(limpio);
-  return isFinite(n) ? n : '';
+    if (v == null) return '';
+    var s = String(v).replace(/\s/g, '');
+    if (!s) return '';
+    var limpio = s.indexOf(',') >= 0 && s.indexOf('.') >= 0 ? s.replace(/,/g, '') : s.indexOf(',') >= 0 ? s.replace(',', '.') : s;
+    var n = Number(limpio);
+    return isFinite(n) ? n : '';
 }
 
 function aFechaXml_(v) {
-  if (!v) return null;
-  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v).trim());
-  return m ? (m[1] + '-' + m[2] + '-' + m[3]) : null;
+    if (!v) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v).trim());
+    return m ? m[1] + '-' + m[2] + '-' + m[3] : null;
 }
 
 function partirSerieNumero_(id) {
-  if (!id) return { serie: null, numero: null };
-  var m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(String(id).trim());
-  if (!m) return { serie: null, numero: null };
-  return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, '') || '0' };
+    if (!id) return { serie: null, numero: null };
+    var m = /^([A-Za-z0-9]{1,4})-(\d+)$/.exec(String(id).trim());
+    if (!m) return { serie: null, numero: null };
+    return { serie: m[1].toUpperCase(), numero: m[2].replace(/^0+/, '') || '0' };
 }
 
 function tipoDe_(xml) {
-  if (/<(?:[\w.-]+:)?CreditNote\b/.test(xml)) return { tipo: '07', lineaTag: 'CreditNoteLine', cantidadTag: 'CreditedQuantity' };
-  if (/<(?:[\w.-]+:)?DebitNote\b/.test(xml)) return { tipo: '08', lineaTag: 'DebitNoteLine', cantidadTag: 'DebitedQuantity' };
-  return { tipo: valor_(xml, 'InvoiceTypeCode'), lineaTag: 'InvoiceLine', cantidadTag: 'InvoicedQuantity' };
+    if (/<(?:[\w.-]+:)?CreditNote\b/.test(xml)) return { tipo: '07', lineaTag: 'CreditNoteLine', cantidadTag: 'CreditedQuantity' };
+    if (/<(?:[\w.-]+:)?DebitNote\b/.test(xml)) return { tipo: '08', lineaTag: 'DebitNoteLine', cantidadTag: 'DebitedQuantity' };
+    return { tipo: valor_(xml, 'InvoiceTypeCode'), lineaTag: 'InvoiceLine', cantidadTag: 'InvoicedQuantity' };
 }
 
 function parte_(b) {
-  var ident = bloque_(b, 'PartyIdentification');
-  var ruc = valor_(ident, 'ID');
-  var nombre = valor_(bloque_(b, 'PartyLegalEntity'), 'RegistrationName') || valor_(bloque_(b, 'PartyName'), 'Name');
-  return { ruc: ruc, nombre: nombre };
+    var ident = bloque_(b, 'PartyIdentification');
+    var ruc = valor_(ident, 'ID');
+    var nombre = valor_(bloque_(b, 'PartyLegalEntity'), 'RegistrationName') || valor_(bloque_(b, 'PartyName'), 'Name');
+    return { ruc: ruc, nombre: nombre };
 }
 
 function itemDe_(b, cantidadTag) {
-  var linea = valor_(b, 'ID');
-  return {
-    linea: linea == null ? null : (Number(linea) || null),
-    descripcion: valor_(bloque_(b, 'Item'), 'Description'),
-    cantidad: aMonto_(valor_(b, cantidadTag)),
-    unidad: atributo_(b, cantidadTag, 'unitCode'),
-    precioUnitario: aMonto_(valor_(bloque_(b, 'Price'), 'PriceAmount')),
-    importe: aMonto_(valor_(b, 'LineExtensionAmount'))
-  };
+    var linea = valor_(b, 'ID');
+    return {
+        linea: linea == null ? null : Number(linea) || null,
+        descripcion: valor_(bloque_(b, 'Item'), 'Description'),
+        cantidad: aMonto_(valor_(b, cantidadTag)),
+        unidad: atributo_(b, cantidadTag, 'unitCode'),
+        precioUnitario: aMonto_(valor_(bloque_(b, 'Price'), 'PriceAmount')),
+        importe: aMonto_(valor_(b, 'LineExtensionAmount')),
+    };
 }
 
 function leerComprobanteXml_(xml) {
-  var t = tipoDe_(xml);
+    var t = tipoDe_(xml);
 
-  var idDoc = null, todos = valores_(xml, 'ID');
-  for (var i = 0; i < todos.length; i++) {
-    if (/^[A-Za-z0-9]{1,4}-\d+$/.test(todos[i])) { idDoc = todos[i]; break; }
-  }
-  var sn = partirSerieNumero_(idDoc);
+    var idDoc = null,
+        todos = valores_(xml, 'ID');
+    for (var i = 0; i < todos.length; i++) {
+        if (/^[A-Za-z0-9]{1,4}-\d+$/.test(todos[i])) {
+            idDoc = todos[i];
+            break;
+        }
+    }
+    var sn = partirSerieNumero_(idDoc);
 
-  var proveedor = parte_(bloque_(xml, 'AccountingSupplierParty'));
-  var adquiriente = parte_(bloque_(xml, 'AccountingCustomerParty'));
-  var totales = bloque_(xml, 'LegalMonetaryTotal');
+    var proveedor = parte_(bloque_(xml, 'AccountingSupplierParty'));
+    var adquiriente = parte_(bloque_(xml, 'AccountingCustomerParty'));
+    var totales = bloque_(xml, 'LegalMonetaryTotal');
 
-  var items = bloques_(xml, t.lineaTag).map(function (b) { return itemDe_(b, t.cantidadTag); });
-  items.sort(function (a, b) { return (a.linea || 0) - (b.linea || 0); });
+    var items = bloques_(xml, t.lineaTag).map(function (b) {
+        return itemDe_(b, t.cantidadTag);
+    });
+    items.sort(function (a, b) {
+        return (a.linea || 0) - (b.linea || 0);
+    });
 
-  return {
-    tipoComprobante: t.tipo,
-    serie: sn.serie,
-    numero: sn.numero,
-    fechaEmision: aFechaXml_(valor_(xml, 'IssueDate')),
-    moneda: valor_(xml, 'DocumentCurrencyCode'),
-    proveedorRuc: proveedor.ruc,
-    proveedorNombre: proveedor.nombre,
-    adquirienteRuc: adquiriente.ruc,
-    adquirienteNombre: adquiriente.nombre,
-    subtotal: aMonto_(valor_(totales, 'LineExtensionAmount')),
-    igv: aMonto_(valor_(bloque_(xml, 'TaxTotal'), 'TaxAmount')),
-    total: aMonto_(valor_(totales, 'PayableAmount')),
-    items: items
-  };
+    return {
+        tipoComprobante: t.tipo,
+        serie: sn.serie,
+        numero: sn.numero,
+        fechaEmision: aFechaXml_(valor_(xml, 'IssueDate')),
+        moneda: valor_(xml, 'DocumentCurrencyCode'),
+        proveedorRuc: proveedor.ruc,
+        proveedorNombre: proveedor.nombre,
+        adquirienteRuc: adquiriente.ruc,
+        adquirienteNombre: adquiriente.nombre,
+        subtotal: aMonto_(valor_(totales, 'LineExtensionAmount')),
+        igv: aMonto_(valor_(bloque_(xml, 'TaxTotal'), 'TaxAmount')),
+        total: aMonto_(valor_(totales, 'PayableAmount')),
+        items: items,
+    };
 }
 
 // ── Ayudantes de presentación ─────────────────────────────────────
 
 function origenDe_(c, rucEmpresa) {
-  var ruc = String(rucEmpresa).trim();
-  if (c.adquirienteRuc === ruc) return 'Recibido';
-  if (c.proveedorRuc === ruc) return 'Emitido';
-  return 'Otro';
+    var ruc = String(rucEmpresa).trim();
+    if (c.adquirienteRuc === ruc) return 'Recibido';
+    if (c.proveedorRuc === ruc) return 'Emitido';
+    return 'Otro';
 }
 
 function periodoDe_(fechaEmision) {
-  if (!fechaEmision) return '';
-  var m = /^(\d{4})-(\d{2})/.exec(fechaEmision);
-  return m ? (m[1] + m[2]) : '';
+    if (!fechaEmision) return '';
+    var m = /^(\d{4})-(\d{2})/.exec(fechaEmision);
+    return m ? m[1] + m[2] : '';
 }
 
 function fechaCorta_(iso) {
-  if (!iso) return '';
-  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : '';
+    if (!iso) return '';
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
 }
 
-var NOMBRE_TIPO_ = { '01': 'Factura', '03': 'Boleta', '07': 'Nota de crédito', '08': 'Nota de débito', '12': 'Ticket' };
-function nombreTipo_(codigo) { return codigo ? (NOMBRE_TIPO_[codigo] || codigo) : ''; }
+var NOMBRE_TIPO_ = { '01': 'Factura', '03': 'Boleta', '07': 'Nota de crédito', '08': 'Nota de débito', 12: 'Ticket' };
+function nombreTipo_(codigo) {
+    return codigo ? NOMBRE_TIPO_[codigo] || codigo : '';
+}

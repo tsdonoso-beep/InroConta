@@ -19,19 +19,19 @@ on:
   workflow_dispatch:
     inputs:
       periodo:
-        description: "Período tributario aaaamm. Vacío = mes anterior."
+        description: 'Período tributario aaaamm. Vacío = mes anterior.'
         required: false
-        default: ""
+        default: ''
       constancias:
-        description: "Cuántas constancias abrir y bajar como prueba."
+        description: 'Cuántas constancias abrir y bajar como prueba.'
         required: false
-        default: "3"
+        default: '3'
       tipo_cuenta:
-        description: "Texto del «Tipo de Cuenta» a elegir."
+        description: 'Texto del «Tipo de Cuenta» a elegir.'
         required: false
-        default: "Convencional"
+        default: 'Convencional'
       entrada:
-        description: "directo = login en el menú nuevo · antiguo = login por el menú de siempre y otro en el nuevo (dos logins: puede pedir captcha)."
+        description: 'directo = login en el menú nuevo · antiguo = login por el menú de siempre y otro en el nuevo (dos logins: puede pedir captcha).'
         type: choice
         options: [directo, antiguo]
         default: directo
@@ -57,7 +57,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: ppnpm install --frozen-lockfile

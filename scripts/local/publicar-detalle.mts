@@ -5,8 +5,8 @@
 //
 //   pnpm hojas:detalle
 
-import { crearBitacora } from "./comun/bitacora.mts";
-import { publicarDetalle } from "./comun/guardar.mts";
+import { crearBitacora } from './comun/bitacora.mts';
+import { publicarDetalle } from './comun/guardar.mts';
 
-const b = crearBitacora("publicar-detalle");
+const b = crearBitacora('publicar-detalle');
 await publicarDetalle(b);

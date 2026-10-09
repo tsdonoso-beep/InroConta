@@ -14,11 +14,11 @@ name: SUNAT domicilio fiscal (padrón reducido)
 on:
   schedule:
     # Lunes 09:40 en Lima (UTC-5), después de «SUNAT diario» y del padrón de RUC.
-    - cron: "40 14 * * 1"
+    - cron: '40 14 * * 1'
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo leer y mostrar una muestra, sin guardar en la base."
+        description: 'Solo leer y mostrar una muestra, sin guardar en la base.'
         type: boolean
         required: false
         default: false
@@ -41,7 +41,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

@@ -24,26 +24,26 @@ on:
   schedule:
     # 09:00 en Lima (UTC-5): media hora después de «SUNAT diario» (08:00),
     # para que ya haya alcanzado a traer los comprobantes de esa madrugada.
-    - cron: "0 14 * * *"
+    - cron: '0 14 * * *'
   workflow_dispatch:
     inputs:
       debug:
-        description: "Solo consultar los RUC de prueba, sin guardar nada."
+        description: 'Solo consultar los RUC de prueba, sin guardar nada.'
         type: boolean
         required: false
         default: true
       rucs:
-        description: "RUC de prueba, separados por coma (solo en depuración)."
+        description: 'RUC de prueba, separados por coma (solo en depuración).'
         required: false
-        default: "20501529363"
+        default: '20501529363'
       dias_vigencia:
-        description: "No repetir la consulta de un RUC antes de estos días."
+        description: 'No repetir la consulta de un RUC antes de estos días.'
         required: false
-        default: "30"
+        default: '30'
       max_consultas:
-        description: "Tope de RUC a consultar en esta corrida."
+        description: 'Tope de RUC a consultar en esta corrida.'
         required: false
-        default: "150"
+        default: '150'
 
 # Nunca dos corridas a la vez —una manual mientras corre la del cron, por
 # ejemplo—: encadenarían consultas al mismo RUC en simultáneo sin necesidad.
@@ -67,7 +67,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -88,7 +88,7 @@ jobs:
           # 3 pestañas en paralelo y hasta 150 por corrida (local: 4 pestañas, 48/min y 0 rechazos el 30/09/2026).
           # Si SUNAT empieza a rechazar, el script frena solo (para 60 s y alarga la pausa).
           MAX_CONSULTAS: ${{ inputs.max_consultas || '150' }}
-          PARALELO: "3"
+          PARALELO: '3'
         # con-bitacora: hora y nivel en cada línea y scripts/out/logs/<script>-<fecha>/ (eventos, HTTP con error, resumen).
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/consultar-padron-ruc.mts
 

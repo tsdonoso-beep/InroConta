@@ -33,44 +33,44 @@
  * Queda como dato porque nombra el módulo de verdad —el de la URL— y es por
  * donde `conMenuDeBoletas` sabe a quiénes alcanzar.
  */
-export type Pantalla = "facturas" | "boletas";
+export type Pantalla = 'facturas' | 'boletas';
 
 /** Un tipo de consulta del portal, con cómo llegar a él. */
 export interface Consulta {
-  /** El nombre corto con el que se pide (lo que va en TIPOS_CONSULTA). */
-  nombre: string;
-  /** La etiqueta exacta de la opción en el combobox «Tipo de Consulta». */
-  etiqueta: string;
-  /**
-   * Los textos del menú de SOL a los que hay que hacer clic, en orden, para
-   * abrir la pantalla donde vive este tipo.
-   */
-  menu: string[];
-  /** En qué módulo del portal vive: `ol-ti-itconscpemype` o el `...bve`. */
-  pantalla: Pantalla;
-  /**
-   * El código interno de SUNAT (el `input[name=tipoConsulta]` oculto), cuando
-   * está confirmado contra el portal real. Solo sirve para verificar en el
-   * log que quedó puesto el tipo correcto; nunca se escribe a mano.
-   *
-   * Los diez están confirmados contra el portal: 10, 11, 13, 14, 15, 16 las de
-   * factura; 17, 18, 20, 22 las de boleta.
-   *
-   * Si alguna vez se agrega un tipo nuevo sin código, se deja en null: entonces
-   * se verifica que el campo oculto no quede con el código de OTRO tipo, y el
-   * script imprime el que encuentre para poder anotarlo acá.
-   */
-  codigo: string | null;
-  /**
-   * false mientras la etiqueta y el menú sean una suposición: el script avisa
-   * en el log y —si la opción no está en la lista— salta el tipo en vez de
-   * bajar otra cosa creyendo que es esta.
-   */
-  confirmado: boolean;
+    /** El nombre corto con el que se pide (lo que va en TIPOS_CONSULTA). */
+    nombre: string;
+    /** La etiqueta exacta de la opción en el combobox «Tipo de Consulta». */
+    etiqueta: string;
+    /**
+     * Los textos del menú de SOL a los que hay que hacer clic, en orden, para
+     * abrir la pantalla donde vive este tipo.
+     */
+    menu: string[];
+    /** En qué módulo del portal vive: `ol-ti-itconscpemype` o el `...bve`. */
+    pantalla: Pantalla;
+    /**
+     * El código interno de SUNAT (el `input[name=tipoConsulta]` oculto), cuando
+     * está confirmado contra el portal real. Solo sirve para verificar en el
+     * log que quedó puesto el tipo correcto; nunca se escribe a mano.
+     *
+     * Los diez están confirmados contra el portal: 10, 11, 13, 14, 15, 16 las de
+     * factura; 17, 18, 20, 22 las de boleta.
+     *
+     * Si alguna vez se agrega un tipo nuevo sin código, se deja en null: entonces
+     * se verifica que el campo oculto no quede con el código de OTRO tipo, y el
+     * script imprime el que encuentre para poder anotarlo acá.
+     */
+    codigo: string | null;
+    /**
+     * false mientras la etiqueta y el menú sean una suposición: el script avisa
+     * en el log y —si la opción no está en la lista— salta el tipo en vez de
+     * bajar otra cosa creyendo que es esta.
+     */
+    confirmado: boolean;
 }
 
 /** La pantalla de facturas y notas: la que ya se venía usando. */
-const MENU_FACTURAS_Y_NOTAS = ["Empresas", "Consulta de Facturas y Notas Electrónicas"];
+const MENU_FACTURAS_Y_NOTAS = ['Empresas', 'Consulta de Facturas y Notas Electrónicas'];
 
 /**
  * La pantalla de boletas: «Consultar Boleta de Venta y Nota».
@@ -79,13 +79,7 @@ const MENU_FACTURAS_Y_NOTAS = ["Empresas", "Consulta de Facturas y Notas Electr�
  * sin un solo aviso y aterrizó en `ol-ti-itconscpemypebve`. No tiene acceso
  * directo como la de facturas —por eso el camino es una lista y no dos clics—.
  */
-const MENU_BOLETAS = [
-  "Empresas",
-  "Comprobantes de pago",
-  "SEE - SOL",
-  "Boleta de Venta Electrónica",
-  "Consultar Boleta de Venta y Nota",
-];
+const MENU_BOLETAS = ['Empresas', 'Comprobantes de pago', 'SEE - SOL', 'Boleta de Venta Electrónica', 'Consultar Boleta de Venta y Nota'];
 
 /**
  * Los tipos que el scraper sabe pedir.
@@ -95,39 +89,43 @@ const MENU_BOLETAS = [
  * boletas al final, para que un run que las falle no arrastre a las demás.
  */
 export const CATALOGO: Consulta[] = [
-  { nombre: "FE Emitidas",  etiqueta: "FE Emitidas",  menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "10", confirmado: true },
-  { nombre: "FE Recibidas", etiqueta: "FE Recibidas", menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "11", confirmado: true },
-  { nombre: "NC Emitidas",  etiqueta: "NC Emitidas",  menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "13", confirmado: true },
-  { nombre: "NC Recibidas", etiqueta: "NC Recibidas", menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "14", confirmado: true },
-  { nombre: "ND Emitidas",  etiqueta: "ND Emitidas",  menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "15", confirmado: true },
-  { nombre: "ND Recibidas", etiqueta: "ND Recibidas", menu: MENU_FACTURAS_Y_NOTAS, pantalla: "facturas", codigo: "16", confirmado: true },
+    { nombre: 'FE Emitidas', etiqueta: 'FE Emitidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '10', confirmado: true },
+    { nombre: 'FE Recibidas', etiqueta: 'FE Recibidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '11', confirmado: true },
+    { nombre: 'NC Emitidas', etiqueta: 'NC Emitidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '13', confirmado: true },
+    { nombre: 'NC Recibidas', etiqueta: 'NC Recibidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '14', confirmado: true },
+    { nombre: 'ND Emitidas', etiqueta: 'ND Emitidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '15', confirmado: true },
+    { nombre: 'ND Recibidas', etiqueta: 'ND Recibidas', menu: MENU_FACTURAS_Y_NOTAS, pantalla: 'facturas', codigo: '16', confirmado: true },
 
-  // Las boletas. Las cuatro etiquetas son las que ofrece el desplegable de
-  // verdad, leídas de la captura del portal: ni una más ni una menos.
-  //
-  // Que las notas de boleta solo existan EMITIDAS no es un olvido: el portal
-  // no ofrece «NC-BVE Recibidas» ni «ND-BVE Recibidas», y agregarlas «por
-  // simetría» sería inventar dos consultas que van a fallar siempre.
-  //
-  // Los códigos salieron de los enlaces «Imprimir» del propio portal, que los
-  // llevan en la URL:
-  //   …/ol-ti-itconscpemypebve/consultar.do?action=imprimirListado
-  //      &periodoDesc=22/09/2026 - 25/09/2026&tipoConsulta=18
-  //
-  // El de ND-BVE Emitidas no estaba en esos enlaces y quedó en null a
-  // propósito, con el script imprimiéndolo en cuanto lo viera. Lo vio en el run
-  // del 28/09/2026 y era 22 —el hueco en 19 y el 21 quedan sin identificar, y
-  // así se quedan: no se anota lo que no se vio—.
-  { nombre: "BVE Emitidas",    etiqueta: "BVE Emitidas",    menu: MENU_BOLETAS, pantalla: "boletas", codigo: "17", confirmado: true },
-  { nombre: "BVE Recibidas",   etiqueta: "BVE Recibidas",   menu: MENU_BOLETAS, pantalla: "boletas", codigo: "18", confirmado: true },
-  { nombre: "NC-BVE Emitidas", etiqueta: "NC-BVE Emitidas", menu: MENU_BOLETAS, pantalla: "boletas", codigo: "20", confirmado: true },
-  { nombre: "ND-BVE Emitidas", etiqueta: "ND-BVE Emitidas", menu: MENU_BOLETAS, pantalla: "boletas", codigo: "22", confirmado: true },
+    // Las boletas. Las cuatro etiquetas son las que ofrece el desplegable de
+    // verdad, leídas de la captura del portal: ni una más ni una menos.
+    //
+    // Que las notas de boleta solo existan EMITIDAS no es un olvido: el portal
+    // no ofrece «NC-BVE Recibidas» ni «ND-BVE Recibidas», y agregarlas «por
+    // simetría» sería inventar dos consultas que van a fallar siempre.
+    //
+    // Los códigos salieron de los enlaces «Imprimir» del propio portal, que los
+    // llevan en la URL:
+    //   …/ol-ti-itconscpemypebve/consultar.do?action=imprimirListado
+    //      &periodoDesc=22/09/2026 - 25/09/2026&tipoConsulta=18
+    //
+    // El de ND-BVE Emitidas no estaba en esos enlaces y quedó en null a
+    // propósito, con el script imprimiéndolo en cuanto lo viera. Lo vio en el run
+    // del 28/09/2026 y era 22 —el hueco en 19 y el 21 quedan sin identificar, y
+    // así se quedan: no se anota lo que no se vio—.
+    { nombre: 'BVE Emitidas', etiqueta: 'BVE Emitidas', menu: MENU_BOLETAS, pantalla: 'boletas', codigo: '17', confirmado: true },
+    { nombre: 'BVE Recibidas', etiqueta: 'BVE Recibidas', menu: MENU_BOLETAS, pantalla: 'boletas', codigo: '18', confirmado: true },
+    { nombre: 'NC-BVE Emitidas', etiqueta: 'NC-BVE Emitidas', menu: MENU_BOLETAS, pantalla: 'boletas', codigo: '20', confirmado: true },
+    { nombre: 'ND-BVE Emitidas', etiqueta: 'ND-BVE Emitidas', menu: MENU_BOLETAS, pantalla: 'boletas', codigo: '22', confirmado: true },
 ];
 
 /** Sin acentos, sin mayúsculas y sin espacios de más: para comparar nombres. */
 export function normalizar(s: string): string {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "")
-    .toLowerCase().replace(/\s+/g, " ").trim();
+    return s
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 /**
@@ -142,10 +140,8 @@ export function normalizar(s: string): string {
  * tipo que se devuelve trae el menú corregido y no el de por omisión.
  */
 export function consultaDe(nombre: string, catalogo: Consulta[] = CATALOGO): Consulta | null {
-  const n = normalizar(nombre);
-  return catalogo.find(c => normalizar(c.nombre) === n)
-    ?? catalogo.find(c => normalizar(c.etiqueta) === n)
-    ?? null;
+    const n = normalizar(nombre);
+    return catalogo.find((c) => normalizar(c.nombre) === n) ?? catalogo.find((c) => normalizar(c.etiqueta) === n) ?? null;
 }
 
 /**
@@ -157,8 +153,8 @@ export function consultaDe(nombre: string, catalogo: Consulta[] = CATALOGO): Con
  * se escribe en `MENU_BOLETAS` de una vez.
  */
 export function conMenuDeBoletas(menu: string[]): Consulta[] {
-  if (menu.length === 0) return CATALOGO;
-  return CATALOGO.map(c => (c.pantalla === "boletas" ? { ...c, menu } : c));
+    if (menu.length === 0) return CATALOGO;
+    return CATALOGO.map((c) => (c.pantalla === 'boletas' ? { ...c, menu } : c));
 }
 
 // ── Fechas: dd/mm/yyyy, que es lo que habla el portal ──────────────
@@ -172,25 +168,28 @@ export function conMenuDeBoletas(menu: string[]): Consulta[] {
  * mes saldría desplazado un día según dónde corra.
  */
 export function aFecha(texto: string): Date | null {
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(texto.trim());
-  if (!m) return null;
-  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (mes < 1 || mes > 12 || d < 1 || d > 31) return null;
-  const f = new Date(Date.UTC(a, mes - 1, d));
-  // Rebota el 31 de febrero y compañía: si el Date se corrió de mes, la fecha
-  // no existía.
-  if (f.getUTCMonth() !== mes - 1 || f.getUTCDate() !== d) return null;
-  return f;
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(texto.trim());
+    if (!m) return null;
+    const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mes < 1 || mes > 12 || d < 1 || d > 31) return null;
+    const f = new Date(Date.UTC(a, mes - 1, d));
+    // Rebota el 31 de febrero y compañía: si el Date se corrió de mes, la fecha
+    // no existía.
+    if (f.getUTCMonth() !== mes - 1 || f.getUTCDate() !== d) return null;
+    return f;
 }
 
 /** Escribe un `Date` como dd/mm/yyyy, que es lo que espera el formulario. */
 export function aTexto(f: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(f.getUTCDate())}/${p(f.getUTCMonth() + 1)}/${f.getUTCFullYear()}`;
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(f.getUTCDate())}/${p(f.getUTCMonth() + 1)}/${f.getUTCFullYear()}`;
 }
 
 /** Un trozo del rango, ya listo para poner en el formulario. */
-export interface Tanda { desde: string; hasta: string }
+export interface Tanda {
+    desde: string;
+    hasta: string;
+}
 
 /**
  * Parte un rango de fechas en una tanda por mes calendario.
@@ -209,20 +208,20 @@ export interface Tanda { desde: string; hasta: string }
  * que llegó: el que decide si eso es un error es el script, que tiene el log.
  */
 export function tandasPorMes(desde: string, hasta: string): Tanda[] {
-  const a = aFecha(desde);
-  const b = aFecha(hasta);
-  if (!a || !b || a > b) return [{ desde, hasta }];
+    const a = aFecha(desde);
+    const b = aFecha(hasta);
+    if (!a || !b || a > b) return [{ desde, hasta }];
 
-  const tandas: Tanda[] = [];
-  let cursor = a;
-  while (cursor <= b) {
-    // El último día del mes del cursor: el día 0 del mes siguiente.
-    const finDeMes = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
-    const fin = finDeMes < b ? finDeMes : b;
-    tandas.push({ desde: aTexto(cursor), hasta: aTexto(fin) });
-    cursor = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth(), fin.getUTCDate() + 1));
-  }
-  return tandas;
+    const tandas: Tanda[] = [];
+    let cursor = a;
+    while (cursor <= b) {
+        // El último día del mes del cursor: el día 0 del mes siguiente.
+        const finDeMes = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
+        const fin = finDeMes < b ? finDeMes : b;
+        tandas.push({ desde: aTexto(cursor), hasta: aTexto(fin) });
+        cursor = new Date(Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth(), fin.getUTCDate() + 1));
+    }
+    return tandas;
 }
 
 /**
@@ -232,23 +231,23 @@ export function tandasPorMes(desde: string, hasta: string): Tanda[] {
  * cada comprobante, así que no hace falta volver a mirar fechas.
  */
 export function periodosDelRango(desde: string, hasta: string): string[] {
-  const a = aFecha(desde);
-  const b = aFecha(hasta);
-  if (!a || !b || a > b) return [];
+    const a = aFecha(desde);
+    const b = aFecha(hasta);
+    if (!a || !b || a > b) return [];
 
-  const periodos: string[] = [];
-  let cursor = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1));
-  const tope = new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), 1));
-  while (cursor <= tope) {
-    periodos.push(`${cursor.getUTCFullYear()}${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`);
-    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
-  }
-  return periodos;
+    const periodos: string[] = [];
+    let cursor = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1));
+    const tope = new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), 1));
+    while (cursor <= tope) {
+        periodos.push(`${cursor.getUTCFullYear()}${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`);
+        cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return periodos;
 }
 
 /** `202608` → `2026-08`, que es como se lee en el nombre de un archivo. */
 export function periodoLegible(periodo: string): string {
-  return /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4, 6)}` : periodo;
+    return /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4, 6)}` : periodo;
 }
 
 /**
@@ -261,10 +260,10 @@ export function periodoLegible(periodo: string): string {
  * corrida crearía una hoja nueva al lado de la anterior.
  */
 export function nombreDeHojaDelRango(periodos: string[]): string | null {
-  if (periodos.length === 0) return null;
-  const orden = [...periodos].sort();
-  const primero = periodoLegible(orden[0]);
-  const ultimo = periodoLegible(orden[orden.length - 1]);
-  const rango = primero === ultimo ? primero : `${primero} a ${ultimo}`;
-  return `COMPROBANTES SUNAT - DETALLE ${rango}`;
+    if (periodos.length === 0) return null;
+    const orden = [...periodos].sort();
+    const primero = periodoLegible(orden[0]);
+    const ultimo = periodoLegible(orden[orden.length - 1]);
+    const rango = primero === ultimo ? primero : `${primero} a ${ultimo}`;
+    return `COMPROBANTES SUNAT - DETALLE ${rango}`;
 }

@@ -36,8 +36,8 @@ El widget en sí sí conoce el total real, sin depender de qué esté pintado:
 ```js
 // dentro del frame de resultados
 const widgets = window.dijit.registry.toArray();
-const grid = widgets.find(w => typeof w.rowCount === "number");
-grid.rowCount // el total real
+const grid = widgets.find((w) => typeof w.rowCount === 'number');
+grid.rowCount; // el total real
 ```
 
 Implementado en `rowCountDeGrid()` (`scripts/descargar-cpe.mts`). El script

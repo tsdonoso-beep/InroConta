@@ -88,7 +88,7 @@ vacía. Si Contabilidad las necesita, hace falta otra fuente.
 
 **La columna «Lo rindió» sale vacía** mientras nadie capture comprobantes por
 la aplicación. Cuando arranque el piloto se llena sola, y ahí el tablero
-empieza a poder decir *quién* rindió la factura que una nota de crédito acaba
+empieza a poder decir _quién_ rindió la factura que una nota de crédito acaba
 de anular. Esa es la pregunta que ninguna hoja puede responder por su cuenta.
 
 ## Desglose de comprobantes (los ítems de cada factura)
@@ -218,6 +218,7 @@ Los montos van en soles con el tipo de cambio del mismo SIRE, y las notas de
 crédito restan.
 
 ### Instalación
+
 1. En el proyecto: Script `CodigoPadron` (pega `CodigoPadron.gs`) y HTML
    `TableroPadron` (pega `TableroPadron.html`). No hace falta nada más.
 2. **Implementar → Nueva implementación → Aplicación web**: Ejecutar como
@@ -393,19 +394,19 @@ CONCAR sale **solo si la equivalencia está confirmada** en
 OC con los 11 documentos que Contabilidad necesita para registrar la compra
 en CONCAR, y marca cuál está y cuál falta en la carpeta de cada OC:
 
-| # | Documento | Le corresponde a |
-|---|---|---|
-| 1 | Factura | todas |
-| 2 | OC | todas |
-| 3 | SWIFT | solo importaciones |
-| 4 | Guía de remisión | bienes (no servicios) |
-| 5 | DAM | solo importaciones |
-| 6 | Requerimiento | todas (basta el N° del plan) |
-| 7 | Contrato (CECO) | uno por centro de costo, no por OC |
-| 8 | Cotización | todas |
-| 9 | Proforma | opcional |
-| 10 | Correos | opcional |
-| 11 | Acta de conformidad | solo servicios |
+| #   | Documento           | Le corresponde a                   |
+| --- | ------------------- | ---------------------------------- |
+| 1   | Factura             | todas                              |
+| 2   | OC                  | todas                              |
+| 3   | SWIFT               | solo importaciones                 |
+| 4   | Guía de remisión    | bienes (no servicios)              |
+| 5   | DAM                 | solo importaciones                 |
+| 6   | Requerimiento       | todas (basta el N° del plan)       |
+| 7   | Contrato (CECO)     | uno por centro de costo, no por OC |
+| 8   | Cotización          | todas                              |
+| 9   | Proforma            | opcional                           |
+| 10  | Correos             | opcional                           |
+| 11  | Acta de conformidad | solo servicios                     |
 
 Marcas: **✓ n** (hay n archivos; el enlace abre el primero), **✗** (falta),
 **—** (no le corresponde), **○** (opcional y no está).
@@ -431,11 +432,11 @@ separa por la procedencia; no hay que juntarlas.
 El mismo script también arma la lista de **todas las OC 2026**. Cada fuente
 aporta lo suyo:
 
-| Fuente | Qué aporta |
-|---|---|
+| Fuente                                                                            | Qué aporta                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Base de datos nacionales 2026** de Compras (pestaña `BD-2026`, `NACIONALES_ID`) | La lista completa de OC **nacionales** de Inroprin: se arma sola con los archivos de OC de cada comprador. Proyecto, RUC, requerimiento; y, si la OC no pasó por el cuadro, fecha, comprador, moneda y forma de pago. |
-| **Cuadro de aprobaciones 2026** | Las **importaciones** y las OC de las otras unidades; de las nacionales que pasaron por él, la aprobación, la situación del pago y el enlace de la carpeta. |
-| **Control de Gestión** (Registro Compras Grupo) | Solo el **centro de costo** y la **carpeta** cuando el cuadro no la trae. No agrega OC. |
+| **Cuadro de aprobaciones 2026**                                                   | Las **importaciones** y las OC de las otras unidades; de las nacionales que pasaron por él, la aprobación, la situación del pago y el enlace de la carpeta.                                                           |
+| **Control de Gestión** (Registro Compras Grupo)                                   | Solo el **centro de costo** y la **carpeta** cuando el cuadro no la trae. No agrega OC.                                                                                                                               |
 
 El cuadro tiene más o menos la mitad de las OC nacionales: las compras de los
 proyectos PRONIED y los gastos administrativos chicos no pasan por él. Esas
@@ -545,13 +546,13 @@ captura de carpetas: cada una reemplaza solo lo suyo (migración 042).
 La base cruza esos archivos con SUNAT y COMPROBANTES SUNAT y el DETALLE
 suman al final cinco columnas:
 
-| Columna | De dónde sale |
-| --- | --- |
-| Situación del pago (OC) | la misma del legajo: PAGADA, APROBADA PAGO PENDIENTE, FALTA APROBACIÓN, ANULADA… |
-| Comprador (OC) | el cuadro de aprobaciones |
-| Área que completa el legajo | Compras nacionales o COMEX (importaciones) |
-| Legajo de la OC | «Completo», «Falta: Guía de remisión, DAM», «Sin acceso a la carpeta» o «Por revisar» |
-| Carpeta de la OC | el enlace de la carpeta en Drive |
+| Columna                     | De dónde sale                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| Situación del pago (OC)     | la misma del legajo: PAGADA, APROBADA PAGO PENDIENTE, FALTA APROBACIÓN, ANULADA…      |
+| Comprador (OC)              | el cuadro de aprobaciones                                                             |
+| Área que completa el legajo | Compras nacionales o COMEX (importaciones)                                            |
+| Legajo de la OC             | «Completo», «Falta: Guía de remisión, DAM», «Sin acceso a la carpeta» o «Por revisar» |
+| Carpeta de la OC            | el enlace de la carpeta en Drive                                                      |
 
 Además, el centro de costo sale del legajo (que distingue nacional de
 importación) y «Alertas» avisa si la OC está anulada en el cuadro.
@@ -722,13 +723,13 @@ Todo lo de Contabilidad vive en un solo libro de Google Sheets,
 **INROCONTA** (`1n_MZD30CQ1b3HZlVCstQZ3giGaE-sKsB5_U3dobtdpE`), cada cosa en
 su pestaña:
 
-| Pestaña | La llena |
-|---|---|
-| COMPROBANTES SUNAT (y «… 2025») | Robot `sunat-diario` |
-| COMPROBANTES SUNAT - DETALLE (y «… 2025») | Robot `descargar-cpe` / `pnpm hojas:detalle` |
-| OC - CARPETAS COMPRAS NACIONALES / IMPORTACIONES | Robot `carpetas-oc` |
-| CARPETA MADRE, CARPETA MADRE - RESUMEN, FACTURAS SIN OC | `CarpetaMadre.gs` (cada hora) |
-| PADRÓN RUC | `PadronRuc.gs` |
+| Pestaña                                                 | La llena                                     |
+| ------------------------------------------------------- | -------------------------------------------- |
+| COMPROBANTES SUNAT (y «… 2025»)                         | Robot `sunat-diario`                         |
+| COMPROBANTES SUNAT - DETALLE (y «… 2025»)               | Robot `descargar-cpe` / `pnpm hojas:detalle` |
+| OC - CARPETAS COMPRAS NACIONALES / IMPORTACIONES        | Robot `carpetas-oc`                          |
+| CARPETA MADRE, CARPETA MADRE - RESUMEN, FACTURAS SIN OC | `CarpetaMadre.gs` (cada hora)                |
+| PADRÓN RUC                                              | `PadronRuc.gs`                               |
 
 El robot crea la pestaña si no existe y escribe solo en la suya
 (`src/shared/lib/drive/servidor.ts`, `LIBRO_ID`). Mientras dura la mudanza publica
@@ -745,6 +746,7 @@ padrón en la ficha del proveedor) ni los scripts viejos del legajo
 reemplazaron el robot de carpetas y `CarpetaMadre.gs`.
 
 **Pasos de la mudanza:**
+
 1. Que el robot llene el libro: correr `pnpm hojas:detalle` (DETALLE) y
    `pnpm sire:local` (COMPROBANTES), o esperar las corridas de la mañana.
 2. En INROCONTA → Apps Script: pegar los archivos de arriba y las Propiedades

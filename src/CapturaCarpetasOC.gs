@@ -40,19 +40,44 @@ var ORIGEN_ID = '1tsu4HEA_o_yWdvvJCF5zhlrW_ffzMXiqtzMiRzMlxCY';
 // El archivo «Bd ventas, costo y gastos» tiene muchas pestañas. Si esta se
 // renombra, se busca sola la que tenga «N° OC/OS» y «LINK DE CARPETA».
 var ORIGEN_PESTANA = '3. Registro Compras Grupo';
-var EMPRESAS = ['INROPRIN'];     // vacío [] = todas
-var ANIOS = [2026];              // vacío [] = todos
-var BUSCAR_FUERA = false;        // true = si no hay factura ni en la carpeta ni en la de arriba, buscarla en todo el Drive (lento; en la 1.ª corrida aportó poco)
-var MINUTOS_POR_TANDA = 4.5;     // Apps Script corta a los 6
-var LIMITE_ARCHIVOS = 800;       // más que esto: el enlace apunta a una carpeta general, no a la de una OC
+var EMPRESAS = ['INROPRIN']; // vacío [] = todas
+var ANIOS = [2026]; // vacío [] = todos
+var BUSCAR_FUERA = false; // true = si no hay factura ni en la carpeta ni en la de arriba, buscarla en todo el Drive (lento; en la 1.ª corrida aportó poco)
+var MINUTOS_POR_TANDA = 4.5; // Apps Script corta a los 6
+var LIMITE_ARCHIVOS = 800; // más que esto: el enlace apunta a una carpeta general, no a la de una OC
 
-var CAB_CARPETAS = ['ID carpeta', 'Enlace carpeta', 'OC', 'RUC', 'Proveedor',
-  'Filas en la base', 'Estado', 'Archivos dentro', '¿Factura dentro?',
-  'Facturas dentro', 'XML dentro', 'Facturas fuera', 'Revisado en', 'Detalle'];
-var CAB_ARCHIVOS = ['OC', 'RUC', 'Proveedor', 'Enlace carpeta OC',
-  'Dónde se encontró', 'Ubicación', 'Nombre del archivo', 'Enlace del archivo',
-  'Tipo de archivo', 'Parece ser', 'Pistas', 'Serie-número en el nombre',
-  'Creado', 'Modificado'];
+var CAB_CARPETAS = [
+    'ID carpeta',
+    'Enlace carpeta',
+    'OC',
+    'RUC',
+    'Proveedor',
+    'Filas en la base',
+    'Estado',
+    'Archivos dentro',
+    '¿Factura dentro?',
+    'Facturas dentro',
+    'XML dentro',
+    'Facturas fuera',
+    'Revisado en',
+    'Detalle',
+];
+var CAB_ARCHIVOS = [
+    'OC',
+    'RUC',
+    'Proveedor',
+    'Enlace carpeta OC',
+    'Dónde se encontró',
+    'Ubicación',
+    'Nombre del archivo',
+    'Enlace del archivo',
+    'Tipo de archivo',
+    'Parece ser',
+    'Pistas',
+    'Serie-número en el nombre',
+    'Creado',
+    'Modificado',
+];
 var COL_ESTADO = 7; // desde aquí hasta «Detalle» lo llena la revisión
 
 var DENTRO = 'DENTRO DE LA CARPETA';
@@ -60,182 +85,205 @@ var SUPERIOR = 'CARPETA SUPERIOR (confirmar)';
 var EN_DRIVE = 'BÚSQUEDA EN DRIVE (confirmar)';
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Carpetas OC')
-    .addItem('1. Armar lista de carpetas', 'armarListaDeCarpetas')
-    .addItem('2. Revisar siguiente tanda', 'revisarSiguienteTanda')
-    .addSeparator()
-    .addItem('Revisar solo cada 10 minutos', 'activarAutomatico')
-    .addItem('Detener revisión automática', 'detenerAutomatico')
-    .addToUi();
-  // Apps Script admite un solo onOpen por proyecto: si LecturaFacturas.gs
-  // está en el mismo proyecto, su menú se crea desde aquí.
-  if (typeof menuLecturaFacturas_ === 'function') menuLecturaFacturas_();
-  if (typeof menuSubirCaptura_ === 'function') menuSubirCaptura_();
+    SpreadsheetApp.getUi()
+        .createMenu('Carpetas OC')
+        .addItem('1. Armar lista de carpetas', 'armarListaDeCarpetas')
+        .addItem('2. Revisar siguiente tanda', 'revisarSiguienteTanda')
+        .addSeparator()
+        .addItem('Revisar solo cada 10 minutos', 'activarAutomatico')
+        .addItem('Detener revisión automática', 'detenerAutomatico')
+        .addToUi();
+    // Apps Script admite un solo onOpen por proyecto: si LecturaFacturas.gs
+    // está en el mismo proyecto, su menú se crea desde aquí.
+    if (typeof menuLecturaFacturas_ === 'function') menuLecturaFacturas_();
+    if (typeof menuSubirCaptura_ === 'function') menuSubirCaptura_();
 }
 
 // ── 1. La lista de carpetas, sacada de la base ──
 
 function armarListaDeCarpetas() {
-  var ui = SpreadsheetApp.getUi();
-  var libro = SpreadsheetApp.getActiveSpreadsheet();
-  var hojaC = libro.getSheetByName('CARPETAS');
-  if (hojaC && hojaC.getLastRow() > 1) {
-    var r = ui.alert('Ya hay una lista',
-      'Armarla de nuevo borra CARPETAS y ARCHIVOS y empieza desde cero. ¿Seguir?',
-      ui.ButtonSet.YES_NO);
-    if (r !== ui.Button.YES) return;
-  }
+    var ui = SpreadsheetApp.getUi();
+    var libro = SpreadsheetApp.getActiveSpreadsheet();
+    var hojaC = libro.getSheetByName('CARPETAS');
+    if (hojaC && hojaC.getLastRow() > 1) {
+        var r = ui.alert('Ya hay una lista', 'Armarla de nuevo borra CARPETAS y ARCHIVOS y empieza desde cero. ¿Seguir?', ui.ButtonSet.YES_NO);
+        if (r !== ui.Button.YES) return;
+    }
 
-  // Si una tanda sigue corriendo, escribiría sus resultados ENCIMA de la
-  // lista nueva al terminar. Se detiene el automático y se espera a que
-  // acabe (una tanda dura como mucho ~5 minutos).
-  detenerAutomatico_();
-  var lock = LockService.getScriptLock();
-  libro.toast('Si hay una tanda corriendo, espero a que termine (hasta 5 minutos)…', 'Carpetas OC', 10);
-  if (!lock.tryLock(330000)) {
-    ui.alert('Hay una tanda ocupada', 'No terminó a tiempo. Espera unos minutos y vuelve a intentarlo.', ui.ButtonSet.OK);
-    return;
-  }
-  try {
-    armarLista_(libro, ui);
-  } finally {
-    lock.releaseLock();
-  }
+    // Si una tanda sigue corriendo, escribiría sus resultados ENCIMA de la
+    // lista nueva al terminar. Se detiene el automático y se espera a que
+    // acabe (una tanda dura como mucho ~5 minutos).
+    detenerAutomatico_();
+    var lock = LockService.getScriptLock();
+    libro.toast('Si hay una tanda corriendo, espero a que termine (hasta 5 minutos)…', 'Carpetas OC', 10);
+    if (!lock.tryLock(330000)) {
+        ui.alert('Hay una tanda ocupada', 'No terminó a tiempo. Espera unos minutos y vuelve a intentarlo.', ui.ButtonSet.OK);
+        return;
+    }
+    try {
+        armarLista_(libro, ui);
+    } finally {
+        lock.releaseLock();
+    }
 }
 
 function armarLista_(libro, ui) {
-  var hoja = pestanaDeOrigen_(SpreadsheetApp.openById(ORIGEN_ID));
-  var valores = hoja.getDataRange().getValues();
+    var hoja = pestanaDeOrigen_(SpreadsheetApp.openById(ORIGEN_ID));
+    var valores = hoja.getDataRange().getValues();
 
-  var filaCab = buscarFilaCabecera_(valores);
-  var cab = valores[filaCab];
-  var iOC = columna_(cab, 'N° OC/OS'), iRuc = columna_(cab, 'RUC / DNI / RUT'),
-    iProv = columna_(cab, 'PROVEEDOR'), iEmp = columna_(cab, 'EMPRESA'),
-    iAnio = columna_(cab, 'AÑO'), iFecha = columna_(cab, 'FECHA OC'),
-    iLink = columna_(cab, 'LINK DE CARPETA');
+    var filaCab = buscarFilaCabecera_(valores);
+    var cab = valores[filaCab];
+    var iOC = columna_(cab, 'N° OC/OS'),
+        iRuc = columna_(cab, 'RUC / DNI / RUT'),
+        iProv = columna_(cab, 'PROVEEDOR'),
+        iEmp = columna_(cab, 'EMPRESA'),
+        iAnio = columna_(cab, 'AÑO'),
+        iFecha = columna_(cab, 'FECHA OC'),
+        iLink = columna_(cab, 'LINK DE CARPETA');
 
-  // El enlace puede estar como texto, como =HYPERLINK() o escondido detrás de
-  // un texto («003 Orden de compra»): se leen las tres formas.
-  var nFilas = valores.length - filaCab - 1;
-  var rangoLink = hoja.getRange(filaCab + 2, iLink + 1, nFilas, 1);
-  var ricos = rangoLink.getRichTextValues();
-  var formulas = rangoLink.getFormulas();
+    // El enlace puede estar como texto, como =HYPERLINK() o escondido detrás de
+    // un texto («003 Orden de compra»): se leen las tres formas.
+    var nFilas = valores.length - filaCab - 1;
+    var rangoLink = hoja.getRange(filaCab + 2, iLink + 1, nFilas, 1);
+    var ricos = rangoLink.getRichTextValues();
+    var formulas = rangoLink.getFormulas();
 
-  var porCarpeta = {}, orden = [], sinEnlace = 0;
-  for (var k = 0; k < nFilas; k++) {
-    var f = valores[filaCab + 1 + k];
-    if (EMPRESAS.length && EMPRESAS.indexOf(String(f[iEmp]).trim()) === -1) continue;
-    if (ANIOS.length && ANIOS.indexOf(anioDeFila_(f[iAnio], f[iFecha])) === -1) continue;
+    var porCarpeta = {},
+        orden = [],
+        sinEnlace = 0;
+    for (var k = 0; k < nFilas; k++) {
+        var f = valores[filaCab + 1 + k];
+        if (EMPRESAS.length && EMPRESAS.indexOf(String(f[iEmp]).trim()) === -1) continue;
+        if (ANIOS.length && ANIOS.indexOf(anioDeFila_(f[iAnio], f[iFecha])) === -1) continue;
 
-    var url = urlDeCelda_(f[iLink], formulas[k][0], ricos[k][0]);
-    var id = idDeDrive_(url);
-    if (!id) { sinEnlace++; continue; }
+        var url = urlDeCelda_(f[iLink], formulas[k][0], ricos[k][0]);
+        var id = idDeDrive_(url);
+        if (!id) {
+            sinEnlace++;
+            continue;
+        }
 
-    if (!porCarpeta[id]) {
-      porCarpeta[id] = { url: url, oc: [], ruc: [], prov: [], filas: 0 };
-      orden.push(id);
+        if (!porCarpeta[id]) {
+            porCarpeta[id] = { url: url, oc: [], ruc: [], prov: [], filas: 0 };
+            orden.push(id);
+        }
+        var c = porCarpeta[id];
+        c.filas++;
+        agregarSinRepetir_(c.oc, f[iOC]);
+        agregarSinRepetir_(c.ruc, f[iRuc]);
+        agregarSinRepetir_(c.prov, f[iProv]);
     }
-    var c = porCarpeta[id];
-    c.filas++;
-    agregarSinRepetir_(c.oc, f[iOC]);
-    agregarSinRepetir_(c.ruc, f[iRuc]);
-    agregarSinRepetir_(c.prov, f[iProv]);
-  }
 
-  var filas = orden.map(function (id) {
-    var c = porCarpeta[id];
-    return [id, c.url, c.oc.join(' / '), c.ruc.join(' / '), c.prov.join(' / '),
-      c.filas, 'PENDIENTE', '', '', '', '', '', '', ''];
-  });
+    var filas = orden.map(function (id) {
+        var c = porCarpeta[id];
+        return [id, c.url, c.oc.join(' / '), c.ruc.join(' / '), c.prov.join(' / '), c.filas, 'PENDIENTE', '', '', '', '', '', '', ''];
+    });
 
-  var hojaC = prepararHoja_(libro, 'CARPETAS', CAB_CARPETAS);
-  prepararHoja_(libro, 'ARCHIVOS', CAB_ARCHIVOS);
-  if (filas.length) {
-    hojaC.getRange(2, 1, filas.length, 1).setNumberFormat('@');
-    hojaC.getRange(2, 1, filas.length, CAB_CARPETAS.length).setValues(filas);
-  }
-  actualizarResumen_(libro, 'Lista armada. Todavía no se revisa ninguna carpeta.', sinEnlace);
+    var hojaC = prepararHoja_(libro, 'CARPETAS', CAB_CARPETAS);
+    prepararHoja_(libro, 'ARCHIVOS', CAB_ARCHIVOS);
+    if (filas.length) {
+        hojaC.getRange(2, 1, filas.length, 1).setNumberFormat('@');
+        hojaC.getRange(2, 1, filas.length, CAB_CARPETAS.length).setValues(filas);
+    }
+    actualizarResumen_(libro, 'Lista armada. Todavía no se revisa ninguna carpeta.', sinEnlace);
 
-  ui.alert('Lista armada',
-    filas.length + ' carpetas por revisar.\n' + sinEnlace +
-    ' filas de la base no tienen enlace de carpeta y no entran.\n\nSigue con «Revisar solo cada 10 minutos».',
-    ui.ButtonSet.OK);
+    ui.alert(
+        'Lista armada',
+        filas.length +
+            ' carpetas por revisar.\n' +
+            sinEnlace +
+            ' filas de la base no tienen enlace de carpeta y no entran.\n\nSigue con «Revisar solo cada 10 minutos».',
+        ui.ButtonSet.OK,
+    );
 }
 
 // ── 2. Revisar carpetas, por tandas ──
 
 function revisarSiguienteTanda() {
-  var lock = LockService.getScriptLock();
-  var libro = SpreadsheetApp.getActiveSpreadsheet();
-  if (!lock.tryLock(1000)) {
-    // Desde el menú se avisa; desde el automático no hay pantalla y da igual.
-    try { libro.toast('Ya hay una tanda corriendo. Sigue sola: revisa RESUMEN en unos minutos.', 'Carpetas OC', 10); } catch (e) {}
-    return;
-  }
-  try {
-    var inicio = Date.now();
-    var hojaC = libro.getSheetByName('CARPETAS');
-    var hojaA = libro.getSheetByName('ARCHIVOS');
-    if (!hojaC || hojaC.getLastRow() < 2) throw new Error('Primero «1. Armar lista de carpetas».');
-
-    var lista = hojaC.getRange(2, 1, hojaC.getLastRow() - 1, CAB_CARPETAS.length).getValues();
-    var archivos = [], estados = {}, hechas = 0;
-    var cacheSuperior = {}; // la carpeta superior se lista una vez por tanda, no una por OC
-
-    for (var i = 0; i < lista.length; i++) {
-      if (lista[i][COL_ESTADO - 1] !== 'PENDIENTE') continue;
-      if ((Date.now() - inicio) / 60000 > MINUTOS_POR_TANDA) break;
-
-      var c = lista[i];
-      // Lo que le queda a esta tanda: una carpeta enorme no puede comerse los
-      // 6 minutos, porque Google corta sin dejar escribir nada y la siguiente
-      // tanda se volvería a trabar en la misma carpeta.
-      var limite = inicio + (MINUTOS_POR_TANDA + 0.5) * 60000;
-      var res = revisarCarpeta_(String(c[0]), limite, String(c[2]));
-      if (res.estado === 'SIN TERMINAR' && hechas > 0) break; // se reintenta sola en la próxima tanda
-      var dentro = res.archivos;
-      var facturasDentro = dentro.filter(esFactura_).length;
-      var xmlDentro = dentro.filter(function (a) { return a.parece === 'XML'; }).length;
-
-      // La carpeta de arriba se mira siempre (es barata); todo el Drive, solo con BUSCAR_FUERA.
-      var fuera = [];
-      if (facturasDentro === 0 && res.carpeta) {
-        fuera = buscarFuera_(String(c[2]), res.carpeta, String(c[0]), cacheSuperior, BUSCAR_FUERA);
-      }
-
-      dentro.concat(fuera).forEach(function (a) {
-        archivos.push([c[2], c[3], c[4], c[1], a.donde, a.ubicacion, a.nombre, a.url,
-          a.tipo, a.parece, a.pistas, a.serie, a.creado, a.modificado]);
-      });
-      estados[i] = [res.estado, dentro.length, facturasDentro ? 'SÍ' : 'NO',
-        facturasDentro, xmlDentro, fuera.filter(esFactura_).length, new Date(), res.detalle];
-      hechas++;
+    var lock = LockService.getScriptLock();
+    var libro = SpreadsheetApp.getActiveSpreadsheet();
+    if (!lock.tryLock(1000)) {
+        // Desde el menú se avisa; desde el automático no hay pantalla y da igual.
+        try {
+            libro.toast('Ya hay una tanda corriendo. Sigue sola: revisa RESUMEN en unos minutos.', 'Carpetas OC', 10);
+        } catch (e) {}
+        return;
     }
+    try {
+        var inicio = Date.now();
+        var hojaC = libro.getSheetByName('CARPETAS');
+        var hojaA = libro.getSheetByName('ARCHIVOS');
+        if (!hojaC || hojaC.getLastRow() < 2) throw new Error('Primero «1. Armar lista de carpetas».');
 
-    // Se escribe todo junto al final: si la tanda se corta a la mitad, no
-    // queda una carpeta marcada como revisada sin sus archivos.
-    if (archivos.length) {
-      hojaA.getRange(hojaA.getLastRow() + 1, 1, archivos.length, CAB_ARCHIVOS.length).setValues(archivos);
+        var lista = hojaC.getRange(2, 1, hojaC.getLastRow() - 1, CAB_CARPETAS.length).getValues();
+        var archivos = [],
+            estados = {},
+            hechas = 0;
+        var cacheSuperior = {}; // la carpeta superior se lista una vez por tanda, no una por OC
+
+        for (var i = 0; i < lista.length; i++) {
+            if (lista[i][COL_ESTADO - 1] !== 'PENDIENTE') continue;
+            if ((Date.now() - inicio) / 60000 > MINUTOS_POR_TANDA) break;
+
+            var c = lista[i];
+            // Lo que le queda a esta tanda: una carpeta enorme no puede comerse los
+            // 6 minutos, porque Google corta sin dejar escribir nada y la siguiente
+            // tanda se volvería a trabar en la misma carpeta.
+            var limite = inicio + (MINUTOS_POR_TANDA + 0.5) * 60000;
+            var res = revisarCarpeta_(String(c[0]), limite, String(c[2]));
+            if (res.estado === 'SIN TERMINAR' && hechas > 0) break; // se reintenta sola en la próxima tanda
+            var dentro = res.archivos;
+            var facturasDentro = dentro.filter(esFactura_).length;
+            var xmlDentro = dentro.filter(function (a) {
+                return a.parece === 'XML';
+            }).length;
+
+            // La carpeta de arriba se mira siempre (es barata); todo el Drive, solo con BUSCAR_FUERA.
+            var fuera = [];
+            if (facturasDentro === 0 && res.carpeta) {
+                fuera = buscarFuera_(String(c[2]), res.carpeta, String(c[0]), cacheSuperior, BUSCAR_FUERA);
+            }
+
+            dentro.concat(fuera).forEach(function (a) {
+                archivos.push([c[2], c[3], c[4], c[1], a.donde, a.ubicacion, a.nombre, a.url, a.tipo, a.parece, a.pistas, a.serie, a.creado, a.modificado]);
+            });
+            estados[i] = [
+                res.estado,
+                dentro.length,
+                facturasDentro ? 'SÍ' : 'NO',
+                facturasDentro,
+                xmlDentro,
+                fuera.filter(esFactura_).length,
+                new Date(),
+                res.detalle,
+            ];
+            hechas++;
+        }
+
+        // Se escribe todo junto al final: si la tanda se corta a la mitad, no
+        // queda una carpeta marcada como revisada sin sus archivos.
+        if (archivos.length) {
+            hojaA.getRange(hojaA.getLastRow() + 1, 1, archivos.length, CAB_ARCHIVOS.length).setValues(archivos);
+        }
+        Object.keys(estados).forEach(function (i) {
+            hojaC.getRange(Number(i) + 2, COL_ESTADO, 1, estados[i].length).setValues([estados[i]]);
+        });
+
+        var pendientes = lista.filter(function (c, i) {
+            return c[COL_ESTADO - 1] === 'PENDIENTE' && !estados[i];
+        }).length;
+        if (pendientes === 0) detenerAutomatico_();
+        var resultado =
+            hechas + ' carpetas revisadas en esta tanda, ' + archivos.length + ' archivos. Faltan ' + pendientes + (pendientes === 0 ? ' — TERMINADO.' : '.');
+        actualizarResumen_(libro, resultado);
+        libro.toast(resultado, 'Carpetas OC', 10);
+    } catch (e) {
+        // Cuando corre sola no hay pantalla donde mostrar el error: queda en RESUMEN.
+        anotarError_(libro, 'ERROR: ' + (e.message || e));
+        throw e;
+    } finally {
+        lock.releaseLock();
     }
-    Object.keys(estados).forEach(function (i) {
-      hojaC.getRange(Number(i) + 2, COL_ESTADO, 1, estados[i].length).setValues([estados[i]]);
-    });
-
-    var pendientes = lista.filter(function (c, i) {
-      return c[COL_ESTADO - 1] === 'PENDIENTE' && !estados[i];
-    }).length;
-    if (pendientes === 0) detenerAutomatico_();
-    var resultado = hechas + ' carpetas revisadas en esta tanda, ' + archivos.length +
-      ' archivos. Faltan ' + pendientes + (pendientes === 0 ? ' — TERMINADO.' : '.');
-    actualizarResumen_(libro, resultado);
-    libro.toast(resultado, 'Carpetas OC', 10);
-  } catch (e) {
-    // Cuando corre sola no hay pantalla donde mostrar el error: queda en RESUMEN.
-    anotarError_(libro, 'ERROR: ' + (e.message || e));
-    throw e;
-  } finally {
-    lock.releaseLock();
-  }
 }
 
 /**
@@ -245,42 +293,51 @@ function revisarSiguienteTanda() {
  * ahí suelen estar la factura, la DAM o el desaduanaje.
  */
 function revisarCarpeta_(id, limite, ocTexto) {
-  var archivos = [];
-  var carpeta, nota = '';
-  try {
-    carpeta = DriveApp.getFolderById(id);
-    carpeta.getName(); // obliga a comprobar el acceso aquí y no más abajo
-  } catch (e) {
-    // El enlace puede ser de un archivo suelto y no de una carpeta.
+    var archivos = [];
+    var carpeta,
+        nota = '';
     try {
-      var suelto = DriveApp.getFileById(id);
-      archivos.push(datosDeArchivo_(suelto, '(el enlace es un archivo, no una carpeta)', DENTRO, ''));
-      return { estado: 'ES UN ARCHIVO', archivos: archivos, carpeta: null, detalle: '' };
-    } catch (e2) {
-      return { estado: 'SIN ACCESO', archivos: [], carpeta: null, detalle: String(e.message || e) };
+        carpeta = DriveApp.getFolderById(id);
+        carpeta.getName(); // obliga a comprobar el acceso aquí y no más abajo
+    } catch (e) {
+        // El enlace puede ser de un archivo suelto y no de una carpeta.
+        try {
+            var suelto = DriveApp.getFileById(id);
+            archivos.push(datosDeArchivo_(suelto, '(el enlace es un archivo, no una carpeta)', DENTRO, ''));
+            return { estado: 'ES UN ARCHIVO', archivos: archivos, carpeta: null, detalle: '' };
+        } catch (e2) {
+            return { estado: 'SIN ACCESO', archivos: [], carpeta: null, detalle: String(e.message || e) };
+        }
     }
-  }
-  var deLaOC = carpetaDeLaOC_(carpeta, numeroDeOC_(String(ocTexto || '').split(' / ')[0]));
-  if (deLaOC.getId() !== carpeta.getId()) {
-    nota = 'El enlace apunta a la subcarpeta «' + carpeta.getName() + '»; se revisó desde «' + deLaOC.getName() + '».';
-    carpeta = deLaOC;
-  }
-  try {
-    recorrer_(carpeta, carpeta.getName(), '', {}, archivos, limite || Infinity);
-    return { estado: archivos.length ? 'OK' : 'VACÍA', archivos: archivos, carpeta: carpeta, detalle: nota };
-  } catch (e) {
-    if (e === DEMASIADO_GRANDE) {
-      return { estado: 'MUY GRANDE', archivos: archivos, carpeta: carpeta,
-        detalle: 'Más de ' + LIMITE_ARCHIVOS + ' archivos: el enlace parece ser de una carpeta general, no de la OC. Se anotaron los primeros.' };
+    var deLaOC = carpetaDeLaOC_(carpeta, numeroDeOC_(String(ocTexto || '').split(' / ')[0]));
+    if (deLaOC.getId() !== carpeta.getId()) {
+        nota = 'El enlace apunta a la subcarpeta «' + carpeta.getName() + '»; se revisó desde «' + deLaOC.getName() + '».';
+        carpeta = deLaOC;
     }
-    if (e === SIN_TIEMPO) {
-      // Si fue la primera de la tanda, ni una tanda entera le alcanza: se
-      // marca y se sigue. Si no, se deja PENDIENTE para la próxima.
-      return { estado: 'SIN TERMINAR', archivos: archivos, carpeta: carpeta,
-        detalle: 'No alcanzó el tiempo de una tanda. Se anotó lo que se alcanzó a ver (' + archivos.length + ' archivos).' };
+    try {
+        recorrer_(carpeta, carpeta.getName(), '', {}, archivos, limite || Infinity);
+        return { estado: archivos.length ? 'OK' : 'VACÍA', archivos: archivos, carpeta: carpeta, detalle: nota };
+    } catch (e) {
+        if (e === DEMASIADO_GRANDE) {
+            return {
+                estado: 'MUY GRANDE',
+                archivos: archivos,
+                carpeta: carpeta,
+                detalle: 'Más de ' + LIMITE_ARCHIVOS + ' archivos: el enlace parece ser de una carpeta general, no de la OC. Se anotaron los primeros.',
+            };
+        }
+        if (e === SIN_TIEMPO) {
+            // Si fue la primera de la tanda, ni una tanda entera le alcanza: se
+            // marca y se sigue. Si no, se deja PENDIENTE para la próxima.
+            return {
+                estado: 'SIN TERMINAR',
+                archivos: archivos,
+                carpeta: carpeta,
+                detalle: 'No alcanzó el tiempo de una tanda. Se anotó lo que se alcanzó a ver (' + archivos.length + ' archivos).',
+            };
+        }
+        return { estado: 'ERROR A MEDIAS', archivos: archivos, carpeta: carpeta, detalle: String(e.message || e) };
     }
-    return { estado: 'ERROR A MEDIAS', archivos: archivos, carpeta: carpeta, detalle: String(e.message || e) };
-  }
 }
 
 /**
@@ -292,8 +349,22 @@ var DEMASIADO_GRANDE = { motivo: 'demasiado grande' };
 var SIN_TIEMPO = { motivo: 'sin tiempo' };
 
 // Nombres de subcarpeta del legajo que no son de ningún tipo de documento.
-var SUBCARPETAS_TIPICAS = ['PROVEEDOR', 'PROVEEDORES', 'DOCUMENTOS', 'ADJUNTOS', 'SUSTENTO', 'SUSTENTOS',
-  'ANEXOS', 'ARCHIVOS', 'OTROS', 'VALIDACION', 'DESADUANAJE', 'COMPRA', 'COMPRAS', 'LEGAJO'];
+var SUBCARPETAS_TIPICAS = [
+    'PROVEEDOR',
+    'PROVEEDORES',
+    'DOCUMENTOS',
+    'ADJUNTOS',
+    'SUSTENTO',
+    'SUSTENTOS',
+    'ANEXOS',
+    'ARCHIVOS',
+    'OTROS',
+    'VALIDACION',
+    'DESADUANAJE',
+    'COMPRA',
+    'COMPRAS',
+    'LEGAJO',
+];
 
 /**
  * Sube desde la carpeta del enlace hasta la carpeta de la OC, como mucho dos
@@ -301,61 +372,65 @@ var SUBCARPETAS_TIPICAS = ['PROVEEDOR', 'PROVEEDORES', 'DOCUMENTOS', 'ADJUNTOS',
  * tiene nombre de subcarpeta y la de arriba no es una carpeta general.
  */
 function carpetaDeLaOC_(carpeta, ocNum) {
-  var actual = carpeta;
-  try {
-    for (var nivel = 0; nivel < 2; nivel++) {
-      var padres = actual.getParents();
-      if (!padres.hasNext()) break;
-      var padre = padres.next();
-      var nombre = actual.getName();
-      var padreDeLaOC = !!ocNum && nombreMencionaOC_(padre.getName(), ocNum);
-      var pareceSub = !(ocNum && nombreMencionaOC_(nombre, ocNum)) && esNombreDeSubcarpeta_(nombre);
-      if (!padreDeLaOC && !(pareceSub && !esCarpetaGeneral_(padre, ocNum))) break;
-      actual = padre;
+    var actual = carpeta;
+    try {
+        for (var nivel = 0; nivel < 2; nivel++) {
+            var padres = actual.getParents();
+            if (!padres.hasNext()) break;
+            var padre = padres.next();
+            var nombre = actual.getName();
+            var padreDeLaOC = !!ocNum && nombreMencionaOC_(padre.getName(), ocNum);
+            var pareceSub = !(ocNum && nombreMencionaOC_(nombre, ocNum)) && esNombreDeSubcarpeta_(nombre);
+            if (!padreDeLaOC && !(pareceSub && !esCarpetaGeneral_(padre, ocNum))) break;
+            actual = padre;
+        }
+    } catch (e) {
+        // sin permiso sobre la de arriba: se queda la del enlace
     }
-  } catch (e) {
-    // sin permiso sobre la de arriba: se queda la del enlace
-  }
-  return actual;
+    return actual;
 }
 
 function esNombreDeSubcarpeta_(nombre) {
-  if (/^\s*0\d{1,2}[\s._-]/.test(nombre)) return true; // «001 Requerimiento», «03 ORDEN DE COMPRA»
-  var t = textoPlano_(nombre);
-  if (pistasEn_(t).length) return true;
-  return t.split(' ').some(function (p) { return SUBCARPETAS_TIPICAS.indexOf(p) !== -1; });
+    if (/^\s*0\d{1,2}[\s._-]/.test(nombre)) return true; // «001 Requerimiento», «03 ORDEN DE COMPRA»
+    var t = textoPlano_(nombre);
+    if (pistasEn_(t).length) return true;
+    return t.split(' ').some(function (p) {
+        return SUBCARPETAS_TIPICAS.indexOf(p) !== -1;
+    });
 }
 
 /** Con subcarpetas de dos o más OC distintas, o con muchas subcarpetas, es la de un proyecto. */
 function esCarpetaGeneral_(carpeta, ocNum) {
-  var otras = {}, n = 0, it = carpeta.getFolders();
-  while (it.hasNext()) {
-    if (++n > 15) return true;
-    var m = /(\d{1,6})\s*-\s*(20\d\d)|(20\d\d)\s*-\s*(\d{1,6})/.exec(it.next().getName());
-    if (!m) continue;
-    var clave = m[1] ? Number(m[1]) + '-' + m[2] : Number(m[4]) + '-' + m[3];
-    if (!ocNum || clave !== ocNum.num + '-' + ocNum.anio) otras[clave] = true;
-    if (Object.keys(otras).length >= 2) return true;
-  }
-  return false;
+    var otras = {},
+        n = 0,
+        it = carpeta.getFolders();
+    while (it.hasNext()) {
+        if (++n > 15) return true;
+        var m = /(\d{1,6})\s*-\s*(20\d\d)|(20\d\d)\s*-\s*(\d{1,6})/.exec(it.next().getName());
+        if (!m) continue;
+        var clave = m[1] ? Number(m[1]) + '-' + m[2] : Number(m[4]) + '-' + m[3];
+        if (!ocNum || clave !== ocNum.num + '-' + ocNum.anio) otras[clave] = true;
+        if (Object.keys(otras).length >= 2) return true;
+    }
+    return false;
 }
 
 function recorrer_(carpeta, ruta, sub, vistas, salida, limite) {
-  if (Date.now() > limite) throw SIN_TIEMPO;
-  var id = carpeta.getId();
-  if (vistas[id]) return; // una carpeta puede colgar de dos lados
-  vistas[id] = true;
-  var fs = carpeta.getFiles();
-  while (fs.hasNext()) {
-    if (salida.length >= LIMITE_ARCHIVOS) throw DEMASIADO_GRANDE;
     if (Date.now() > limite) throw SIN_TIEMPO;
-    salida.push(datosDeArchivo_(fs.next(), ruta, DENTRO, sub));
-  }
-  var subs = carpeta.getFolders();
-  while (subs.hasNext()) {
-    var s = subs.next();
-    recorrer_(s, ruta + ' / ' + s.getName(), (sub ? sub + ' / ' : '') + s.getName(), vistas, salida, limite);
-  }
+    var id = carpeta.getId();
+    if (vistas[id]) return; // una carpeta puede colgar de dos lados
+    vistas[id] = true;
+    var fs = carpeta.getFiles();
+    while (fs.hasNext()) {
+        if (salida.length >= LIMITE_ARCHIVOS) throw DEMASIADO_GRANDE;
+        if (Date.now() > limite) throw SIN_TIEMPO;
+        salida.push(datosDeArchivo_(fs.next(), ruta, DENTRO, sub));
+    }
+    var subs = carpeta.getFolders();
+    while (subs.hasNext()) {
+        var s = subs.next();
+        recorrer_(s, ruta + ' / ' + s.getName(), (sub ? sub + ' / ' : '') + s.getName(), vistas, salida, limite);
+    }
 }
 
 /**
@@ -364,111 +439,132 @@ function recorrer_(carpeta, ruta, sub, vistas, salida, limite) {
  * quedan los que además parecen factura, nota o XML — lo demás es ruido.
  */
 function buscarFuera_(ocTexto, carpeta, idCarpeta, cacheSuperior, enDrive) {
-  var hallados = [], vistos = {};
-  var ocs = ocTexto.split(' / ').map(numeroDeOC_).filter(Boolean);
-  if (!ocs.length) return hallados;
+    var hallados = [],
+        vistos = {};
+    var ocs = ocTexto.split(' / ').map(numeroDeOC_).filter(Boolean);
+    if (!ocs.length) return hallados;
 
-  var quedarse = function (f, donde, ubicacion) {
-    var id = f.getId();
-    if (vistos[id]) return;
-    var nombre = f.getName();
-    if (!ocs.some(function (oc) { return nombreMencionaOC_(nombre, oc); })) return;
-    var a = datosDeArchivo_(f, ubicacion, donde);
-    if (!esFactura_(a) && a.parece !== 'XML') return;
-    vistos[id] = true;
-    hallados.push(a);
-  };
+    var quedarse = function (f, donde, ubicacion) {
+        var id = f.getId();
+        if (vistos[id]) return;
+        var nombre = f.getName();
+        if (
+            !ocs.some(function (oc) {
+                return nombreMencionaOC_(nombre, oc);
+            })
+        )
+            return;
+        var a = datosDeArchivo_(f, ubicacion, donde);
+        if (!esFactura_(a) && a.parece !== 'XML') return;
+        vistos[id] = true;
+        hallados.push(a);
+    };
 
-  try {
-    if (carpeta) {
-      var padres = carpeta.getParents();
-      while (padres.hasNext()) {
-        var p = padres.next();
-        if (!cacheSuperior[p.getId()]) {
-          var lista = [], it = p.getFiles();
-          while (it.hasNext()) lista.push(it.next());
-          cacheSuperior[p.getId()] = { nombre: p.getName(), archivos: lista };
+    try {
+        if (carpeta) {
+            var padres = carpeta.getParents();
+            while (padres.hasNext()) {
+                var p = padres.next();
+                if (!cacheSuperior[p.getId()]) {
+                    var lista = [],
+                        it = p.getFiles();
+                    while (it.hasNext()) lista.push(it.next());
+                    cacheSuperior[p.getId()] = { nombre: p.getName(), archivos: lista };
+                }
+                var sup = cacheSuperior[p.getId()];
+                sup.archivos.forEach(function (f) {
+                    quedarse(f, SUPERIOR, sup.nombre);
+                });
+            }
         }
-        var sup = cacheSuperior[p.getId()];
-        sup.archivos.forEach(function (f) { quedarse(f, SUPERIOR, sup.nombre); });
-      }
+        if (enDrive && !hallados.length) {
+            ocs.forEach(function (oc) {
+                consultasDeDrive_(oc).forEach(function (q) {
+                    var it = DriveApp.searchFiles(q),
+                        n = 0;
+                    while (it.hasNext() && n++ < 30) {
+                        var f = it.next();
+                        quedarse(f, EN_DRIVE, rutaDe_(f));
+                    }
+                });
+            });
+        }
+    } catch (e) {
+        // La búsqueda de afuera es una ayuda: si falla, queda lo de adentro.
     }
-    if (enDrive && !hallados.length) {
-      ocs.forEach(function (oc) {
-        consultasDeDrive_(oc).forEach(function (q) {
-          var it = DriveApp.searchFiles(q), n = 0;
-          while (it.hasNext() && n++ < 30) {
-            var f = it.next();
-            quedarse(f, EN_DRIVE, rutaDe_(f));
-          }
-        });
-      });
-    }
-  } catch (e) {
-    // La búsqueda de afuera es una ayuda: si falla, queda lo de adentro.
-  }
-  return hallados;
+    return hallados;
 }
 
 function rutaDe_(f) {
-  try {
-    var p = f.getParents();
-    return p.hasNext() ? p.next().getName() : '(sin carpeta)';
-  } catch (e) {
-    return '';
-  }
+    try {
+        var p = f.getParents();
+        return p.hasNext() ? p.next().getName() : '(sin carpeta)';
+    } catch (e) {
+        return '';
+    }
 }
 
 /** `pistaCarpeta`: nombres de carpeta que pueden decir qué es el archivo. */
 function datosDeArchivo_(f, ubicacion, donde, pistaCarpeta) {
-  var nombre = f.getName(), mime = f.getMimeType(), url = f.getUrl();
-  // Un acceso directo apunta a otro archivo: se anota el de verdad.
-  if (mime === 'application/vnd.google-apps.shortcut') {
-    try {
-      var real = DriveApp.getFileById(f.getTargetId());
-      nombre = real.getName() + ' (acceso directo)';
-      mime = real.getMimeType();
-      url = real.getUrl();
-    } catch (e) {
-      nombre += ' (acceso directo sin acceso)';
+    var nombre = f.getName(),
+        mime = f.getMimeType(),
+        url = f.getUrl();
+    // Un acceso directo apunta a otro archivo: se anota el de verdad.
+    if (mime === 'application/vnd.google-apps.shortcut') {
+        try {
+            var real = DriveApp.getFileById(f.getTargetId());
+            nombre = real.getName() + ' (acceso directo)';
+            mime = real.getMimeType();
+            url = real.getUrl();
+        } catch (e) {
+            nombre += ' (acceso directo sin acceso)';
+        }
     }
-  }
-  var c = clasificar_(nombre, pistaCarpeta == null ? ubicacion : pistaCarpeta, mime);
-  return {
-    donde: donde, ubicacion: ubicacion, nombre: nombre, url: url,
-    tipo: tipoLegible_(mime, nombre), parece: c.parece, pistas: c.pistas.join(', '),
-    serie: c.serie, creado: f.getDateCreated(), modificado: f.getLastUpdated()
-  };
+    var c = clasificar_(nombre, pistaCarpeta == null ? ubicacion : pistaCarpeta, mime);
+    return {
+        donde: donde,
+        ubicacion: ubicacion,
+        nombre: nombre,
+        url: url,
+        tipo: tipoLegible_(mime, nombre),
+        parece: c.parece,
+        pistas: c.pistas.join(', '),
+        serie: c.serie,
+        creado: f.getDateCreated(),
+        modificado: f.getLastUpdated(),
+    };
 }
 
 // ── Revisión automática ──
 
 function activarAutomatico() {
-  var libro = SpreadsheetApp.getActiveSpreadsheet();
-  var hojaC = libro.getSheetByName('CARPETAS');
-  if (!hojaC || hojaC.getLastRow() < 2) {
-    SpreadsheetApp.getUi().alert('Falta un paso', 'Primero usa «1. Armar lista de carpetas».',
-      SpreadsheetApp.getUi().ButtonSet.OK);
-    return;
-  }
-  detenerAutomatico_();
-  ScriptApp.newTrigger('revisarSiguienteTanda').timeBased().everyMinutes(10).create();
-  // Google recién dispara el automático a los ~10 minutos: la primera tanda
-  // se corre ahora para que se vea avanzar desde ya.
-  libro.toast('Empieza la primera tanda (unos 5 minutos). Después sigue sola cada 10 minutos ' +
-    'y se detiene al terminar. El avance se ve en la pestaña RESUMEN.', 'Carpetas OC', 15);
-  revisarSiguienteTanda();
+    var libro = SpreadsheetApp.getActiveSpreadsheet();
+    var hojaC = libro.getSheetByName('CARPETAS');
+    if (!hojaC || hojaC.getLastRow() < 2) {
+        SpreadsheetApp.getUi().alert('Falta un paso', 'Primero usa «1. Armar lista de carpetas».', SpreadsheetApp.getUi().ButtonSet.OK);
+        return;
+    }
+    detenerAutomatico_();
+    ScriptApp.newTrigger('revisarSiguienteTanda').timeBased().everyMinutes(10).create();
+    // Google recién dispara el automático a los ~10 minutos: la primera tanda
+    // se corre ahora para que se vea avanzar desde ya.
+    libro.toast(
+        'Empieza la primera tanda (unos 5 minutos). Después sigue sola cada 10 minutos ' + 'y se detiene al terminar. El avance se ve en la pestaña RESUMEN.',
+        'Carpetas OC',
+        15,
+    );
+    revisarSiguienteTanda();
 }
 
 function detenerAutomatico() {
-  detenerAutomatico_();
-  SpreadsheetApp.getActiveSpreadsheet().toast('Revisión automática detenida.', 'Carpetas OC', 5);
+    detenerAutomatico_();
+    SpreadsheetApp.getActiveSpreadsheet().toast('Revisión automática detenida.', 'Carpetas OC', 5);
 }
 
 function detenerAutomatico_() {
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'revisarSiguienteTanda') ScriptApp.deleteTrigger(t);
-  });
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+        if (t.getHandlerFunction() === 'revisarSiguienteTanda') ScriptApp.deleteTrigger(t);
+    });
 }
 
 // ── Qué parece ser cada archivo (sin llamadas a Google: se prueba suelto) ──
@@ -476,24 +572,44 @@ function detenerAutomatico_() {
 // En orden: gana la primera que calce. «PAGO FACTURA F001-123» sale FACTURA,
 // pero en «Pistas» quedan las dos palabras para que una persona decida.
 var CATEGORIAS = [
-  { parece: 'NOTA DE CRÉDITO', frases: ['NOTA DE CREDITO', 'NOTA CREDITO'], palabras: ['NC'] },
-  { parece: 'NOTA DE DÉBITO', frases: ['NOTA DE DEBITO', 'NOTA DEBITO'], palabras: ['ND'] },
-  // Antes que FACTURA: una «proforma invoice» o «factura proforma» no es la factura.
-  { parece: 'COTIZACIÓN', frases: ['PROFORMA INVOICE', 'PERFORMA INVOICE', 'PRO FORMA'], palabras: ['PROFORMA', 'PROFORMAS', 'PERFORMA'], parecidas: ['PROFORMA'] },
-  // «INVOICE» es la factura del proveedor del exterior.
-  { parece: 'FACTURA', frases: ['FACTURA ELECTRONICA', 'COMMERCIAL INVOICE'], palabras: ['FACTURA', 'FACTURAS', 'FACT', 'FAC', 'FACTU', 'FACTS', 'FE', 'INVOICE', 'INVOICES', 'INV'], parecidas: ['FACTURA', 'FACTURAS', 'FACTURACION', 'INVOICE'] },
-  // «FT_…» resultó ser ficha técnica, no factura (así las nombran los proveedores).
-  { parece: 'FICHA TÉCNICA', frases: ['FICHA TECNICA', 'FICHAS TECNICAS'], palabras: ['FT', 'FTS'] },
-  { parece: 'BOLETA', frases: [], palabras: ['BOLETA', 'BOLETAS', 'BV'], parecidas: ['BOLETA'] },
-  { parece: 'RECIBO POR HONORARIOS', frases: ['RECIBO POR HONORARIOS', 'RECIBO HONORARIOS', 'R X H'], palabras: ['RH', 'RHE', 'RXH', 'HONORARIOS'], parecidas: ['HONORARIOS'] },
-  { parece: 'COMPROBANTE (revisar)', frases: [], palabras: ['COMPROBANTE', 'COMPROBANTES', 'CPE'], parecidas: ['COMPROBANTE'] },
-  { parece: 'DETRACCIÓN', frases: [], palabras: ['DETRACCION', 'DETRACCIONES', 'SPOT'], parecidas: ['DETRACCION'] },
-  { parece: 'PAGO', frases: [], palabras: ['PAGO', 'PAGOS', 'VOUCHER', 'TRANSFERENCIA', 'CONSTANCIA', 'DEPOSITO', 'ABONO', 'ADELANTO'], parecidas: ['TRANSFERENCIA'] },
-  { parece: 'GUÍA', frases: ['GUIA DE REMISION'], palabras: ['GUIA', 'GUIAS', 'GR', 'REMISION'], parecidas: ['REMISION'] },
-  { parece: 'COTIZACIÓN', frases: [], palabras: ['COTIZACION', 'COTIZACIONES', 'PROFORMA', 'COT'], parecidas: ['COTIZACION'] },
-  { parece: 'ORDEN DE COMPRA/SERVICIO', frases: ['ORDEN DE COMPRA', 'ORDEN DE SERVICIO'], palabras: ['OC', 'OS'] },
-  { parece: 'REQUERIMIENTO', frases: [], palabras: ['REQUERIMIENTO', 'REQ'], parecidas: ['REQUERIMIENTO'] },
-  { parece: 'DATOS BANCARIOS', frases: ['CUENTA BANCARIA', 'CUENTAS BANCARIAS'], palabras: ['CCI'] }
+    { parece: 'NOTA DE CRÉDITO', frases: ['NOTA DE CREDITO', 'NOTA CREDITO'], palabras: ['NC'] },
+    { parece: 'NOTA DE DÉBITO', frases: ['NOTA DE DEBITO', 'NOTA DEBITO'], palabras: ['ND'] },
+    // Antes que FACTURA: una «proforma invoice» o «factura proforma» no es la factura.
+    {
+        parece: 'COTIZACIÓN',
+        frases: ['PROFORMA INVOICE', 'PERFORMA INVOICE', 'PRO FORMA'],
+        palabras: ['PROFORMA', 'PROFORMAS', 'PERFORMA'],
+        parecidas: ['PROFORMA'],
+    },
+    // «INVOICE» es la factura del proveedor del exterior.
+    {
+        parece: 'FACTURA',
+        frases: ['FACTURA ELECTRONICA', 'COMMERCIAL INVOICE'],
+        palabras: ['FACTURA', 'FACTURAS', 'FACT', 'FAC', 'FACTU', 'FACTS', 'FE', 'INVOICE', 'INVOICES', 'INV'],
+        parecidas: ['FACTURA', 'FACTURAS', 'FACTURACION', 'INVOICE'],
+    },
+    // «FT_…» resultó ser ficha técnica, no factura (así las nombran los proveedores).
+    { parece: 'FICHA TÉCNICA', frases: ['FICHA TECNICA', 'FICHAS TECNICAS'], palabras: ['FT', 'FTS'] },
+    { parece: 'BOLETA', frases: [], palabras: ['BOLETA', 'BOLETAS', 'BV'], parecidas: ['BOLETA'] },
+    {
+        parece: 'RECIBO POR HONORARIOS',
+        frases: ['RECIBO POR HONORARIOS', 'RECIBO HONORARIOS', 'R X H'],
+        palabras: ['RH', 'RHE', 'RXH', 'HONORARIOS'],
+        parecidas: ['HONORARIOS'],
+    },
+    { parece: 'COMPROBANTE (revisar)', frases: [], palabras: ['COMPROBANTE', 'COMPROBANTES', 'CPE'], parecidas: ['COMPROBANTE'] },
+    { parece: 'DETRACCIÓN', frases: [], palabras: ['DETRACCION', 'DETRACCIONES', 'SPOT'], parecidas: ['DETRACCION'] },
+    {
+        parece: 'PAGO',
+        frases: [],
+        palabras: ['PAGO', 'PAGOS', 'VOUCHER', 'TRANSFERENCIA', 'CONSTANCIA', 'DEPOSITO', 'ABONO', 'ADELANTO'],
+        parecidas: ['TRANSFERENCIA'],
+    },
+    { parece: 'GUÍA', frases: ['GUIA DE REMISION'], palabras: ['GUIA', 'GUIAS', 'GR', 'REMISION'], parecidas: ['REMISION'] },
+    { parece: 'COTIZACIÓN', frases: [], palabras: ['COTIZACION', 'COTIZACIONES', 'PROFORMA', 'COT'], parecidas: ['COTIZACION'] },
+    { parece: 'ORDEN DE COMPRA/SERVICIO', frases: ['ORDEN DE COMPRA', 'ORDEN DE SERVICIO'], palabras: ['OC', 'OS'] },
+    { parece: 'REQUERIMIENTO', frases: [], palabras: ['REQUERIMIENTO', 'REQ'], parecidas: ['REQUERIMIENTO'] },
+    { parece: 'DATOS BANCARIOS', frases: ['CUENTA BANCARIA', 'CUENTAS BANCARIAS'], palabras: ['CCI'] },
 ];
 
 /**
@@ -501,63 +617,77 @@ var CATEGORIAS = [
  * está («Facturas / scan001.pdf» cuenta como factura).
  */
 function clasificar_(nombre, ubicacion, mime) {
-  var n = textoPlano_(nombre);
-  var ext = (/\.([a-z0-9]{2,5})$/i.exec(nombre || '') || [])[1];
-  ext = ext ? ext.toUpperCase() : '';
-  var serie = serieEnNombre_(nombre);
-  var pistas = pistasEn_(n);
+    var n = textoPlano_(nombre);
+    var ext = (/\.([a-z0-9]{2,5})$/i.exec(nombre || '') || [])[1];
+    ext = ext ? ext.toUpperCase() : '';
+    var serie = serieEnNombre_(nombre);
+    var pistas = pistasEn_(n);
 
-  var parece = '';
-  // Solo el XML de verdad: el tipo interno de un Excel o un Word también
-  // contiene «xml» (…openxmlformats…) y no es un comprobante.
-  var esXml = ext === 'XML' || mime === 'text/xml' || mime === 'application/xml';
-  if (esXml) parece = /^R-/i.test(nombre) ? 'CDR (constancia SUNAT)' : 'XML';
-  else if (ext === 'ZIP' && /^R-/i.test(nombre)) parece = 'CDR (constancia SUNAT)';
-  // Nombre como lo baja SUNAT, RUC-TIPO-SERIE-NÚMERO: el tipo lo dice todo.
-  var sunat = TIPO_SUNAT[(/(?:^|\D)[12]\d{10}[-_ ](01|03|07|08|09|R01)[-_ ]/.exec(String(nombre).toUpperCase()) || [])[1]];
-  if (!parece && sunat) { parece = sunat; pistas.unshift({ parece: sunat, palabra: 'tipo SUNAT en el nombre' }); }
-  if (!parece && pistas.length) parece = pistas[0].parece;
-  // «FT F001-123» o «PROFORMA F001-123» con serie de SUNAT sí son factura.
-  if ((parece === 'FICHA TÉCNICA' && serie && !/^EG/.test(serie)) ||
-    (parece === 'COTIZACIÓN' && /^F/.test(serie))) parece = 'FACTURA';
-  if (!parece && serie) {
-    parece = /^F/.test(serie) ? 'FACTURA' : /^B/.test(serie) ? 'BOLETA' : 'FACTURA o RH (serie E)';
-    pistas.push({ parece: parece, palabra: serie });
-  }
-  if (!parece) {
-    var enCarpeta = pistasEn_(textoPlano_(ubicacion));
-    if (enCarpeta.length) {
-      parece = enCarpeta[0].parece + ' (por la carpeta)';
-      pistas = pistas.concat(enCarpeta);
+    var parece = '';
+    // Solo el XML de verdad: el tipo interno de un Excel o un Word también
+    // contiene «xml» (…openxmlformats…) y no es un comprobante.
+    var esXml = ext === 'XML' || mime === 'text/xml' || mime === 'application/xml';
+    if (esXml) parece = /^R-/i.test(nombre) ? 'CDR (constancia SUNAT)' : 'XML';
+    else if (ext === 'ZIP' && /^R-/i.test(nombre)) parece = 'CDR (constancia SUNAT)';
+    // Nombre como lo baja SUNAT, RUC-TIPO-SERIE-NÚMERO: el tipo lo dice todo.
+    var sunat = TIPO_SUNAT[(/(?:^|\D)[12]\d{10}[-_ ](01|03|07|08|09|R01)[-_ ]/.exec(String(nombre).toUpperCase()) || [])[1]];
+    if (!parece && sunat) {
+        parece = sunat;
+        pistas.unshift({ parece: sunat, palabra: 'tipo SUNAT en el nombre' });
     }
-  }
-  return {
-    parece: parece || 'OTRO',
-    pistas: pistas.map(function (p) { return p.palabra; }).filter(function (p, i, a) { return a.indexOf(p) === i; }),
-    serie: serie
-  };
+    if (!parece && pistas.length) parece = pistas[0].parece;
+    // «FT F001-123» o «PROFORMA F001-123» con serie de SUNAT sí son factura.
+    if ((parece === 'FICHA TÉCNICA' && serie && !/^EG/.test(serie)) || (parece === 'COTIZACIÓN' && /^F/.test(serie))) parece = 'FACTURA';
+    if (!parece && serie) {
+        parece = /^F/.test(serie) ? 'FACTURA' : /^B/.test(serie) ? 'BOLETA' : 'FACTURA o RH (serie E)';
+        pistas.push({ parece: parece, palabra: serie });
+    }
+    if (!parece) {
+        var enCarpeta = pistasEn_(textoPlano_(ubicacion));
+        if (enCarpeta.length) {
+            parece = enCarpeta[0].parece + ' (por la carpeta)';
+            pistas = pistas.concat(enCarpeta);
+        }
+    }
+    return {
+        parece: parece || 'OTRO',
+        pistas: pistas
+            .map(function (p) {
+                return p.palabra;
+            })
+            .filter(function (p, i, a) {
+                return a.indexOf(p) === i;
+            }),
+        serie: serie,
+    };
 }
 
 /** Las categorías que calzan con un texto, en orden, con la palabra que las delató. */
 function pistasEn_(texto) {
-  var palabras = texto.split(' ').filter(Boolean);
-  var salida = [];
-  CATEGORIAS.forEach(function (cat) {
-    var hallada = '';
-    cat.frases.forEach(function (fr) { if (!hallada && (' ' + texto + ' ').indexOf(' ' + fr + ' ') !== -1) hallada = fr; });
-    palabras.forEach(function (p) {
-      if (hallada) return;
-      if (cat.palabras.indexOf(p) !== -1) hallada = p;
-      else if ((cat.parecidas || []).some(function (q) { return seParece_(p, q); })) hallada = p + ' (≈' + cat.parecidas[0] + ')';
+    var palabras = texto.split(' ').filter(Boolean);
+    var salida = [];
+    CATEGORIAS.forEach(function (cat) {
+        var hallada = '';
+        cat.frases.forEach(function (fr) {
+            if (!hallada && (' ' + texto + ' ').indexOf(' ' + fr + ' ') !== -1) hallada = fr;
+        });
+        palabras.forEach(function (p) {
+            if (hallada) return;
+            if (cat.palabras.indexOf(p) !== -1) hallada = p;
+            else if (
+                (cat.parecidas || []).some(function (q) {
+                    return seParece_(p, q);
+                })
+            )
+                hallada = p + ' (≈' + cat.parecidas[0] + ')';
+        });
+        if (hallada) salida.push({ parece: cat.parece, palabra: hallada });
     });
-    if (hallada) salida.push({ parece: cat.parece, palabra: hallada });
-  });
-  return salida;
+    return salida;
 }
 
 /** F001-00018178, E001 179, FA01_123 → «F001-18178». Vacío si el nombre no trae una. */
-var TIPO_SUNAT = { '01': 'FACTURA', '03': 'BOLETA', '07': 'NOTA DE CRÉDITO', '08': 'NOTA DE DÉBITO',
-  '09': 'GUÍA', 'R01': 'RECIBO POR HONORARIOS' };
+var TIPO_SUNAT = { '01': 'FACTURA', '03': 'BOLETA', '07': 'NOTA DE CRÉDITO', '08': 'NOTA DE DÉBITO', '09': 'GUÍA', R01: 'RECIBO POR HONORARIOS' };
 
 /**
  * F001-00018178, E001 179, FE010001380 → «F001-18178». Vacío si no trae una.
@@ -565,53 +695,66 @@ var TIPO_SUNAT = { '01': 'FACTURA', '03': 'BOLETA', '07': 'NOTA DE CRÉDITO', '0
  * se le quitan esos 11 dígitos del final.
  */
 function serieEnNombre_(nombre) {
-  var t = String(nombre || '').toUpperCase().replace(/\.[A-Z0-9]{2,5}$/, '');
-  var m = /(?:^|[^A-Z0-9])([FBE][A-Z0-9]{3})(\s*[-_ ]?\s*)(\d{1,19})(?!\d)/.exec(t);
-  if (!m || !/\d/.test(m[1])) return '';
-  // Sin guion, solo si la serie tiene forma de SUNAT (F001, FE01): así un
-  // RUT extranjero como B88442140 no pasa por factura.
-  if (!/[-_ ]/.test(m[2]) && !/^[FBE][A-Z]?0\d{1,2}$/.test(m[1])) return '';
-  var num = m[3];
-  if (num.length > 11 && /[12]\d{10}$/.test(num)) num = num.slice(0, -11);
-  num = num.replace(/^0+(?=\d)/, '');
-  if (num.length > 8) return '';
-  return m[1] + '-' + num;
+    var t = String(nombre || '')
+        .toUpperCase()
+        .replace(/\.[A-Z0-9]{2,5}$/, '');
+    var m = /(?:^|[^A-Z0-9])([FBE][A-Z0-9]{3})(\s*[-_ ]?\s*)(\d{1,19})(?!\d)/.exec(t);
+    if (!m || !/\d/.test(m[1])) return '';
+    // Sin guion, solo si la serie tiene forma de SUNAT (F001, FE01): así un
+    // RUT extranjero como B88442140 no pasa por factura.
+    if (!/[-_ ]/.test(m[2]) && !/^[FBE][A-Z]?0\d{1,2}$/.test(m[1])) return '';
+    var num = m[3];
+    if (num.length > 11 && /[12]\d{10}$/.test(num)) num = num.slice(0, -11);
+    num = num.replace(/^0+(?=\d)/, '');
+    if (num.length > 8) return '';
+    return m[1] + '-' + num;
 }
 
 function esFactura_(a) {
-  return /^(FACTURA|NOTA DE|BOLETA|RECIBO POR|COMPROBANTE)/.test(a.parece);
+    return /^(FACTURA|NOTA DE|BOLETA|RECIBO POR|COMPROBANTE)/.test(a.parece);
 }
 
 /** «0115-2026», «OC 115-2026» → { num: 115, anio: 2026 }. */
 function numeroDeOC_(texto) {
-  var m = /(\d{1,6})\s*-\s*(20\d\d)/.exec(String(texto || ''));
-  return m ? { num: Number(m[1]), anio: m[2] } : null;
+    var m = /(\d{1,6})\s*-\s*(20\d\d)/.exec(String(texto || ''));
+    return m ? { num: Number(m[1]), anio: m[2] } : null;
 }
 
 /** Si el nombre menciona la OC en cualquier orden: 0115-2026, 115-2026, 2026-0115, OC2026-0115. */
 function nombreMencionaOC_(nombre, oc) {
-  var t = String(nombre || '');
-  var n = String(oc.num), a = oc.anio;
-  var r1 = new RegExp('(^|\\D)0*' + n + '\\s*[-_ ]\\s*' + a + '(\\D|$)');
-  var r2 = new RegExp('(^|\\D)' + a + '\\s*[-_ ]\\s*0*' + n + '(\\D|$)');
-  return r1.test(t) || r2.test(t);
+    var t = String(nombre || '');
+    var n = String(oc.num),
+        a = oc.anio;
+    var r1 = new RegExp('(^|\\D)0*' + n + '\\s*[-_ ]\\s*' + a + '(\\D|$)');
+    var r2 = new RegExp('(^|\\D)' + a + '\\s*[-_ ]\\s*0*' + n + '(\\D|$)');
+    return r1.test(t) || r2.test(t);
 }
 
 function consultasDeDrive_(oc) {
-  var n4 = ('0000' + oc.num).slice(-4);
-  var formas = [n4 + '-' + oc.anio, oc.anio + '-' + n4];
-  if (String(oc.num) !== n4) formas.push(oc.num + '-' + oc.anio);
-  return formas.map(function (f) { return 'title contains "' + f + '" and trashed = false'; });
+    var n4 = ('0000' + oc.num).slice(-4);
+    var formas = [n4 + '-' + oc.anio, oc.anio + '-' + n4];
+    if (String(oc.num) !== n4) formas.push(oc.num + '-' + oc.anio);
+    return formas.map(function (f) {
+        return 'title contains "' + f + '" and trashed = false';
+    });
 }
 
 // ── Ayudas ──
 
 /** Sin tildes, en mayúsculas, con signos y guiones convertidos en espacios. */
 function textoPlano_(s) {
-  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toUpperCase().replace(/\.[A-Z0-9]{2,5}$/, '').replace(/[^A-Z0-9]+/g, ' ')
-    // «OC0115» o «FACTURA001» → se separan letras de números para ver la palabra
-    .replace(/([A-Z])(\d)/g, '$1 $2').replace(/(\d)([A-Z])/g, '$1 $2').trim();
+    return (
+        String(s == null ? '' : s)
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .toUpperCase()
+            .replace(/\.[A-Z0-9]{2,5}$/, '')
+            .replace(/[^A-Z0-9]+/g, ' ')
+            // «OC0115» o «FACTURA001» → se separan letras de números para ver la palabra
+            .replace(/([A-Z])(\d)/g, '$1 $2')
+            .replace(/(\d)([A-Z])/g, '$1 $2')
+            .trim()
+    );
 }
 
 // Palabras que se parecen a una pista pero no lo son.
@@ -622,119 +765,149 @@ var NO_SON = ['FACTOR', 'FACTORES', 'FACIL', 'FACHADA', 'BOLETIN', 'REMISOR'];
  * empieza igual (FACUTAS → FACTURAS, FATCURA → FACTURA).
  */
 function seParece_(p, q) {
-  if (p.length < 5 || NO_SON.indexOf(p) !== -1) return false;
-  var d = distancia_(p, q);
-  return d <= 1 || (d <= 2 && p.length >= 6 && p.slice(0, 3) === q.slice(0, 3));
+    if (p.length < 5 || NO_SON.indexOf(p) !== -1) return false;
+    var d = distancia_(p, q);
+    return d <= 1 || (d <= 2 && p.length >= 6 && p.slice(0, 3) === q.slice(0, 3));
 }
 
 /** Cuántas letras hay que cambiar, agregar, quitar o voltear para pasar de una palabra a otra. */
 function distancia_(a, b) {
-  var d = [], i, j;
-  for (i = 0; i <= a.length; i++) { d[i] = [i]; }
-  for (j = 0; j <= b.length; j++) { d[0][j] = j; }
-  for (i = 1; i <= a.length; i++) {
-    for (j = 1; j <= b.length; j++) {
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    var d = [],
+        i,
+        j;
+    for (i = 0; i <= a.length; i++) {
+        d[i] = [i];
     }
-  }
-  return d[a.length][b.length];
+    for (j = 0; j <= b.length; j++) {
+        d[0][j] = j;
+    }
+    for (i = 1; i <= a.length; i++) {
+        for (j = 1; j <= b.length; j++) {
+            d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+        }
+    }
+    return d[a.length][b.length];
 }
 
 /** Compara títulos sin tildes, espacios ni signos: «N° OC/OS» = «Nº OC / OS». */
 function normalizar_(s) {
-  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return String(s == null ? '' : s)
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
 }
 
 /** La pestaña de compras: por su nombre o, si cambió, por sus columnas. */
 function pestanaDeOrigen_(origen) {
-  var porNombre = origen.getSheetByName(ORIGEN_PESTANA);
-  if (porNombre) return porNombre;
-  var hojas = origen.getSheets();
-  var oc = normalizar_('N° OC/OS'), link = normalizar_('LINK DE CARPETA');
-  for (var i = 0; i < hojas.length; i++) {
-    var h = hojas[i];
-    if (h.getLastRow() < 2 || h.getLastColumn() < 2) continue;
-    var arriba = h.getRange(1, 1, Math.min(10, h.getLastRow()), h.getLastColumn()).getValues();
-    var tiene = function (buscado) {
-      return arriba.some(function (fila) { return fila.some(function (v) { return normalizar_(v) === buscado; }); });
-    };
-    if (tiene(oc) && tiene(link)) return h;
-  }
-  throw new Error('No encontré la pestaña «' + ORIGEN_PESTANA + '» ni otra con las columnas «N° OC/OS» y «LINK DE CARPETA». ' +
-    'Pestañas del archivo: ' + hojas.map(function (h) { return h.getName(); }).join(' · '));
+    var porNombre = origen.getSheetByName(ORIGEN_PESTANA);
+    if (porNombre) return porNombre;
+    var hojas = origen.getSheets();
+    var oc = normalizar_('N° OC/OS'),
+        link = normalizar_('LINK DE CARPETA');
+    for (var i = 0; i < hojas.length; i++) {
+        var h = hojas[i];
+        if (h.getLastRow() < 2 || h.getLastColumn() < 2) continue;
+        var arriba = h.getRange(1, 1, Math.min(10, h.getLastRow()), h.getLastColumn()).getValues();
+        var tiene = function (buscado) {
+            return arriba.some(function (fila) {
+                return fila.some(function (v) {
+                    return normalizar_(v) === buscado;
+                });
+            });
+        };
+        if (tiene(oc) && tiene(link)) return h;
+    }
+    throw new Error(
+        'No encontré la pestaña «' +
+            ORIGEN_PESTANA +
+            '» ni otra con las columnas «N° OC/OS» y «LINK DE CARPETA». ' +
+            'Pestañas del archivo: ' +
+            hojas
+                .map(function (h) {
+                    return h.getName();
+                })
+                .join(' · '),
+    );
 }
 
 function buscarFilaCabecera_(valores) {
-  var buscado = normalizar_('LINK DE CARPETA');
-  for (var i = 0; i < Math.min(10, valores.length); i++) {
-    if (valores[i].some(function (v) { return normalizar_(v) === buscado; })) return i;
-  }
-  throw new Error('No encontré la fila de títulos (con «LINK DE CARPETA») en las primeras 10 filas.');
+    var buscado = normalizar_('LINK DE CARPETA');
+    for (var i = 0; i < Math.min(10, valores.length); i++) {
+        if (
+            valores[i].some(function (v) {
+                return normalizar_(v) === buscado;
+            })
+        )
+            return i;
+    }
+    throw new Error('No encontré la fila de títulos (con «LINK DE CARPETA») en las primeras 10 filas.');
 }
 
 function columna_(cab, nombre) {
-  var n = normalizar_(nombre);
-  for (var i = 0; i < cab.length; i++) if (normalizar_(cab[i]) === n) return i;
-  throw new Error('La base no trae la columna «' + nombre + '».');
+    var n = normalizar_(nombre);
+    for (var i = 0; i < cab.length; i++) if (normalizar_(cab[i]) === n) return i;
+    throw new Error('La base no trae la columna «' + nombre + '».');
 }
 
 /** El año de la OC: la columna AÑO si es un número; si viene corrida, el de FECHA OC. */
 function anioDeFila_(anio, fecha) {
-  var n = Number(anio);
-  if (n >= 2000 && n <= 2100) return n;
-  if (fecha && typeof fecha.getFullYear === 'function') return fecha.getFullYear();
-  return null;
+    var n = Number(anio);
+    if (n >= 2000 && n <= 2100) return n;
+    if (fecha && typeof fecha.getFullYear === 'function') return fecha.getFullYear();
+    return null;
 }
 
 function urlDeCelda_(valor, formula, rico) {
-  var texto = String(valor || '');
-  if (/https?:\/\//.test(texto)) return texto.trim();
-  var m = /HYPERLINK\(\s*"([^"]+)"/i.exec(formula || '');
-  if (m) return m[1];
-  if (rico) {
-    if (rico.getLinkUrl()) return rico.getLinkUrl();
-    var partes = rico.getRuns();
-    for (var i = 0; i < partes.length; i++) if (partes[i].getLinkUrl()) return partes[i].getLinkUrl();
-  }
-  return '';
+    var texto = String(valor || '');
+    if (/https?:\/\//.test(texto)) return texto.trim();
+    var m = /HYPERLINK\(\s*"([^"]+)"/i.exec(formula || '');
+    if (m) return m[1];
+    if (rico) {
+        if (rico.getLinkUrl()) return rico.getLinkUrl();
+        var partes = rico.getRuns();
+        for (var i = 0; i < partes.length; i++) if (partes[i].getLinkUrl()) return partes[i].getLinkUrl();
+    }
+    return '';
 }
 
 /** Saca el ID de un enlace de Drive: …/folders/ID, …/file/d/ID, …?id=ID. */
 function idDeDrive_(url) {
-  var m = /\/folders\/([\w-]{20,})/.exec(url) || /\/d\/([\w-]{20,})/.exec(url) ||
-    /[?&]id=([\w-]{20,})/.exec(url);
-  return m ? m[1] : '';
+    var m = /\/folders\/([\w-]{20,})/.exec(url) || /\/d\/([\w-]{20,})/.exec(url) || /[?&]id=([\w-]{20,})/.exec(url);
+    return m ? m[1] : '';
 }
 
 function agregarSinRepetir_(lista, v) {
-  var s = String(v == null ? '' : v).trim();
-  if (s && s !== '-' && lista.indexOf(s) === -1) lista.push(s);
+    var s = String(v == null ? '' : v).trim();
+    if (s && s !== '-' && lista.indexOf(s) === -1) lista.push(s);
 }
 
 function tipoLegible_(mime, nombre) {
-  var tipos = {
-    'application/pdf': 'PDF', 'text/xml': 'XML', 'application/xml': 'XML',
-    'application/zip': 'ZIP', 'image/jpeg': 'Imagen', 'image/png': 'Imagen',
-    'application/vnd.google-apps.document': 'Documento de Google',
-    'application/vnd.google-apps.spreadsheet': 'Hoja de Google',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
-    'application/vnd.ms-excel': 'Excel',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word'
-  };
-  if (tipos[mime]) return tipos[mime];
-  var ext = /\.([a-z0-9]{2,5})$/i.exec(nombre || '');
-  return ext ? ext[1].toUpperCase() : mime;
+    var tipos = {
+        'application/pdf': 'PDF',
+        'text/xml': 'XML',
+        'application/xml': 'XML',
+        'application/zip': 'ZIP',
+        'image/jpeg': 'Imagen',
+        'image/png': 'Imagen',
+        'application/vnd.google-apps.document': 'Documento de Google',
+        'application/vnd.google-apps.spreadsheet': 'Hoja de Google',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
+        'application/vnd.ms-excel': 'Excel',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+    };
+    if (tipos[mime]) return tipos[mime];
+    var ext = /\.([a-z0-9]{2,5})$/i.exec(nombre || '');
+    return ext ? ext[1].toUpperCase() : mime;
 }
 
 function prepararHoja_(libro, nombre, cabeceras) {
-  var h = libro.getSheetByName(nombre) || libro.insertSheet(nombre);
-  h.clear();
-  h.getRange(1, 1, 1, cabeceras.length).setValues([cabeceras])
-    .setFontWeight('bold').setBackground('#1F4E78').setFontColor('#FFFFFF');
-  h.setFrozenRows(1);
-  return h;
+    var h = libro.getSheetByName(nombre) || libro.insertSheet(nombre);
+    h.clear();
+    h.getRange(1, 1, 1, cabeceras.length).setValues([cabeceras]).setFontWeight('bold').setBackground('#1F4E78').setFontColor('#FFFFFF');
+    h.setFrozenRows(1);
+    return h;
 }
 
 /** El resumen son fórmulas sobre CARPETAS: se actualiza solo con cada tanda. */
@@ -744,59 +917,72 @@ function prepararHoja_(libro, nombre, cabeceras) {
  * Se rehace entero al final de cada tanda.
  */
 function actualizarResumen_(libro, resultado, sinEnlace) {
-  var h = libro.getSheetByName('RESUMEN') || libro.insertSheet('RESUMEN');
-  var previo = h.getLastRow() >= 14 ? h.getRange('B14').getValue() : '';
-  if (sinEnlace == null) sinEnlace = typeof previo === 'number' ? previo : '';
+    var h = libro.getSheetByName('RESUMEN') || libro.insertSheet('RESUMEN');
+    var previo = h.getLastRow() >= 14 ? h.getRange('B14').getValue() : '';
+    if (sinEnlace == null) sinEnlace = typeof previo === 'number' ? previo : '';
 
-  var n = { total: 0, revisadas: 0, pendientes: 0, dentro: 0, fuera: 0, ninguna: 0, xml: 0, vacias: 0, sinAcceso: 0 };
-  var hojaC = libro.getSheetByName('CARPETAS');
-  if (hojaC && hojaC.getLastRow() > 1) {
-    hojaC.getRange(2, COL_ESTADO, hojaC.getLastRow() - 1, 6).getValues().forEach(function (f) {
-      var estado = f[0], factDentro = f[2], xml = Number(f[4]) || 0, fuera = Number(f[5]) || 0;
-      n.total++;
-      if (estado === 'PENDIENTE') { n.pendientes++; return; }
-      n.revisadas++;
-      if (factDentro === 'SÍ') n.dentro++;
-      else if (fuera > 0) n.fuera++;
-      else n.ninguna++;
-      if (xml > 0) n.xml++;
-      if (estado === 'VACÍA') n.vacias++;
-      if (estado === 'SIN ACCESO') n.sinAcceso++;
-    });
-  }
+    var n = { total: 0, revisadas: 0, pendientes: 0, dentro: 0, fuera: 0, ninguna: 0, xml: 0, vacias: 0, sinAcceso: 0 };
+    var hojaC = libro.getSheetByName('CARPETAS');
+    if (hojaC && hojaC.getLastRow() > 1) {
+        hojaC
+            .getRange(2, COL_ESTADO, hojaC.getLastRow() - 1, 6)
+            .getValues()
+            .forEach(function (f) {
+                var estado = f[0],
+                    factDentro = f[2],
+                    xml = Number(f[4]) || 0,
+                    fuera = Number(f[5]) || 0;
+                n.total++;
+                if (estado === 'PENDIENTE') {
+                    n.pendientes++;
+                    return;
+                }
+                n.revisadas++;
+                if (factDentro === 'SÍ') n.dentro++;
+                else if (fuera > 0) n.fuera++;
+                else n.ninguna++;
+                if (xml > 0) n.xml++;
+                if (estado === 'VACÍA') n.vacias++;
+                if (estado === 'SIN ACCESO') n.sinAcceso++;
+            });
+    }
 
-  var filas = [
-    ['Resumen de la captura', ''],
-    ['', ''],
-    ['Carpetas en la lista', n.total],
-    ['Ya revisadas', n.revisadas],
-    ['Pendientes', n.pendientes],
-    ['', ''],
-    ['Con factura dentro de la carpeta', n.dentro],
-    ['Sin factura dentro, pero encontrada fuera', n.fuera],
-    ['Sin factura en ningún lado', n.ninguna],
-    ['Con XML dentro', n.xml],
-    ['Carpetas vacías', n.vacias],
-    ['Sin acceso', n.sinAcceso],
-    ['', ''],
-    ['Filas de la base sin enlace de carpeta', sinEnlace],
-    ['', ''],
-    ['Última tanda', new Date()],
-    ['Resultado de la última tanda', resultado]
-  ];
-  h.clear();
-  h.getRange(1, 1, filas.length, 2).setValues(filas);
-  h.getRange('A1').setFontWeight('bold').setFontSize(14);
-  h.getRange('B16').setNumberFormat('dd/mm/yyyy hh:mm');
-  h.setColumnWidth(1, 320);
+    var filas = [
+        ['Resumen de la captura', ''],
+        ['', ''],
+        ['Carpetas en la lista', n.total],
+        ['Ya revisadas', n.revisadas],
+        ['Pendientes', n.pendientes],
+        ['', ''],
+        ['Con factura dentro de la carpeta', n.dentro],
+        ['Sin factura dentro, pero encontrada fuera', n.fuera],
+        ['Sin factura en ningún lado', n.ninguna],
+        ['Con XML dentro', n.xml],
+        ['Carpetas vacías', n.vacias],
+        ['Sin acceso', n.sinAcceso],
+        ['', ''],
+        ['Filas de la base sin enlace de carpeta', sinEnlace],
+        ['', ''],
+        ['Última tanda', new Date()],
+        ['Resultado de la última tanda', resultado],
+    ];
+    h.clear();
+    h.getRange(1, 1, filas.length, 2).setValues(filas);
+    h.getRange('A1').setFontWeight('bold').setFontSize(14);
+    h.getRange('B16').setNumberFormat('dd/mm/yyyy hh:mm');
+    h.setColumnWidth(1, 320);
 }
 
 /** Para los errores: solo la hora y el mensaje, sin tocar el resto. */
 function anotarError_(libro, texto) {
-  try {
-    var h = libro.getSheetByName('RESUMEN');
-    if (h) h.getRange('A16:B17').setValues([['Última tanda', new Date()], ['Resultado de la última tanda', texto]]);
-  } catch (e) {
-    // si ni esto se puede escribir, el error igual queda en «Ejecuciones»
-  }
+    try {
+        var h = libro.getSheetByName('RESUMEN');
+        if (h)
+            h.getRange('A16:B17').setValues([
+                ['Última tanda', new Date()],
+                ['Resultado de la última tanda', texto],
+            ]);
+    } catch (e) {
+        // si ni esto se puede escribir, el error igual queda en «Ejecuciones»
+    }
 }

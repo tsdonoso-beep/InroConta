@@ -13,15 +13,15 @@
  * es AA. Restar uno antes de cada vuelta es lo que lo arregla.
  */
 export function letraColumna(n: number): string {
-  if (!Number.isInteger(n) || n < 1) throw new Error(`Columna inválida: ${n}`);
-  let letra = "";
-  let resto = n;
-  while (resto > 0) {
-    const d = (resto - 1) % 26;
-    letra = String.fromCharCode(65 + d) + letra;
-    resto = Math.floor((resto - 1) / 26);
-  }
-  return letra;
+    if (!Number.isInteger(n) || n < 1) throw new Error(`Columna inválida: ${n}`);
+    let letra = '';
+    let resto = n;
+    while (resto > 0) {
+        const d = (resto - 1) % 26;
+        letra = String.fromCharCode(65 + d) + letra;
+        resto = Math.floor((resto - 1) / 26);
+    }
+    return letra;
 }
 
 /**
@@ -32,15 +32,13 @@ export function letraColumna(n: number): string {
  * hace el rango no debe partirse en dos.
  */
 export function citarPestana(titulo: string): string {
-  return `'${titulo.replace(/'/g, "''")}'`;
+    return `'${titulo.replace(/'/g, "''")}'`;
 }
 
 /** El rango que ocupan `filas` filas × `columnas` columnas desde `desde`. */
-export function rangoA1(
-  titulo: string, desde: number, filas: number, columnas: number
-): string {
-  const fin = desde + Math.max(filas, 1) - 1;
-  return `${citarPestana(titulo)}!A${desde}:${letraColumna(Math.max(columnas, 1))}${fin}`;
+export function rangoA1(titulo: string, desde: number, filas: number, columnas: number): string {
+    const fin = desde + Math.max(filas, 1) - 1;
+    return `${citarPestana(titulo)}!A${desde}:${letraColumna(Math.max(columnas, 1))}${fin}`;
 }
 
 /**
@@ -54,27 +52,25 @@ export function rangoA1(
  * Devuelve también en qué fila de la hoja empieza cada bloque, que es lo que
  * hay que pasarle al rango.
  */
-export function enBloques<T>(
-  filas: T[], porBloque: number
-): Array<{ desde: number; filas: T[] }> {
-  if (porBloque < 1) throw new Error("El bloque debe tener al menos una fila.");
-  const bloques: Array<{ desde: number; filas: T[] }> = [];
-  for (let i = 0; i < filas.length; i += porBloque) {
-    bloques.push({ desde: i + 1, filas: filas.slice(i, i + porBloque) });
-  }
-  return bloques;
+export function enBloques<T>(filas: T[], porBloque: number): Array<{ desde: number; filas: T[] }> {
+    if (porBloque < 1) throw new Error('El bloque debe tener al menos una fila.');
+    const bloques: Array<{ desde: number; filas: T[] }> = [];
+    for (let i = 0; i < filas.length; i += porBloque) {
+        bloques.push({ desde: i + 1, filas: filas.slice(i, i + porBloque) });
+    }
+    return bloques;
 }
 
 /** Cuántas columnas tiene la fila más ancha. */
 export function anchoMaximo(filas: string[][]): number {
-  return filas.reduce((max, f) => Math.max(max, f.length), 0);
+    return filas.reduce((max, f) => Math.max(max, f.length), 0);
 }
 
 export interface Pestana {
-  id: number;
-  titulo: string;
-  filas: number;
-  columnas: number;
+    id: number;
+    titulo: string;
+    filas: number;
+    columnas: number;
 }
 
 /**
@@ -89,10 +85,10 @@ export interface Pestana {
  */
 /** La pestaña que se llama exactamente así, o null (en el libro único no se escribe «en la primera»). */
 export function buscarPestana(pestanas: Pestana[], nombre: string): Pestana | null {
-  return pestanas.find(p => p.titulo === nombre) ?? null;
+    return pestanas.find((p) => p.titulo === nombre) ?? null;
 }
 
 export function elegirPestana(pestanas: Pestana[], nombre: string): Pestana {
-  if (pestanas.length === 0) throw new Error("La hoja no tiene ninguna pestaña.");
-  return pestanas.find(p => p.titulo === nombre) ?? pestanas[0];
+    if (pestanas.length === 0) throw new Error('La hoja no tiene ninguna pestaña.');
+    return pestanas.find((p) => p.titulo === nombre) ?? pestanas[0];
 }

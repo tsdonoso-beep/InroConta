@@ -34,6 +34,7 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
 ## Pendientes
 
 **Mudanza**
+
 - [ ] Tras 1–2 días con INROCONTA al día: apagar la publicación en las hojas viejas
       (`HOJAS_SUELTAS=0` en los workflows, o cambiar el valor por omisión en `servidor.ts`)
       y quitar `hojaFija` de DETALLE.
@@ -42,12 +43,14 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
 - [ ] Opcional: la vista lee hoy el DETALLE de la hoja (27k filas); pasarla a leer de la base sería más rápido.
 
 **Decisiones del usuario sin responder**
+
 - [ ] ¿Sacar las facturas del BCP (20100047218) de los reintentos de la API (siempre error 500) y marcarlas «pedir al banco»?
 - [ ] ¿Barrido semanal automático de todo el SIRE del año (no solo mes actual y anterior)?
 - [x] Robot de buen contribuyente ampliado a clientes, Base de Compras y RUC con domicilio (migración 065): 180 pendientes, ~2 días.
 - [x] Domicilio en la pestaña PADRÓN RUC (y la pestaña ya trae todos los RUC, no solo 1000).
 
 **Siguiente trabajo pedido**
+
 - [ ] **Detracciones** (`docs/detracciones-spot.md` §9; workflow «SUNAT detracciones» desde el 08/10/2026): migración 066 aplicada y primera carga hecha el 08/10/2026: 634 constancias, §10; en la vista de Apps Script desde el 08/10/2026 (sección Detracciones, §11); falta confirmar con Contabilidad el criterio (fecha de pago, pagos masivos, ventas). Extraer las constancias de depósito del menú SPOT de SUNAT SOL. El usuario va a mandar
       pantallazos del recorrido (menú → filtros → resultado → descarga → constancia). Analizar cada uno antes de
       programar. Reusar el login de `scripts/local/sol/sesion.mts`. Preguntar si el objetivo es el PDF junto a la
@@ -58,6 +61,7 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
 - [ ] IGV declarado de un mes (PDT 621) para cerrar el cuadre de ventas.
 
 **En pausa / no tocar**
+
 - Alertas a compradores (hasta que todos estén conformes).
 - Memos (esperar a Franco). INROPLAS después de INROPRIN. Consorcios: información reservada.
 

@@ -14,7 +14,8 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
     (`CarpetaMadre.gs`), PADRÓN RUC (`PadronRuc.gs`).
 - **Vista INROCONTA** (Apps Script del libro, `VistaEjecutiva.gs` + `VistaEjecutivaPagina.html`):
   https://script.google.com/a/macros/inroprin.com/s/AKfycbzwyVcFPhZqhp5bXjo2TWA9JjibhzGJeKE1mC33m0zQKM637f0many_4VsLghUXyLb-/exec
-  Se actualiza con «Nueva versión» en la misma implementación (el enlace no cambia).
+  Se despliega con `pnpm deploy:app` (código en `apps-script/inroconta/`); el enlace no cambia y
+  queda, con el historial, en la pestaña DESPLIEGUES del libro.
 - **Hojas viejas** (solo consulta, el robot TODAVÍA publica también ahí):
   DETALLE `1Kp5RS…`, COMPROBANTES SUNAT `1ttW7D…`, GENERAL `1tWakeoj…`.
 - **Hoja privada de fuentes** `1sJhaKxamPG1lIEAaso5uprqUU_ixHLylQtAY53KUEms`: queda aparte (sensible).

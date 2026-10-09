@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "deploy:app": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/deploy/deploy.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

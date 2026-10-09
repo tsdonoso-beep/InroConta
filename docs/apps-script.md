@@ -292,10 +292,12 @@ que se registra, así que un mes puede diferir un poco del SIRE.
 
 ### Si se edita el código después
 
-Cada cambio necesita una implementación nueva para que el enlace ya
-compartido lo refleje: **Implementar** → **Gestionar implementaciones** →
-el lápiz sobre la implementación activa → **Versión: Nueva versión** →
-**Implementar**. La URL no cambia.
+Desde el 09/10/2026 la vista, `CarpetaMadre.gs` y `PadronRuc.gs` viven en
+`apps-script/inroconta/` y se despliegan con `pnpm deploy:app "qué cambió"`
+(README, «Desplegar la app»): corre las pruebas, sube el código con clasp y
+pone una versión nueva en la misma implementación, así que la URL no cambia.
+El enlace vigente y el historial quedan en la pestaña DESPLIEGUES del libro.
+No se edita en el editor web: el siguiente despliegue lo pisaría.
 
 ### Que abra en segundos
 

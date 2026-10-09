@@ -444,6 +444,10 @@ versionan acá.
 
 ---
 
+**Sin migrar (09/10/2026):** la lista SSCO no está en la base sino en la pestaña
+**SSCO** del libro INROCONTA (`pnpm ssco:load`), porque el proyecto de Supabase
+no admite migraciones por ahora.
+
 ## 7. Las hojas de Google que se publican
 
 Todas en `GOOGLE_DRIVE_FOLDER_ID/SUNAT/`. Se reescribe solo la pestaña de

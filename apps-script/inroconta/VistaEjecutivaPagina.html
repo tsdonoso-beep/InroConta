@@ -345,6 +345,7 @@
       <button data-vista="impuestos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span>Impuestos</span><span class="insignia" id="insigniaImpuestos" style="display:none"></span></button>
       <button data-vista="detracciones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9.5 10v8"/><path d="M14.5 10v8"/><path d="M19 10v8"/><path d="M3 21h18"/><path d="m12 3 9 5H3z"/></svg><span>Detracciones</span><span class="insignia" id="insigniaDetr" style="display:none"></span></button>
       <button data-vista="factura"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><circle cx="11.5" cy="14.5" r="2.5"/><path d="m13.5 16.5 2 2"/></svg><span>Buscar factura</span></button>
+      <button data-vista="ruc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/><path d="M8.5 11h5"/><path d="M11 8.5v5"/></svg><span>Consulta RUC</span><span class="insignia" id="insigniaSsco" style="display:none"></span></button>
       <button data-vista="precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><span>Precios</span></button>
       <button data-vista="proveedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg><span>Proveedores</span></button>
       <button data-vista="oc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v13H3z"/><path d="M8 7V4h8v3"/><path d="M3 12h18"/></svg><span>OC y centros de costo</span></button>
@@ -384,6 +385,7 @@
     </div>
 
     <section class="vista activa" data-vista="resumen">
+      <div id="alertaSsco"></div>
       <div class="kpis" id="kpis"></div>
       <div class="grilla">
         <div class="tarjeta">
@@ -466,6 +468,10 @@
         <input class="buscador" id="buscarFactura" type="search" placeholder="F001-123, número, RUC, proveedor o monto (ej.: 43.64)">
         <div class="facturas" id="facturas"></div>
       </div>
+    </section>
+
+    <section class="vista" data-vista="ruc">
+      <div id="consultaRuc"></div>
     </section>
 
     <section class="vista" data-vista="precios">
@@ -700,6 +706,7 @@
           : chip('chip-gris', 'Buen contribuyente: sin consultar', 'La Consulta RUC todavía no lo revisó: el robot lo trae en su próxima corrida')) +
         (f[2] ? chip('chip-azul', 'Agente de retención') : '') + (f[3] ? chip('chip-azul', 'Agente de percepción') : '') +
         (f[4] || f[5] ? chip(raro ? 'chip-warn' : 'chip-gris', [f[4], f[5]].filter(Boolean).join(' · '), raro ? 'Ojo: no está activo o no está habido' : '') : '') +
+        sscoChip(ruc) +
       '</div>' +
       (f[6] || lugarDe(f) ? '<div class="fp-dom"><b>Domicilio fiscal:</b> ' + esc(f[6] || '—') + (lugarDe(f) ? ' · ' + esc(lugarDe(f)) : '') + '</div>'
         : '<div class="fp-dom nota">' + (/^10|^15|^17/.test(ruc) ? 'Persona natural: SUNAT no publica su domicilio.' : 'Domicilio todavía no cargado.') + '</div>') +
@@ -797,6 +804,7 @@
     // La ficha de SUNAT de cada proveedor llega con la base: se repinta lo que ya estaba a la vista.
     var inF = document.getElementById('buscarFactura');
     if (D && BASE.rucs && BASE.rucs.length) { pintar(); if (inF && inF.value.trim()) buscarFacturas(inF.value); }
+    onBaseSsco(); // VistaConsultaRuc.html
   }
 
   // ── Legajo por OC ──
@@ -1761,5 +1769,6 @@
     document.getElementById('verMas').style.display = lista.length > B.cuantos ? '' : 'none';
   }
 </script>
+<?!= include_('VistaConsultaRuc') ?>
 </body>
 </html>

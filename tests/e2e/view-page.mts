@@ -52,11 +52,24 @@ function installStub(responses: Responses) {
     Object.assign(window, { google: { script: { run: make() } } });
 }
 
+const APP_DIR = join(ROOT, 'apps-script', 'inroconta');
+
+/**
+ * The page as HtmlService serves it: each `<?!= include_('Name') ?>` scriptlet replaced by
+ * that file (VistaEjecutiva.gs → include_). Any other scriptlet fails, so a new one is noticed.
+ */
+export function renderPage(file = 'VistaEjecutivaPagina'): string {
+    const html = readFileSync(join(APP_DIR, `${file}.html`), 'utf8');
+    const rendered = html.replace(/<\?!=\s*include_\('([\w-]+)'\)\s*\?>/g, (_, name: string) => readFileSync(join(APP_DIR, `${name}.html`), 'utf8'));
+    if (rendered.includes('<?')) throw new Error(`${file}.html has a scriptlet the test server does not render`);
+    return rendered;
+}
+
 /** Opens the view with the given responses (the fixture ones by default). */
 export async function openView(page: Page, responses: Responses = defaultResponses()) {
-    const html = readFileSync(join(ROOT, 'apps-script', 'inroconta', 'VistaEjecutivaPagina.html'), 'utf8');
+    // Rendered on every request, so a reload (pnpm dev) shows the files as they are now.
     await page.route('**/*', (route) =>
-        route.request().url() === PAGE_URL ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: html }) : route.abort(),
+        route.request().url() === PAGE_URL ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: renderPage() }) : route.abort(),
     );
     await page.addInitScript(installStub, responses);
     await page.goto(PAGE_URL);

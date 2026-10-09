@@ -66,6 +66,44 @@ function doGet() {
 }
 
 /**
+ * SUNAT's list of «sujetos sin capacidad operativa» from the SSCO tab of the book
+ * (written by `pnpm ssco:load`), as [ruc, business name, resolution, resolution date,
+ * final date, published on, representative]. null when the tab is not there yet or
+ * lacks a column: the page then says the list is not loaded.
+ */
+function sscoVista_() {
+    var hoja = SpreadsheetApp.openById(HOJA_ID_VISTA).getSheetByName('SSCO');
+    if (!hoja || hoja.getLastRow() < 2) return null;
+    var filas = hoja.getDataRange().getValues();
+    var cab = filas[0].map(String);
+    var columnas = [
+        'RUC',
+        'Razón social',
+        'Resolución de atribución',
+        'Fecha de la resolución',
+        'Fecha en que quedó firme',
+        'Fecha de publicación',
+        'Representante legal',
+    ].map(function (n) {
+        return cab.indexOf(n);
+    });
+    if (columnas.indexOf(-1) >= 0) return null;
+    return filas.slice(1).map(function (f) {
+        return columnas.map(function (i) {
+            return String(f[i] == null ? '' : f[i]).trim();
+        });
+    });
+}
+
+/**
+ * Pastes another HTML file of the project into the page: `<?!= include_('Name') ?>`.
+ * New parts of the view live in their own file instead of growing the page.
+ */
+function include_(name) {
+    return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+
+/**
  * Lo que pide el HTML por `google.script.run`. Nunca lanza: el error viaja en el objeto.
  * Sale de lo ya preparado (ver «La vista lista» abajo); solo si no está, se arma en el momento.
  */
@@ -484,7 +522,7 @@ var VISTA_RUC = '20512201611';
 function datosDeLaBaseVista() {
     var listo = leerVistaLista_('base');
     // Una copia guardada por una versión anterior (sin la ficha de los RUC, el cuadre de ventas o las detracciones) se vuelve a armar.
-    if (listo && listo.rucs && listo.cuadreVentas && listo.detracciones) return listo;
+    if (listo && listo.rucs && listo.cuadreVentas && listo.detracciones && 'ssco' in listo) return listo;
     var d = datosDeLaBaseVistaAhora_();
     if (!d.error) guardarVistaLista_('base', d);
     return d;
@@ -603,6 +641,9 @@ function datosDeLaBaseVistaAhora_() {
             copia: copia,
             rucs: rucs,
             cuadreVentas: r[5] || [],
+            // [ruc, business name, resolution, resolution date, final date, published on, representative];
+            // null (not []) when the list could not be read, so the page does not claim «not in the list».
+            ssco: sscoVista_(),
             detracciones: det.constancias,
             detSinConstancia: det.sinConstancia,
             detError: det.error,

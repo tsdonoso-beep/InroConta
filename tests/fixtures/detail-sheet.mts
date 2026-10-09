@@ -109,6 +109,8 @@ export const DETAIL_ROWS: Row[] = [
         Tipo: 'Factura',
         Serie: 'E001',
         Número: '45',
+        // After its supplier's SSCO attribution became final (base-data.mts): the view warns about it.
+        'Fecha de emisión': new Date('2026-09-15T12:00:00-05:00'),
         Moneda: 'USD',
         'Total del comprobante': 1000,
         Detracción: 40,

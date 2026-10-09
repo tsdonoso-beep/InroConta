@@ -761,6 +761,30 @@ reemplazaron el robot de carpetas y `CarpetaMadre.gs`.
    madre → «Dejar de traerla sola»; la vista vieja → Activadores → borrar
    `prepararVista`) para que no corran dos veces.
 
+## Consulta RUC y sujetos sin capacidad operativa (SSCO)
+
+Pedido de Contabilidad del 07/10/2026: antes de registrar una compra revisan
+en SUNAT si el proveedor está activo y habido, si es buen contribuyente,
+agente de retención o de percepción, y si está en la lista de **sujetos sin
+capacidad operativa** (SSCO): sus comprobantes no sustentan crédito fiscal ni
+gasto, así que no se registran.
+
+- **Sección «Consulta RUC»** de la vista (`VistaConsultaRuc.html`): se
+  escribe un RUC o parte de la razón social y sale su ficha (lo que ya
+  mostraba «Buscar factura»), si está en la lista SSCO —con la resolución y
+  cuándo quedó firme— y sus comprobantes con nosotros. La lista SSCO cubre
+  todo el país; la ficha, solo los RUC con los que tenemos comprobantes.
+- **Aviso en el Resumen**: cuántos comprobantes recibidos son de proveedores
+  SSCO y cuántos se emitieron después de que la atribución quedó firme.
+- **La lista**: SUNAT la publica como Excel y la va ampliando. Se guarda en
+  `data/` y se carga con `pnpm ssco:load data/archivo.xlsx` (tabla
+  pestaña **SSCO** del libro INROCONTA); cada carga reemplaza la anterior. Va en el
+  libro y no en la base mientras no se pueda migrar Supabase (la migración
+  está lista para entonces). La vista la toma al armarse (cada hora o con
+  «↻ Actualizar»).
+- **Pendiente:** el régimen (Nuevo RUS) para las boletas, que no viene en el
+  padrón reducido; habría que leerlo de la Consulta RUC con el robot del padrón.
+
 ## Verificar una carga antes del CONCAR
 
 `VerificarComprobantes.gs` va en la hoja donde se arma la carga masiva (por

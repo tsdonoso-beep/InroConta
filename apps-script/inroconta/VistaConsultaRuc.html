@@ -1,0 +1,151 @@
+<!--
+  Consulta RUC and the SSCO list (sujetos sin capacidad operativa), from the SSCO tab of the book.
+  Included at the end of VistaEjecutivaPagina.html (include_ in VistaEjecutiva.gs), so it
+  uses that page's globals: D (SUNAT data), BASE (base data, with BASE.ssco), esc, miles,
+  dinero, fichaDe, fichaProveedor, mostrarSeccion.
+
+  Accounting asked for it on 07/10/2026: type a RUC and see at once whether it is active and
+  «habido», a good taxpayer, a withholding or perception agent, and whether SUNAT lists it as
+  SSCO — and be warned about received invoices from SSCO suppliers, which are not registered.
+-->
+<style>
+  .ruc-caja { display: flex; flex-direction: column; gap: 14px; }
+  .ruc-ssco { border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); background: var(--surface2); }
+  .ruc-ssco.mal { border-color: var(--danger); background: var(--danger-suave); }
+  .ruc-ssco.bien { border-color: var(--ok); background: var(--ok-suave); }
+  .ruc-ssco b { font-family: "Sora", sans-serif; }
+  .ruc-opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ruc-opciones button { border: 1px solid var(--border2); background: var(--surface); border-radius: 10px; padding: 7px 10px; cursor: pointer; text-align: left; }
+  .ruc-opciones button:hover { border-color: var(--accent); }
+  #alertaSsco .tarjeta { border-left: 4px solid var(--danger); margin-bottom: 16px; }
+</style>
+<script>
+  // [ruc, business name, resolution, resolution date, final date, published on, representative]
+  var SSCO_BY_RUC = null;
+  var sscoLoaded = function () { return !!(BASE && BASE.ssco); };
+  function sscoOf(ruc) {
+    if (!sscoLoaded()) return null;
+    if (!SSCO_BY_RUC) { SSCO_BY_RUC = {}; BASE.ssco.forEach(function (s) { SSCO_BY_RUC[s[0]] = s; }); }
+    return SSCO_BY_RUC[ruc] || null;
+  }
+  var isoToDate = function (iso) { return /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; };
+  var dateToIso = function (d) { var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+  function sscoListDate() {
+    var last = ''; (BASE.ssco || []).forEach(function (s) { if (s[5] > last) last = s[5]; });
+    return isoToDate(last);
+  }
+  var sscoDetail = function (s) {
+    return esc(s[2]) + ' · emitida el ' + esc(isoToDate(s[3])) + ', firme el ' + esc(isoToDate(s[4])) + ' · publicada el ' + esc(isoToDate(s[5]));
+  };
+
+  /** The red chip of the ficha (Buscar factura and Consulta RUC). */
+  function sscoChip(ruc) {
+    var s = sscoOf(ruc);
+    return s ? '<span class="chip chip-rojo" title="' + esc(s[2] + ' · firme el ' + isoToDate(s[4])) + '">⚠ Sin capacidad operativa (SSCO)</span>' : '';
+  }
+
+  /** The documents of a RUC with us (D.docs), newest first. */
+  function docsOfRuc(ruc) {
+    if (!D) return [];
+    return D.docs.filter(function (x) { return (D.dic.prov[x[2]] || [])[0] === ruc; })
+      .sort(function (a, b) { return dateToIso(b[11]) < dateToIso(a[11]) ? -1 : 1; });
+  }
+  var TYPE_NAMES = { F: 'Factura', B: 'Boleta', C: 'Nota de crédito', D: 'Nota de débito', O: 'Otro' };
+  function docsTable(docs, withProvider) {
+    return '<div style="overflow-x:auto"><table class="tabla"><thead><tr>' + (withProvider ? '<th>Proveedor</th>' : '') +
+      '<th>Comprobante</th><th>Tipo</th><th>Emisión</th><th></th><th style="text-align:right">Monto</th></tr></thead><tbody>' +
+      docs.map(function (x) {
+        var prov = D.dic.prov[x[2]] || ['', ''];
+        var pdf = x[12] ? '<a href="https://drive.google.com/file/d/' + esc(x[12]) + '/view" target="_blank" rel="noopener">' + esc(x[10]) + '</a>' : esc(x[10]);
+        return '<tr>' + (withProvider ? '<td>' + esc(prov[1] || prov[0]) + '<div class="nota">RUC ' + esc(prov[0]) + '</div></td>' : '') +
+          '<td>' + pdf + '</td><td>' + esc(TYPE_NAMES[x[3]] || x[3]) + '</td><td>' + esc(x[11] || '—') + '</td>' +
+          '<td>' + (x[1] === 0 ? 'Compra' : x[1] === 1 ? 'Venta' : '') + '</td><td style="text-align:right">' + dinero(x[5], x[4]) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  // ── The warning on Resumen: received invoices from SSCO suppliers ──
+  function paintSscoWarning() {
+    var box = document.getElementById('alertaSsco');
+    if (!box || !D || !sscoLoaded()) return;
+    var hits = D.docs.filter(function (x) { return x[1] === 0 && sscoOf((D.dic.prov[x[2]] || [])[0]); });
+    var badge = document.getElementById('insigniaSsco');
+    badge.textContent = miles(hits.length); badge.style.display = hits.length ? '' : 'none';
+    badge.title = hits.length + ' comprobantes recibidos de proveedores SSCO';
+    if (!hits.length) { box.innerHTML = ''; return; }
+    var providers = {}; hits.forEach(function (x) { providers[x[2]] = true; });
+    var afterFinal = hits.filter(function (x) { var s = sscoOf(D.dic.prov[x[2]][0]); return dateToIso(x[11]) >= s[4]; }).length;
+    box.innerHTML = '<div class="tarjeta"><div class="tarjeta-cab"><h2>⚠ ' + miles(hits.length) + ' comprobantes recibidos de ' +
+      miles(Object.keys(providers).length) + ' proveedores sin capacidad operativa (SSCO)</h2>' +
+      '<span class="nota">' + miles(afterFinal) + ' emitidos después de que su atribución quedó firme · lista de SUNAT al ' + esc(sscoListDate()) + '</span></div>' +
+      '<p class="linea">SUNAT considera que estos proveedores no pudieron realizar lo que facturan: sus comprobantes no sustentan crédito fiscal ni gasto.</p>' +
+      '<button class="boton" id="verSsco">Ver en Consulta RUC</button></div>';
+    document.getElementById('verSsco').onclick = function () { mostrarSeccion('ruc'); showSscoHits(hits); };
+  }
+  function showSscoHits(hits) {
+    document.getElementById('rucBuscar').value = '';
+    document.getElementById('rucResultado').innerHTML = '<div class="tarjeta"><div class="tarjeta-cab"><h2>Comprobantes recibidos de proveedores SSCO</h2></div>' +
+      docsTable(hits, true) + '</div>';
+  }
+
+  // ── Consulta RUC ──
+  function paintRuc(text) {
+    var out = document.getElementById('rucResultado');
+    var q = String(text || '').trim();
+    if (!q) { out.innerHTML = '<p class="vacio" style="padding:14px 6px">Escribe un RUC (11 dígitos) o parte de una razón social.</p>'; return; }
+    if (/^\d{11}$/.test(q)) { out.innerHTML = rucCard(q); return; }
+    if (q.replace(/\s/g, '').length < 3) { out.innerHTML = ''; return; }
+    out.innerHTML = nameMatches(q);
+    Array.prototype.forEach.call(out.querySelectorAll('[data-ruc]'), function (b) {
+      b.onclick = function () { var r = b.getAttribute('data-ruc'); document.getElementById('rucBuscar').value = r; paintRuc(r); };
+    });
+  }
+  function nameMatches(q) {
+    var words = plano(q).split(/\s+/).filter(Boolean), seen = {}, found = [];
+    var add = function (ruc, name, origin) {
+      if (seen[ruc] || found.length >= 15) return;
+      var t = plano(ruc + ' ' + name);
+      if (words.every(function (w) { return t.indexOf(w) !== -1; })) { seen[ruc] = true; found.push([ruc, name, origin]); }
+    };
+    if (D) D.dic.prov.forEach(function (p) { add(p[0], p[1], ''); });
+    (BASE && BASE.ssco || []).forEach(function (s) { add(s[0], s[1], 'SSCO'); });
+    if (!found.length) return '<p class="vacio" style="padding:14px 6px">Ningún RUC con «' + esc(q) + '» en nuestros comprobantes ni en la lista SSCO.</p>';
+    return '<div class="ruc-opciones">' + found.map(function (f) {
+      return '<button data-ruc="' + esc(f[0]) + '"><b>' + esc(f[1] || f[0]) + '</b><div class="nota">RUC ' + esc(f[0]) + (f[2] ? ' · en la lista SSCO' : '') + '</div></button>';
+    }).join('') + '</div>';
+  }
+  function rucCard(ruc) {
+    var docs = docsOfRuc(ruc), s = sscoOf(ruc);
+    var name = docs.length ? (D.dic.prov[docs[0][2]] || [])[1] : s ? s[1] : '';
+    var ficha = fichaDe(ruc) ? fichaProveedor(ruc, name)
+      : '<div class="ficha-prov"><div class="fp-nombre">' + esc(name || 'RUC ' + ruc) + '</div><div class="sub">RUC ' + esc(ruc) + '</div>' +
+        '<p class="nota" style="margin:6px 0 0">' + (docs.length ? 'Todavía sin ficha de SUNAT: el robot la trae en su próxima corrida.'
+          : 'No tenemos comprobantes con este RUC, así que el robot no consulta su condición en SUNAT. La lista SSCO de abajo sí cubre todo el país.') + '</p></div>';
+    var ssco = !sscoLoaded() ? '<div class="ruc-ssco">Lista SSCO: todavía no cargada en el libro (pestaña SSCO).</div>'
+      : s ? '<div class="ruc-ssco mal"><b>⚠ Sujeto sin capacidad operativa (SSCO)</b><div class="linea">' + sscoDetail(s) + '</div>' +
+          (s[6] ? '<div class="nota">Representante legal: ' + esc(s[6]) + '</div>' : '') +
+          '<div class="nota">Sus comprobantes no sustentan crédito fiscal ni gasto.</div></div>'
+      : '<div class="ruc-ssco bien">✓ No está en la lista de sujetos sin capacidad operativa (SUNAT, al ' + esc(sscoListDate()) + ').</div>';
+    var list = docs.length ? '<div class="tarjeta"><div class="tarjeta-cab"><h2>' + miles(docs.length) + ' comprobantes con nosotros</h2>' +
+      (docs.length > 30 ? '<span class="nota">los 30 más recientes</span>' : '') + '</div>' + docsTable(docs.slice(0, 30), false) + '</div>' : '';
+    return '<div class="ruc-caja">' + ficha + ssco + list + '</div>';
+  }
+
+  (function () {
+    var box = document.getElementById('consultaRuc');
+    if (!box) return;
+    box.innerHTML = '<div class="tarjeta tarjeta-ancha"><div class="tarjeta-cab"><h2>Consulta RUC</h2>' +
+      '<span class="nota">Condición en SUNAT, retención, percepción, buen contribuyente y lista SSCO, sin salir de aquí</span></div>' +
+      '<input class="buscador" id="rucBuscar" type="search" inputmode="numeric" placeholder="RUC (11 dígitos) o razón social"></div>' +
+      '<div id="rucResultado"></div>';
+    var t; document.getElementById('rucBuscar').oninput = function () { var v = this.value; clearTimeout(t); t = setTimeout(function () { paintRuc(v); }, 150); };
+    paintRuc('');
+  })();
+
+  /** Called by arrancarBase once the base data (with the SSCO list) is here. */
+  function onBaseSsco() {
+    SSCO_BY_RUC = null;
+    paintSscoWarning();
+    var q = document.getElementById('rucBuscar');
+    if (q && q.value.trim()) paintRuc(q.value);
+  }
+</script>

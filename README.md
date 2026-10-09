@@ -47,19 +47,22 @@ pnpm exec playwright install chromium
 
 ## Comandos
 
-| Comando                     | Qué hace                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `pnpm test`                 | Pruebas unitarias (vitest): los `.gs` de la app, el despliegue y los workflows                         |
-| `pnpm test:e2e`             | Pruebas de punta a punta (Playwright) de la vista web, en local                                        |
-| `pnpm check`                | Tipos, lint, formato y que `database.full.sql` esté al día                                             |
-| `pnpm lint` / `pnpm format` | ESLint / Prettier sobre todo el repositorio                                                            |
-| `pnpm deploy:check`         | Corre todas las pruebas y marca el commit como listo para desplegar                                    |
-| `pnpm deploy:app`           | Despliega la app de Apps Script (solo un commit que pasó `deploy:check`)                               |
-| `pnpm db:consolidar`        | Regenera `docs/database/database.full.sql` después de una migración nueva                              |
-| `pnpm cpe:local`            | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))            |
-| `pnpm carpetas:local`       | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                |
-| `pnpm hojas:detalle`        | Republica COMPROBANTES SUNAT - DETALLE                                                                 |
-| `pnpm detracciones:local`   | Constancias de detracción a Drive y a la base ([docs/detracciones-spot.md](docs/detracciones-spot.md)) |
+| Comando                       | Qué hace                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`                    | Abre la vista en local con datos de prueba (F5 tras editar `apps-script/inroconta/`)                   |
+| `pnpm app:push`               | Sube la app a Apps Script **sin desplegarla**: se prueba con datos reales en el enlace `/dev`          |
+| `pnpm ssco:load archivo.xlsx` | Carga la lista SSCO de SUNAT (`--dry-run` solo la lee)                                                 |
+| `pnpm test`                   | Pruebas unitarias (vitest): los `.gs` de la app, el despliegue y los workflows                         |
+| `pnpm test:e2e`               | Pruebas de punta a punta (Playwright) de la vista web, en local                                        |
+| `pnpm check`                  | Tipos, lint, formato y que `database.full.sql` esté al día                                             |
+| `pnpm lint` / `pnpm format`   | ESLint / Prettier sobre todo el repositorio                                                            |
+| `pnpm deploy:check`           | Corre todas las pruebas y marca el commit como listo para desplegar                                    |
+| `pnpm deploy:app`             | Despliega la app de Apps Script (solo un commit que pasó `deploy:check`)                               |
+| `pnpm db:consolidar`          | Regenera `docs/database/database.full.sql` después de una migración nueva                              |
+| `pnpm cpe:local`              | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))            |
+| `pnpm carpetas:local`         | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                |
+| `pnpm hojas:detalle`          | Republica COMPROBANTES SUNAT - DETALLE                                                                 |
+| `pnpm detracciones:local`     | Constancias de detracción a Drive y a la base ([docs/detracciones-spot.md](docs/detracciones-spot.md)) |
 
 En PowerShell las variables van antes con `$env:`, por ejemplo `$env:DEBUG="0"; pnpm padron:local`. Los robots se
 corren desde PowerShell o cmd: en Git Bash, `tar` es el de GNU y `domicilios:local` falla con rutas `D:\…`.

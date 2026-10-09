@@ -633,7 +633,7 @@ group by 1,2 order by 1,2;
 ### Verificaciones locales
 
 ```bash
-ppnpm install --frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm typecheck           # tipos de scripts/ y src/shared/
 pnpm db:consolidar --revisar   # docs/database/database.full.sql al día
 ```

@@ -24,7 +24,7 @@ La guía completa (workflows, credenciales, base de datos, tareas comunes):
 ## En una computadora
 
 ```bash
-ppnpm install --frozen-lockfile
+pnpm install --frozen-lockfile
 # .env.local y secrets/sa.json: ver docs/GUIA-DEL-REPOSITORIO.md §5.4
 pnpm cpe:local              # comprobantes por la API de SUNAT
 pnpm carpetas:local         # carpetas de OC (docs/carpetas-oc-local.md)

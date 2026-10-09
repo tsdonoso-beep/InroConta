@@ -86,7 +86,7 @@ jobs:
           node-version: '22'
           cache: pnpm
 
-      - run: ppnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       # Para leer por dentro: pdftotext/pdftoppm (PDF) y tesseract (OCR, español e inglés).
       - name: Instalar lectores de PDF y OCR

@@ -23,8 +23,10 @@ name: SUNAT detracciones
 
 on:
   schedule:
-    # 09:30 en Lima (UTC-5): después de «SUNAT CPE por API» (08:30) y del padrón (09:00).
-    - cron: '30 14 * * *'
+    # 08:30 y 17:00 en Lima (UTC-5): después de «SUNAT CPE por API» (07:45 y
+    # 16:45). Comparte la cuenta de SOL: si la otra sigue, este espera.
+    - cron: '30 13 * * *'
+    - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
       desde:

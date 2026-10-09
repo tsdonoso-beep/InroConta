@@ -11,9 +11,10 @@ name: SUNAT diario
 
 on:
   schedule:
-    # 08:00 en Lima, que es UTC-5 todo el año. GitHub puede correrlo en
-    # cualquier momento de esa hora, lo cual da igual para algo diario.
-    - cron: '0 13 * * *'
+    # 07:00 y 16:00 en Lima, que es UTC-5 todo el año. GitHub puede correrlo
+    # en cualquier momento de esa hora, lo cual da igual para algo diario.
+    - cron: '0 12 * * *'
+    - cron: '0 21 * * *'
   # Para poder dispararlo a mano desde la pestaña Actions sin esperar al día
   # siguiente. Es como se prueba la primera vez, y también como se rellenan
   # meses viejos cuando se agrega una columna nueva.

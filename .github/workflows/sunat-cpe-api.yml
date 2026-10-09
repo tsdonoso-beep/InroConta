@@ -28,7 +28,10 @@ on:
   schedule:
     # Respaldo por si el encadenado no llegara a dispararse. Si corren los dos,
     # el segundo espera (concurrency) y encuentra 0 pendientes en segundos.
-    - cron: '30 13 * * *'
+    # 07:45 y 16:45 en Lima: el encadenado de arriba lo dispara apenas
+    # termina «SUNAT descargar XML» (07:15 y 16:15).
+    - cron: '45 12 * * *'
+    - cron: '45 21 * * *'
   workflow_dispatch:
     inputs:
       periodo:

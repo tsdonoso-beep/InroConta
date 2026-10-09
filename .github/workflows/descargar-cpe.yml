@@ -34,8 +34,10 @@ name: SUNAT descargar XML
 
 on:
   schedule:
-    # 08:00 en Lima (UTC-5 todo el año), igual que SUNAT diario.
-    - cron: '0 13 * * *'
+    # 07:15 y 16:15 en Lima (UTC-5 todo el año): quince minutos después de
+    # SUNAT diario, que ya alcanzó a traer la lista del SIRE.
+    - cron: '15 12 * * *'
+    - cron: '15 21 * * *'
   workflow_dispatch:
     inputs:
       debug:

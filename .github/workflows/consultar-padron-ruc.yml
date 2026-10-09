@@ -22,9 +22,10 @@ name: SUNAT padrón de RUC
 
 on:
   schedule:
-    # 09:00 en Lima (UTC-5): media hora después de «SUNAT diario» (08:00),
-    # para que ya haya alcanzado a traer los comprobantes de esa madrugada.
-    - cron: '0 14 * * *'
+    # 08:00 en Lima (UTC-5): una hora después de «SUNAT diario» (07:00),
+    # para que ya haya alcanzado a traer los comprobantes de esa mañana.
+    # Una vez al día basta: la condición de un RUC cambia poco.
+    - cron: '0 13 * * *'
   workflow_dispatch:
     inputs:
       debug:

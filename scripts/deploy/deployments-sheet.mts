@@ -1,24 +1,28 @@
 // The «DESPLIEGUES» tab of the INROCONTA book: where everyone finds the current
 // link of the web app and what changed in each deployment.
 //
-//   A1 Enlace vigente   B1 the /exec link (it does not change: every deployment
-//                          updates the same Apps Script deployment)
-//   A2 Versión          B2 the Apps Script version now live
-//   A3 Desplegado el    B3 date and time (Lima)
-//   row 5               the history header; row 6 onwards, newest first
+//   A1 Enlace vigente          B1 the /exec link (it does not change: every deployment
+//                                 updates the same Apps Script deployment)
+//   A2 Versión                 B2 the app version (package.json), e.g. «2.1.0»
+//   A3 Versión de Apps Script  B3 the number Apps Script gave the deployed code
+//   A4 Desplegado el           B4 date and time (Lima)
+//   row 6                      the history header; row 7 onwards, newest first
 //
 // It is written with the service account, which is already an editor of the book.
 import { google } from 'googleapis';
 import { correoDeServicio, normalizarClavePrivada } from '../../src/shared/lib/drive/servidor.ts';
 
 export const DEPLOYMENTS_TAB = 'DESPLIEGUES';
-const HISTORY_HEADER = ['Fecha y hora', 'Versión', 'Commit', 'Cambios incluidos', 'Descripción', 'Desplegó'];
-const HISTORY_FIRST_ROW = 6; // 1-based
-const COMMIT_COLUMN = 2; // 0-based, inside a history row
+const HISTORY_HEADER = ['Fecha y hora', 'Versión', 'Versión de Apps Script', 'Commit', 'Cambios incluidos', 'Descripción', 'Desplegó'];
+const HEADER_ROW = 6; // 1-based
+const HISTORY_FIRST_ROW = HEADER_ROW + 1;
+const COMMIT_COLUMN = 3; // 0-based, inside a history row
+const LAST_COLUMN = 'G';
 
 export interface Deployment {
     when: Date;
-    version: number;
+    appVersion: string; // package.json
+    scriptVersion: number; // given by Apps Script
     commit: string; // short hash
     changes: string[]; // one "hash subject" per commit since the previous deployment
     description: string;
@@ -59,7 +63,17 @@ export function limaDateTime(d: Date): string {
 
 /** The history row of a deployment, in the order of HISTORY_HEADER. */
 export function historyRow(d: Deployment): string[] {
-    return [limaDateTime(d.when), String(d.version), d.commit, d.changes.join('\n') || '—', d.description, d.deployedBy];
+    return [limaDateTime(d.when), d.appVersion, String(d.scriptVersion), d.commit, d.changes.join('\n') || '—', d.description, d.deployedBy];
+}
+
+/** The block on top of the tab: the current link and what is live. */
+export function summaryRows(d: Deployment): string[][] {
+    return [
+        ['Enlace vigente', d.url],
+        ['Versión', d.appVersion],
+        ['Versión de Apps Script', String(d.scriptVersion)],
+        ['Desplegado el', limaDateTime(d.when)],
+    ];
 }
 
 async function tabId(sheets: Sheets, bookId: string): Promise<number | null> {
@@ -68,20 +82,24 @@ async function tabId(sheets: Sheets, bookId: string): Promise<number | null> {
     return tab?.properties?.sheetId ?? null;
 }
 
-/** The commit of the last recorded deployment, or null if there is none yet. */
-export async function lastDeployedCommit(sheets: Sheets, bookId: string): Promise<string | null> {
+const historyRange = (row: number) => `'${DEPLOYMENTS_TAB}'!A${row}:${LAST_COLUMN}${row}`;
+
+/** The commit and app version of the last recorded deployment, or null if there is none yet. */
+export async function lastDeployment(sheets: Sheets, bookId: string): Promise<{ commit: string; appVersion: string } | null> {
     if ((await tabId(sheets, bookId)) === null) return null;
-    const r = await sheets.spreadsheets.values.get({ spreadsheetId: bookId, range: `'${DEPLOYMENTS_TAB}'!A${HISTORY_FIRST_ROW}:F${HISTORY_FIRST_ROW}` });
-    return r.data.values?.[0]?.[COMMIT_COLUMN]?.trim() || null;
+    const r = await sheets.spreadsheets.values.get({ spreadsheetId: bookId, range: historyRange(HISTORY_FIRST_ROW) });
+    const row = r.data.values?.[0];
+    const commit = row?.[COMMIT_COLUMN]?.trim();
+    return commit ? { commit, appVersion: row?.[1]?.trim() ?? '' } : null;
 }
 
-/** Creates the tab if needed, writes the current link on top and the deployment as the first history row. */
+/** Creates the tab if needed, writes what is live on top and the deployment as the first history row. */
 export async function recordDeployment(sheets: Sheets, bookId: string, d: Deployment): Promise<void> {
     let id = await tabId(sheets, bookId);
     if (id === null) {
         const r = await sheets.spreadsheets.batchUpdate({
             spreadsheetId: bookId,
-            requestBody: { requests: [{ addSheet: { properties: { title: DEPLOYMENTS_TAB, gridProperties: { frozenRowCount: 5 } } } }] },
+            requestBody: { requests: [{ addSheet: { properties: { title: DEPLOYMENTS_TAB, gridProperties: { frozenRowCount: HEADER_ROW } } } }] },
         });
         id = r.data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
         if (id === null) throw new Error(`Could not create the ${DEPLOYMENTS_TAB} tab.`);
@@ -109,16 +127,9 @@ export async function recordDeployment(sheets: Sheets, bookId: string, d: Deploy
             // and a bare URL is still clickable in Sheets.
             valueInputOption: 'RAW',
             data: [
-                {
-                    range: `'${DEPLOYMENTS_TAB}'!A1:B3`,
-                    values: [
-                        ['Enlace vigente', d.url],
-                        ['Versión', String(d.version)],
-                        ['Desplegado el', limaDateTime(d.when)],
-                    ],
-                },
-                { range: `'${DEPLOYMENTS_TAB}'!A5:F5`, values: [HISTORY_HEADER] },
-                { range: `'${DEPLOYMENTS_TAB}'!A${HISTORY_FIRST_ROW}:F${HISTORY_FIRST_ROW}`, values: [historyRow(d)] },
+                { range: `'${DEPLOYMENTS_TAB}'!A1:B4`, values: summaryRows(d) },
+                { range: historyRange(HEADER_ROW), values: [HISTORY_HEADER] },
+                { range: historyRange(HISTORY_FIRST_ROW), values: [historyRow(d)] },
             ],
         },
     });

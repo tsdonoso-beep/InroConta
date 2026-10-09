@@ -3,7 +3,7 @@
 // Cada una tiene sus números y su hora de fin. Cuando una termina se anota en
 // la bitácora («✔ etapa Drive terminada…»), y todo el estado se escribe a
 // estado.json en cada latido: se puede mirar desde otra terminal
-// (`npm run cpe:estado`) sin tocar la corrida.
+// (`pnpm cpe:estado`) sin tocar la corrida.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";

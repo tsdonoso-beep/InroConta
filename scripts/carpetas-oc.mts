@@ -53,7 +53,7 @@ import {
 import { herramientasDeLectura, textoDePdf, textoDeImagen, type Herramientas } from "../src/shared/lib/drive/extraer-texto.ts";
 import { leerZip } from "../src/shared/lib/sunat/zip.ts";
 import { Semaforo, procesarCola } from "../src/shared/lib/drive/cola.ts";
-// En la computadora (npm run carpetas:local) la clave de la cuenta de servicio
+// En la computadora (pnpm carpetas:local) la clave de la cuenta de servicio
 // viene de un archivo (GOOGLE_SA_KEY_FILE en .env.local), como en cpe:local.
 import { cargarClaveDeArchivo } from "./local/comun/config.mts";
 import { clavesDeArchivo, type CentroDeCosto } from "../src/shared/lib/drive/legajo-carpeta.ts";

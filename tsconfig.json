@@ -1,5 +1,5 @@
 {
-  // Solo para el editor y `npm run typecheck`: los scripts corren con
+  // Solo para el editor y `pnpm typecheck`: los scripts corren con
   // `node --experimental-strip-types`, sin compilar.
   "compilerOptions": {
     "target": "ES2022",

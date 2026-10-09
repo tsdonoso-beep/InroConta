@@ -1,7 +1,7 @@
 // Cómo van las corridas: lee scripts/out/logs/cpe-*/estado.json (lo escribe cada latido) sin tocar las corridas.
 //
-//   npm run cpe:estado        todas las corridas de hoy
-//   npm run cpe:estado 1      solo la más reciente
+//   pnpm cpe:estado           todas las corridas de hoy
+//   pnpm cpe:estado 1         solo la más reciente
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

@@ -8,8 +8,8 @@
 //   red.jsonl, red/  lo que la página pide por debajo (¿hay una API?)
 //   resumen.json     lo encontrado, en una mirada
 //
-// Uso:  npm run detracciones:reconocer
-//       PERIODO=202609 CONSTANCIAS=3 HEADLESS=0 npm run detracciones:reconocer
+// Uso:  pnpm detracciones:reconocer
+//       PERIODO=202609 CONSTANCIAS=3 HEADLESS=0 pnpm detracciones:reconocer
 // Variables: PERIODO (aaaamm; por omisión el mes anterior) · TIPO_CUENTA (Convencional) · CONSTANCIAS (3) · HEADLESS (1)
 //   ENTRADA (directo: login en el menú nuevo · antiguo: login por el menú de siempre y el nuevo en otra pestaña)
 // Detalle del recorrido: docs/detracciones-spot.md. Nunca a la vez que otra corrida con la misma cuenta de SOL.

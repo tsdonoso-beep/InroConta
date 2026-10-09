@@ -2,5 +2,5 @@ Mapa del repositorio (qué hay, dónde corre, credenciales, workflows, tasa de �
 
 - Los scripts corren con `node --experimental-strip-types` (sin compilar): los imports llevan extensión `.ts`/`.mts` y rutas relativas.
 - Todo lo que generan las corridas va a `scripts/out/` (fuera de git).
-- Usar npm (hay `package-lock.json`), no pnpm.
+- Usar pnpm (hay `pnpm-lock.yaml`), no npm.
 - En Windows, correr los scripts desde PowerShell o cmd: en Git Bash `tar` es GNU tar y `domicilios:local` falla con rutas `D:\…`.

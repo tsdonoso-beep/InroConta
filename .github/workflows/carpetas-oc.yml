@@ -23,7 +23,7 @@
 # Disparo manual: arranca en depuración (no toca la base ni la hoja); se
 # elige nacionales, importaciones o ambas, y nacionales se puede limitar a un
 # proyecto («TALLERES»). La lectura pesada también corre en una computadora:
-# `npm run carpetas:local` (docs/carpetas-oc-local.md); continúa donde quedó. El resumen —cuántas OC, carpetas
+# `pnpm carpetas:local` (docs/carpetas-oc-local.md); continúa donde quedó. El resumen —cuántas OC, carpetas
 # y comprobantes encontró— queda en la página de la corrida, y los CSV como
 # artefacto.
 
@@ -86,7 +86,7 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: ppnpm install --frozen-lockfile
 
       # Para leer por dentro: pdftotext/pdftoppm (PDF) y tesseract (OCR, español e inglés).
       - name: Instalar lectores de PDF y OCR

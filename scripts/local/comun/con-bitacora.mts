@@ -9,7 +9,7 @@
 //     http.jsonl con su cuerpo crudo, y se cuentan todas por servicio y estado;
 //   • al terminar deja resumen.json (duración, cuántos avisos y errores, códigos
 //     HTTP) e imprime una línea de cierre; estado.json se reescribe cada 30 s
-//     para ver desde otra terminal si sigue vivo (`npm run cpe:estado`).
+//     para ver desde otra terminal si sigue vivo (`pnpm cpe:estado`).
 // Así los scripts viejos (sunat-diario, descargar-cpe, padrón…) informan igual
 // que los nuevos sin reescribirlos.
 

@@ -24,7 +24,7 @@ funciona cada pieza está en `GUIA-DEL-REPOSITORIO.md` y `docs/apps-script.md`.
 ## Hecho en la reunión del 06/10/2026 (y después)
 
 - 061 Filtro por empresa en el legajo (INROPRIN por defecto; 33 carpetas de consorcios) y «Pago de OC» en nacionales.
-- 062 Domicilio fiscal (padrón reducido, robot `padron-domicilios.yml` los lunes; `npm run domicilios:local`):
+- 062 Domicilio fiscal (padrón reducido, robot `padron-domicilios.yml` los lunes; `pnpm domicilios:local`):
   3,008 RUC cargados, 2,095 con dirección (todas las empresas). Ficha del proveedor en «Buscar factura».
 - 063 Cuadre de ventas e IGV por mes (Impuestos). Hallazgos: facturas con anticipo traen IGV neto
   (29 en cero en 2026); NC de abril por S/ 8 M (IGV S/ 1.22 M); enero sin ventas en los XML.

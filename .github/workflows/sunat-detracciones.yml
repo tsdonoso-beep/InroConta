@@ -17,7 +17,7 @@
 # últimos 10 días; las constancias ya guardadas no se vuelven a bajar, así
 # que repetir días no duplica nada. La primera carga se pide a mano
 # (desde = 01/01/2026). Es el mismo script que se corre en local:
-# `npm run detracciones:local` (scripts/local/detracciones/detracciones.mts).
+# `pnpm detracciones:local` (scripts/local/detracciones/detracciones.mts).
 
 name: SUNAT detracciones
 
@@ -75,7 +75,7 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: ppnpm install --frozen-lockfile
 
       - run: pnpm exec playwright install --with-deps chromium
 

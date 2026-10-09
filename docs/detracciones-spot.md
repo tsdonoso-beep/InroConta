@@ -187,8 +187,8 @@ y elige la opción **igual que la página** (`porCodigo`). Los clics por texto
 workflow (`periodo` vacío = mes anterior; `constancias` 3). Al terminar,
 bajar el artefacto `bitacoras-detracciones-reconocer`.
 
-**En una laptop:** `npm run detracciones:reconocer`; para ver el navegador,
-`HEADLESS=0` (en PowerShell `$env:HEADLESS="0"; npm run detracciones:reconocer`;
+**En una laptop:** `pnpm detracciones:reconocer`; para ver el navegador,
+`HEADLESS=0` (en PowerShell `$env:HEADLESS="0"; pnpm detracciones:reconocer`;
 sin ventana no se imprime el PDF).
 
 Qué mirar en `scripts/out/logs/detracciones-reconocer-<fecha>/`:

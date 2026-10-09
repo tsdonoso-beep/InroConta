@@ -1,7 +1,7 @@
 // Genera docs/database/database.full.sql: todas las migraciones de docs/database/migrations/, en orden, en un solo archivo.
 //
-//   npm run db:consolidar            (regenerarlo después de agregar una migración)
-//   npm run db:consolidar --revisar  (falla si el archivo quedó desactualizado; para CI)
+//   pnpm db:consolidar               (regenerarlo después de agregar una migración)
+//   pnpm db:consolidar --revisar     (falla si el archivo quedó desactualizado; para CI)
 //
 // Corrido sobre una base vacía de Supabase, deja el esquema como está hoy:
 // tablas, políticas de fila y la versión vigente de cada función (la última
@@ -20,7 +20,7 @@ export function consolidar(archivos: Array<{ nombre: string; sql: string }>): st
   for (const a of archivos) huella.update(a.nombre).update("\0").update(a.sql);
   const partes = [
     "-- ════════════════════════════════════════════════════════════════",
-    "-- database.full.sql — GENERADO, no editar a mano (npm run db:consolidar)",
+    "-- database.full.sql — GENERADO, no editar a mano (pnpm db:consolidar)",
     `-- ${archivos.length} migraciones: ${archivos[0]?.nombre ?? "-"} → ${archivos[archivos.length - 1]?.nombre ?? "-"}`,
     `-- huella: ${huella.digest("hex").slice(0, 16)}`,
     "--",
@@ -59,7 +59,7 @@ if (process.argv[1]?.endsWith("consolidar-db.mts")) {
   if (process.argv.includes("--revisar")) {
     const actual = existsSync(SALIDA) ? readFileSync(SALIDA, "utf8") : "";
     if (actual !== texto) {
-      console.error("✗ docs/database/database.full.sql está desactualizado: corre npm run db:consolidar");
+      console.error("✗ docs/database/database.full.sql está desactualizado: corre pnpm db:consolidar");
       process.exit(1);
     }
     console.log("✓ docs/database/database.full.sql al día");

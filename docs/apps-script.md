@@ -725,7 +725,7 @@ su pestaña:
 | Pestaña | La llena |
 |---|---|
 | COMPROBANTES SUNAT (y «… 2025») | Robot `sunat-diario` |
-| COMPROBANTES SUNAT - DETALLE (y «… 2025») | Robot `descargar-cpe` / `npm run hojas:detalle` |
+| COMPROBANTES SUNAT - DETALLE (y «… 2025») | Robot `descargar-cpe` / `pnpm hojas:detalle` |
 | OC - CARPETAS COMPRAS NACIONALES / IMPORTACIONES | Robot `carpetas-oc` |
 | CARPETA MADRE, CARPETA MADRE - RESUMEN, FACTURAS SIN OC | `CarpetaMadre.gs` (cada hora) |
 | PADRÓN RUC | `PadronRuc.gs` |
@@ -745,8 +745,8 @@ padrón en la ficha del proveedor) ni los scripts viejos del legajo
 reemplazaron el robot de carpetas y `CarpetaMadre.gs`.
 
 **Pasos de la mudanza:**
-1. Que el robot llene el libro: correr `npm run hojas:detalle` (DETALLE) y
-   `npm run sire:local` (COMPROBANTES), o esperar las corridas de la mañana.
+1. Que el robot llene el libro: correr `pnpm hojas:detalle` (DETALLE) y
+   `pnpm sire:local` (COMPROBANTES), o esperar las corridas de la mañana.
 2. En INROCONTA → Apps Script: pegar los archivos de arriba y las Propiedades
    del script (SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO, ROBOT_CLAVE).
 3. Correr `instalarCarpetaMadre` y `instalarVistaRapida` (activadores de cada hora).

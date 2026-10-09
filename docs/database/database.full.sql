@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
--- database.full.sql — GENERADO, no editar a mano (npm run db:consolidar)
+-- database.full.sql — GENERADO, no editar a mano (pnpm db:consolidar)
 -- 67 migraciones: 001_esquema_inicial.sql → 067_pestanas_de_detracciones.sql
--- huella: 7e0c85b094785e5f
+-- huella: b1c8e51e4abc2bbf
 --
 -- Aplicar sobre una base VACÍA (proyecto nuevo de Supabase): SQL Editor →
 -- pegar todo → Run. Para una base existente, aplicar solo las migraciones

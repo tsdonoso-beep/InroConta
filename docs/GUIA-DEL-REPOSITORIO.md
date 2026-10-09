@@ -56,7 +56,7 @@ scripts/                  Lo que corren los workflows (Node + Playwright)
   out/                    Resultados de cada corrida: logs/, salida/, capturas/
                           (fuera de git; en Actions se suben como artefactos)
 docs/                     Documentos de detalle (sección 13)
-  database/               database.full.sql (GENERADO: npm run db:consolidar)
+  database/               database.full.sql (GENERADO: pnpm db:consolidar)
     migrations/           Las migraciones SQL, en orden
 public/                   Archivos estáticos (vacía por ahora)
 ```
@@ -222,7 +222,7 @@ que es la evidencia para diagnosticar cuando algo falla.
   `carpeta_cambio` (pestaña CAMBIOS, 60 días) las OC nuevas o que ya no
   están, los archivos nuevos, eliminados, modificados o renombrados, y las
   OC que se completaron o a las que ahora les falta algo.
-- **En una computadora:** `npm run carpetas:local` (ver
+- **En una computadora:** `pnpm carpetas:local` (ver
   `docs/carpetas-oc-local.md`): la carga pesada sin gastar minutos de GitHub;
   se corta y continúa donde quedó.
 - **Importaciones:** el mismo script con `PROCEDENCIA=importacion` lee la
@@ -260,7 +260,7 @@ que es la evidencia para diagnosticar cuando algo falla.
   guía que registró Almacén, la DAM o el costeo de COMEX, la factura que ya
   está en SUNAT) y completa comprador, fecha y monto de la OC. Sigue
   contando como incompleta hasta que el documento esté en la carpeta.
-- **Local:** `npm run fuentes:local` (con `FUENTES_JSON=archivo.json` lee
+- **Local:** `pnpm fuentes:local` (con `FUENTES_JSON=archivo.json` lee
   las pestañas de un archivo en vez de la hoja; `DEBUG=1` no sube nada).
 
 #### SUNAT detracciones — `sunat-detracciones.yml` → `scripts/local/detracciones/detracciones.mts`
@@ -282,7 +282,7 @@ que es la evidencia para diagnosticar cuando algo falla.
 - **Cuándo:** cron 09:30 (últimos 10 días) + manual (`desde`, `hasta`, `dias`,
   `guardar`, `limite`). Primera carga: `desde` = 01/01/2026. Tope 90 min.
   Comparte `concurrency` con los de la cuenta de SOL.
-- **Local:** `npm run detracciones:local` (`DESDE=01/01/2026`, `GUARDAR=0` para probar).
+- **Local:** `pnpm detracciones:local` (`DESDE=01/01/2026`, `GUARDAR=0` para probar).
 - Detalle: **`docs/detracciones-spot.md`**.
 
 #### SUNAT detracciones (reconocimiento) — `detracciones-reconocer.yml` → `scripts/local/detracciones/reconocer.mts`
@@ -295,7 +295,7 @@ que es la evidencia para diagnosticar cuando algo falla.
   debajo en el artefacto `bitacoras-detracciones-reconocer` (7 días).
 - **Cuándo:** solo manual (`periodo`, `constancias`, `tipo_cuenta`,
   `entrada`). Tope 20 min. Comparte `concurrency` con los de la cuenta de SOL.
-- **Local:** `npm run detracciones:reconocer`.
+- **Local:** `pnpm detracciones:reconocer`.
 - Detalle: **`docs/detracciones-spot.md`**.
 
 #### Otros scripts
@@ -567,10 +567,10 @@ Comprobantes de compra tipo 01/07/08 (sin la basura "tipo 53" del SIRE):
 
 ### Bajar no-E001 (lo normal: por la API)
 Actions → **SUNAT CPE por API** → Run workflow (vacío = mes anterior + actual),
-o en una laptop `npm run cpe:local` — todo en `docs/pipeline-cpe-local.md`.
+o en una laptop `pnpm cpe:local` — todo en `docs/pipeline-cpe-local.md`.
 
 ### Rehacer la hoja DETALLE sin bajar nada de SUNAT
-`npm run hojas:detalle` en la laptop (con `.env.local`). Para cuando cambian sus
+`pnpm hojas:detalle` en la laptop (con `.env.local`). Para cuando cambian sus
 columnas o lo que se le cruza (legajo, carpeta madre): `cpe:local` solo
 republica si guardó comprobantes nuevos.
 
@@ -609,9 +609,9 @@ group by 1,2 order by 1,2;
 
 ### Verificaciones locales
 ```bash
-npm ci
-npm run typecheck        # tipos de scripts/ y src/shared/
-npm run db:consolidar -- --check   # docs/database/database.full.sql al día
+ppnpm install --frozen-lockfile
+pnpm typecheck           # tipos de scripts/ y src/shared/
+pnpm db:consolidar --revisar   # docs/database/database.full.sql al día
 ```
 
 ### Cambiar el horario de un cron

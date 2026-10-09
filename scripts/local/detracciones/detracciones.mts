@@ -10,9 +10,9 @@
 // Por fecha de pago y no por período: un depósito puede llegar meses después de la factura (el 07/10/2026 se
 // pagó una de 202608). Las que ya están en la base con su PDF y su HTML no se vuelven a bajar.
 //
-// Uso:  npm run detracciones:local                                  (los últimos 10 días)
-//       DESDE=01/01/2026 npm run detracciones:local                 (primera carga: de enero a hoy, mes por mes)
-//       GUARDAR=0 DESDE=01/09/2026 HASTA=30/09/2026 npm run detracciones:local   (prueba: solo disco)
+// Uso:  pnpm detracciones:local                                     (los últimos 10 días)
+//       DESDE=01/01/2026 pnpm detracciones:local                    (primera carga: de enero a hoy, mes por mes)
+//       GUARDAR=0 DESDE=01/09/2026 HASTA=30/09/2026 pnpm detracciones:local      (prueba: solo disco)
 // Variables: DESDE · HASTA (dd/mm/aaaa; HASTA por omisión hoy en Lima) · DIAS (10, si no hay DESDE)
 //   TIPOS_CUENTA (1,2,3: Convencional, IVAP, Ley 30737) · GUARDAR (1; 0 = ni Drive ni base) · LIMITE (0 = todas)
 //   PUBLICAR (si-hay-nuevas | siempre | nunca) · CONTAR_MASIVOS (1)

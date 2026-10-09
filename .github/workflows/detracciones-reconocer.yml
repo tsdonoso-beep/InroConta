@@ -11,7 +11,7 @@
 # pantalla, las opciones reales de los desplegables y lo que la página pide
 # por debajo (¿hay una API que se pueda llamar directo?) en el artefacto
 # `bitacoras-detracciones-reconocer`. Con eso se arma el script de verdad.
-# Es el mismo script que se corre en local: `npm run detracciones:reconocer`.
+# Es el mismo script que se corre en local: `pnpm detracciones:reconocer`.
 
 name: SUNAT detracciones (reconocimiento)
 
@@ -60,7 +60,7 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: ppnpm install --frozen-lockfile
 
       - run: pnpm exec playwright install --with-deps chromium
 

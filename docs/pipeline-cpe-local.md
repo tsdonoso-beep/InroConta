@@ -73,16 +73,16 @@ con otro sin esperar al PDF ni a Drive. Cada etapa se reporta por separado
 | `api/cliente.mts` · `trabajador-api.mts` | La API de SUNAT y el trabajador que la usa; renueva el token solo |
 | `sol/sesion.mts` · `formulario.mts` · `trabajador-ui.mts` | Login, menú y la vía por pantallas (respaldo) |
 
-**Reglas de la carpeta** (las hace cumplir `npm run lint`): archivos de **300
+**Reglas de la carpeta** (las hace cumplir `pnpm lint`): archivos de **300
 líneas como máximo**, y nada de sintaxis que Node no sepa correr quitando tipos
 (`private` en el constructor, `enum`, `namespace`). Tests en `__tests__/`,
-dentro de `npm run test`.
+dentro de `pnpm test`.
 
 ## 4. Correrlo en una laptop
 
 ### Una vez
 
-1. `npm install` y `npx playwright install chromium`.
+1. `pnpm install` y `pnpm exec playwright install chromium`.
 2. `.env.local` en la raíz (nunca se sube: está en `.gitignore`):
    ```
    SUNAT_RUC=20512201611
@@ -99,30 +99,30 @@ dentro de `npm run test`.
 3. El JSON de la cuenta de servicio de Google en `secrets/sa.json` (también
    ignorado por git). Se acepta tal cual lo entrega Google.
 
-### Los comandos (bash + npm)
+### Los comandos (bash + pnpm)
 
 ```bash
 # ¿Funciona la API hoy? 12 pendientes de muestra, no guarda nada (1-2 min)
-npm run cpe:sondeo
+pnpm cpe:sondeo
 
 # Lo nuevo de agosto y septiembre (por omisión), 8 a la vez
-npm run cpe:local
+pnpm cpe:local
 
 # Solo E001, o todas las series; solo ciertos proveedores
-SERIES=todas PERIODO=202601,202602 npm run cpe:local
-VIA=ui WORKERS=1 RUCS=20127765279 PERIODO=202609 npm run cpe:local
+SERIES=todas PERIODO=202601,202602 pnpm cpe:local
+VIA=ui WORKERS=1 RUCS=20127765279 PERIODO=202609 pnpm cpe:local
 
 # Otros meses; lo más reciente primero (si hay que cortar, lo último queda completo)
-WORKERS=8 ORDEN=reciente PERIODO=202603,202604,202605 npm run cpe:local
+WORKERS=8 ORDEN=reciente PERIODO=202603,202604,202605 pnpm cpe:local
 
 # Rellenar el PDF de lo que ya está guardado sin PDF (todos los meses)
-MODO=pdf WORKERS=4 PERIODO=todos npm run cpe:local
+MODO=pdf WORKERS=4 PERIODO=todos pnpm cpe:local
 
 # Cómo van las corridas de hoy (desde otra terminal, no las toca)
-npm run cpe:estado
+pnpm cpe:estado
 
 # Qué tienen las hojas publicadas
-npm run cpe:hojas
+pnpm cpe:hojas
 ```
 
 **Una sola corrida por mes a la vez.** Dos corridas sobre los mismos meses se
@@ -167,7 +167,7 @@ con la barra a medias es normal: Drive es más lento que SUNAT.
 **Cuando una etapa termina**, el log lo dice:
 `✔ Drive terminada a los 31m de empezar (26m de trabajo): ok 2339, fallidos 3`.
 
-**`npm run cpe:estado`**: cada etapa con sus números (ok, fallidos, en cola) y si
+**`pnpm cpe:estado`**: cada etapa con sus números (ok, fallidos, en cola) y si
 la corrida sigue viva (sale `¿DETENIDA?` si pasó más de 90 s sin latido).
 
 **En `scripts/out/logs/cpe-api-<fecha>/`** (una carpeta por corrida):
@@ -230,7 +230,7 @@ En orden de impacto, con lo que se midió el 30/09/2026:
 2. **Saltarse el paso que falla.** El «Error del Servidor» venía de la consulta
    de cabecera, no de la descarga. Ir directo al XML convirtió en éxito lo que
    por pantalla fallaba siempre.
-3. **Medir antes de correr (`npm run cpe:sondeo`).** Probar todas las vías sobre la
+3. **Medir antes de correr (`pnpm cpe:sondeo`).** Probar todas las vías sobre la
    misma muestra, sin guardar nada, mostró en 2 minutos que el `fetch` de Node
    estaba bloqueado, que el cliente de Playwright pasaba, cuánto aguantaba el
    paralelo (474/min con 8) y que el PDF falla más que el XML.
@@ -251,7 +251,7 @@ En orden de impacto, con lo que se midió el 30/09/2026:
    minutos que el «logout» era falso, que el `fetch` fallaba por
    `UND_ERR_SOCKET` y que los agotados eran todos de un RUC.
 8. **Ver cada etapa por separado.** La barra cuenta lo guardado (no lo
-   consultado) y `npm run cpe:estado` dice qué etapa terminó: sin eso, «100%» con
+   consultado) y `pnpm cpe:estado` dice qué etapa terminó: sin eso, «100%» con
    25 minutos de Drive por delante parecía un cuelgue.
 9. **Código chico y probado.** Archivos ≤ 300 líneas, tests de lo puro
    (clasificación, reintentos, colas con trabajadores falsos) y un lint que
@@ -271,7 +271,7 @@ cron con pendientes (el de prueba solo tenía comprobantes del BCP).
 | # | Qué | Estado / cómo |
 |---|---|---|
 | 1 | **BCP (RUC 20100047218)** | Se comunica a Contabilidad: pedirlos al banco o dejarlos como excepción |
-| 2 | **Padrón de RUC** | 531 proveedores de 2026 sin consultar al 30/09; puesta al día local ese día (`DEBUG=0 MAX_CONSULTAS=600 npm run padron:local`). El cron consulta 80 por día, con 2026 primero |
+| 2 | **Padrón de RUC** | 531 proveedores de 2026 sin consultar al 30/09; puesta al día local ese día (`DEBUG=0 MAX_CONSULTAS=600 pnpm padron:local`). El cron consulta 80 por día, con 2026 primero |
 | 3 | **Sep–dic 2025** | No hace falta por ahora. El SIRE ya los trae: van a hojas aparte («… 2025») y el padrón los deja al final |
 | 4 | **Drive es el cuello (~70-100/min)** | Idea: guardar en la base antes de subir a Drive |
 | 5 | **Padrón reducido de SUNAT** (archivo de 393 MB) | Solo estado y condición; buen contribuyente y agentes siguen por consulta |
@@ -304,23 +304,23 @@ ponerlos en la raíz del repo (§4).
 
 ```bash
 git pull
-npm install
-npx playwright install chromium
+pnpm install
+pnpm exec playwright install chromium
 
 # 0. ¿La API responde hoy? (1-2 min, no guarda nada)
-npm run cpe:sondeo
+pnpm cpe:sondeo
 
 # 1. Terminar marzo–julio (si ya está todo, dice «pendientes: 0» y sale)
-WORKERS=8 ORDEN=reciente PERIODO=202603,202604,202605,202606,202607 npm run cpe:local
+WORKERS=8 ORDEN=reciente PERIODO=202603,202604,202605,202606,202607 pnpm cpe:local
 
 # 2. Enero y febrero
-WORKERS=8 ORDEN=reciente PERIODO=202601,202602 npm run cpe:local
+WORKERS=8 ORDEN=reciente PERIODO=202601,202602 pnpm cpe:local
 
 # 3. Rellenar los PDF que falten (todos los meses)
-MODO=pdf WORKERS=4 PERIODO=todos npm run cpe:local
+MODO=pdf WORKERS=4 PERIODO=todos pnpm cpe:local
 
 # En cualquier momento, desde otra terminal
-npm run cpe:estado
+pnpm cpe:estado
 ```
 
 - Uno después del otro, no a la vez (comparten el cupo de Drive).

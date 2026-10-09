@@ -3,9 +3,9 @@
 //   VIA=api (por omisión)  baja XML+PDF directo de api-cpe con el token de la sesión — sin pantallas.
 //   VIA=ui                 llena «Nueva Consulta» en N pestañas, como el workflow pero reusando el formulario.
 //
-// Uso:  npm run cpe:local                                   (agosto+septiembre, API, 8 en paralelo)
-//       MODO=pdf npm run cpe:local                          (rellenar el PDF de lo ya guardado sin PDF)
-//       VIA=ui WORKERS=2 LIMITE=10 HEADLESS=0 npm run cpe:local
+// Uso:  pnpm cpe:local                                      (agosto+septiembre, API, 8 en paralelo)
+//       MODO=pdf pnpm cpe:local                             (rellenar el PDF de lo ya guardado sin PDF)
+//       VIA=ui WORKERS=2 LIMITE=10 HEADLESS=0 pnpm cpe:local
 //
 // Variables: PERIODO (202608,202609) · VIA · WORKERS (8) · LIMITE (0 = todos) · ORDEN (antiguo|reciente)
 //   HEADLESS (1) · RAMPA_S (UI 8 / API 1) · MAX_INTENTOS (6) · ESPERA_CAIDO_S (API 30 / UI 300) · SUBIDAS (10)

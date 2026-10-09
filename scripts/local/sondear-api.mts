@@ -11,7 +11,7 @@
 // No guarda nada en Drive ni en la base: los XML quedan en scripts/out/salida/sondeo/ y
 // el informe en scripts/out/logs/sondeo-<fecha>/informe.json + http.jsonl (cada error HTTP crudo).
 //
-//   SONDEO_N=12 npm run cpe:sondeo
+//   SONDEO_N=12 pnpm cpe:sondeo
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

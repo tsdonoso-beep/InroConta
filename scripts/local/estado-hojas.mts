@@ -1,6 +1,6 @@
 // Estado de las hojas publicadas en Drive (GOOGLE_DRIVE_FOLDER_ID/SUNAT/), leídas con la cuenta de servicio.
 //
-//   npm run cpe:hojas
+//   pnpm cpe:hojas
 //
 // Por cada hoja: cuándo se modificó, filas y columnas, y un conteo por
 // período (de la columna que parezca período o fecha de emisión).

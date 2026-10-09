@@ -1,4 +1,4 @@
-# Carpetas de OC en tu computadora (`npm run carpetas:local`)
+# Carpetas de OC en tu computadora (`pnpm carpetas:local`)
 
 El mismo script que corre cada noche en GitHub (`scripts/carpetas-oc.mts`),
 corrido en una computadora. Sirve para la **carga pesada**: abrir y leer por
@@ -24,9 +24,9 @@ avísame el resumen». Puede correr el comando, seguir la bitácora y
 explicarte el resultado; lo que no puede es tocar nada fuera de esa carpeta
 sin pedirte permiso.
 
-## 1. Lo que ya tienes (de `npm run cpe:local`)
+## 1. Lo que ya tienes (de `pnpm cpe:local`)
 
-El repositorio clonado, `npm install` hecho y el `.env.local` con
+El repositorio clonado, `pnpm install` hecho y el `.env.local` con
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ROBOT_CORREO`, `ROBOT_CLAVE`,
 `GOOGLE_SA_EMAIL` y `GOOGLE_SA_KEY_FILE` (la clave en `secrets/sa.json`).
 Nada más hace falta para recorrer las carpetas y leer los XML y ZIP.
@@ -82,13 +82,13 @@ Terminó cuando vuelve a aparecer el `PS …>` o `$`.
 
 ```powershell
 # Prueba: solo mira, no guarda nada
-$env:PROCEDENCIA="nacional"; $env:LEER_MAX="200"; npm run carpetas:local
+$env:PROCEDENCIA="nacional"; $env:LEER_MAX="200"; pnpm carpetas:local
 
 # La carga de verdad, compras nacionales
-$env:DEBUG="0"; $env:PROCEDENCIA="nacional"; $env:LEER_MAX="20000"; $env:LEER_MINUTOS="120"; npm run carpetas:local
+$env:DEBUG="0"; $env:PROCEDENCIA="nacional"; $env:LEER_MAX="20000"; $env:LEER_MINUTOS="120"; pnpm carpetas:local
 
 # Importaciones (en la misma ventana: las demás variables siguen puestas)
-$env:PROCEDENCIA="importacion"; npm run carpetas:local
+$env:PROCEDENCIA="importacion"; pnpm carpetas:local
 ```
 
 Las variables de `$env:` duran mientras la ventana esté abierta: para volver
@@ -99,13 +99,13 @@ a una prueba después de una carga, abre otra ventana (o
 
 ```bash
 # Prueba: solo mira, no guarda nada (resultado en scripts/out/salida/carpetas-oc/)
-PROCEDENCIA=nacional LEER_MAX=200 npm run carpetas:local
+PROCEDENCIA=nacional LEER_MAX=200 pnpm carpetas:local
 
 # La carga de verdad, compras nacionales: hasta 2 h de lectura por corrida
-DEBUG=0 PROCEDENCIA=nacional LEER_MAX=20000 LEER_MINUTOS=120 npm run carpetas:local
+DEBUG=0 PROCEDENCIA=nacional LEER_MAX=20000 LEER_MINUTOS=120 pnpm carpetas:local
 
 # Importaciones
-DEBUG=0 PROCEDENCIA=importacion LEER_MAX=20000 LEER_MINUTOS=120 npm run carpetas:local
+DEBUG=0 PROCEDENCIA=importacion LEER_MAX=20000 LEER_MINUTOS=120 pnpm carpetas:local
 ```
 
 Cómo reparte el trabajo (no hace falta tocar nada; los valores por omisión

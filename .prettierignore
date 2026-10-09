@@ -11,3 +11,4 @@ docs/**/*.sql
 # Apps Script HtmlService pages: pasted by hand into each sheet, with inline <script> and
 # <style> that Prettier's HTML printer rewraps in ways that are hard to review.
 src/*.html
+apps-script/**/*.html

@@ -1,6 +1,6 @@
 // A small «COMPROBANTES SUNAT - DETALLE» tab: one row per item line, with the
 // column names the robot publishes (src/shared/lib/export/items-sunat.ts) and
-// the INROCONTA view reads (src/VistaEjecutiva.gs). Each case covers a branch
+// the INROCONTA view reads (apps-script/inroconta/VistaEjecutiva.gs). Each case covers a branch
 // of the view: several lines of one invoice, a credit note, dollars, a sale,
 // a withholding (detracción) with its deposit, and an import order.
 import type { Cell } from '../helpers/apps-script.mts';

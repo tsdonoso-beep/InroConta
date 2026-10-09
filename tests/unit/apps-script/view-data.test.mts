@@ -1,11 +1,11 @@
-// What the INROCONTA view sends to the page (src/VistaEjecutiva.gs →
+// What the INROCONTA view sends to the page (apps-script/inroconta/VistaEjecutiva.gs →
 // datosCompactosVista_), run against the fixture DETALLE tab.
 import { describe, expect, it } from 'vitest';
 import { callFromPage, loadAppsScript } from '../../helpers/apps-script.mts';
 import { DETAIL_ROWS, DETAIL_TAB, detailGrid } from '../../fixtures/detail-sheet.mts';
 import type { CompactDoc, ViewData } from '../../fixtures/view-data.mts';
 
-const VIEW = ['src/VistaEjecutiva.gs'];
+const VIEW = ['apps-script/inroconta/VistaEjecutiva.gs'];
 
 // Positions inside each compact document row (see the comment of datosCompactosVista_).
 const DOC = { period: 0, origin: 1, provider: 2, type: 3, currency: 4, net: 5, detraction: 6, oc: 7, imported: 9, number: 10, date: 11, pdf: 12 };

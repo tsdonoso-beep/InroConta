@@ -1,4 +1,4 @@
-// Runs Apps Script files (src/*.gs) inside Node so their functions can be tested.
+// Runs Apps Script files (.gs) inside Node so their functions can be tested.
 //
 // A .gs file is not a module: Apps Script concatenates every file of a project
 // into one global scope. Here each file is evaluated in the same vm context, and

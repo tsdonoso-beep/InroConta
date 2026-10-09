@@ -1,4 +1,4 @@
-// The shape of what datosCompactosVista_ (src/VistaEjecutiva.gs) sends to the
+// The shape of what datosCompactosVista_ (apps-script/inroconta/VistaEjecutiva.gs) sends to the
 // page, as far as the tests read it. The rows are positional arrays to keep the
 // payload small; the positions are documented above that function.
 

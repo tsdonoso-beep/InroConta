@@ -1,4 +1,4 @@
-// Opens the INROCONTA view page (src/VistaEjecutivaPagina.html) in a real
+// Opens the INROCONTA view page (apps-script/inroconta/VistaEjecutivaPagina.html) in a real
 // browser without Google: the HTML is served from a fake origin and
 // google.script.run is replaced by a stub that answers each server function
 // with a canned response. By default the SUNAT data is what the real
@@ -17,7 +17,7 @@ const PAGE_URL = 'https://inroconta.test/';
 export type Responses = Record<string, { ok: unknown } | { fails: string }>;
 
 export function fixtureViewData() {
-    const scope = loadAppsScript(['src/VistaEjecutiva.gs'], { sheets: { [DETAIL_TAB]: detailGrid() } });
+    const scope = loadAppsScript(['apps-script/inroconta/VistaEjecutiva.gs'], { sheets: { [DETAIL_TAB]: detailGrid() } });
     return callFromPage<ViewData>(scope, 'datosCompactosVista_');
 }
 
@@ -54,7 +54,7 @@ function installStub(responses: Responses) {
 
 /** Opens the view with the given responses (the fixture ones by default). */
 export async function openView(page: Page, responses: Responses = defaultResponses()) {
-    const html = readFileSync(join(ROOT, 'src', 'VistaEjecutivaPagina.html'), 'utf8');
+    const html = readFileSync(join(ROOT, 'apps-script', 'inroconta', 'VistaEjecutivaPagina.html'), 'utf8');
     await page.route('**/*', (route) =>
         route.request().url() === PAGE_URL ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: html }) : route.abort(),
     );

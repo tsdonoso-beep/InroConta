@@ -384,7 +384,7 @@ Prueba con 5 (run 37852656407) y carga completa por fecha de pago del
 
 ## 11. En la vista INROCONTA (Apps Script)
 
-Sección **Detracciones** del menú (`src/VistaEjecutiva.gs` + `src/VistaEjecutivaPagina.html`).
+Sección **Detracciones** del menú (`apps-script/inroconta/VistaEjecutiva.gs` + `apps-script/inroconta/VistaEjecutivaPagina.html`).
 Lee directo de la base `detracciones_hoja` y `detracciones_sin_constancia` (migración 067), en
 páginas de 1000 filas (hasta 3000 constancias; `VISTA_DET_PAGINAS`), junto con lo demás de la base.
 

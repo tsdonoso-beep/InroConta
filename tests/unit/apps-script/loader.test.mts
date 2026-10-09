@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { callFromPage, loadAppsScript } from '../../helpers/apps-script.mts';
 
-const view = () => loadAppsScript(['src/VistaEjecutiva.gs']);
+const view = () => loadAppsScript(['apps-script/inroconta/VistaEjecutiva.gs']);
 
 describe('loadAppsScript', () => {
     it('exposes the top-level functions of a .gs file', () => {
@@ -21,7 +21,7 @@ describe('loadAppsScript', () => {
     });
 
     it('returns results as plain JSON, the way google.script.run delivers them', () => {
-        const scope = loadAppsScript(['src/VistaEjecutiva.gs'], { sheets: {} });
+        const scope = loadAppsScript(['apps-script/inroconta/VistaEjecutiva.gs'], { sheets: {} });
         expect(callFromPage(scope, 'conSigno_', true, 118)).toBe(-118);
         expect(callFromPage(scope, 'conSigno_', false, null)).toBeNull();
     });

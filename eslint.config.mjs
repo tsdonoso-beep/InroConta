@@ -1,5 +1,5 @@
 // ESLint for the Node scripts (scripts/) and the shared library (src/shared/).
-// The Apps Script files (src/*.gs, src/*.html) run inside Google, with their own
+// The Apps Script files (*.gs, *.html in src/ and apps-script/) run inside Google, with their own
 // globals (SpreadsheetApp, UrlFetchApp…), and are not linted here yet.
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/', 'scripts/out/', 'secrets/', 'src/*.gs', 'src/*.html'],
+    ignores: ['node_modules/', 'scripts/out/', 'secrets/', 'src/*.gs', 'src/*.html', 'apps-script/'],
   },
   {
     files: ['**/*.{ts,mts,js,mjs}'],

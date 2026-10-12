@@ -53,6 +53,8 @@ const ETIQUETAS_CONSULTA_RUC = [
     'Afiliado al PLE desde:',
     'Padrones:',
     'Fecha consulta:',
+    // Tras «Padrones» la página trae un «Razón Social: eeee -->» suelto: no es del padrón.
+    'Razón Social:',
 ];
 
 /**
@@ -112,13 +114,46 @@ function valorEtiqueta(lineas: string[], etiqueta: string): string {
     return partes.join(' ').trim();
 }
 
+export interface Padrones {
+    buenContribuyente: boolean;
+    agenteRetencion: boolean;
+    agentePercepcion: boolean;
+}
+
+const REGIMEN = /(Incorporado\s+al|Excluido\s+del)\s+Régimen\s+de\s+((?:(?!Incorporado|Excluido)[\s\S])*?)\s+a\s+partir\s+del\s+(\d{2})\/(\d{2})\/(\d{4})/gi;
+
+/**
+ * Qué dicen hoy los padrones.
+ *
+ * «Padrones:» es un historial, no un estado: trae renglones «Incorporado al
+ * Régimen de Agentes de Retención de IGV (R.S. …) a partir del …» y también
+ * «Excluido del Régimen …», y un RUC puede tener los dos. Cuenta el último de
+ * cada régimen (por fecha). Antes se buscaba solo «agente de retención» en
+ * singular y la página dice «Agentes»: ningún agente quedó marcado (209 de 3 011
+ * RUC se vieron así el 09/10/2026, entre ellos INROPRIN, agente de retención desde 2010).
+ */
+export function leerPadrones(texto: string | null): Padrones {
+    const vigente = new Map<string, { fecha: string; incorporado: boolean }>();
+    for (const m of (texto ?? '').matchAll(REGIMEN)) {
+        // «Agentes de Retención de IGV (R.S.217-2010)» → la clave es el régimen, sin la norma.
+        const regimen = m[2].replace(/\(.*$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const fecha = `${m[5]}-${m[4]}-${m[3]}`;
+        const previo = vigente.get(regimen);
+        if (!previo || fecha >= previo.fecha) vigente.set(regimen, { fecha, incorporado: /^incorporado/i.test(m[1]) });
+    }
+    const alguno = (patron: RegExp) => [...vigente].some(([regimen, v]) => v.incorporado && patron.test(regimen));
+    return {
+        buenContribuyente: alguno(/buenos?\s+contribuyentes/),
+        agenteRetencion: alguno(/agentes?\s+de\s+retenci/),
+        agentePercepcion: alguno(/agentes?\s+de\s+percepci/),
+    };
+}
+
 /**
  * Interpreta el resultado de la consulta.
  *
- * `Padrones` trae «NINGUNO» cuando el RUC no está en ningún padrón, o texto
- * libre («Incorporado al Régimen de Buenos Contribuyentes...») cuando sí. Se
- * detecta por palabra clave en vez de exigir el texto exacto, porque la
- * redacción varía según el padrón y la resolución.
+ * `Padrones` trae «NINGUNO» cuando el RUC no está en ningún padrón, o el
+ * historial de regímenes (ver `leerPadrones`) cuando sí.
  */
 export function leerResultadoConsultaRuc(html: string, ruc: string): CondicionRuc {
     const lineas = textoPlano(html);
@@ -151,9 +186,7 @@ export function leerResultadoConsultaRuc(html: string, ruc: string): CondicionRu
         razonSocial,
         estado,
         condicion,
-        buenContribuyente: /buenos?\s+contribuyentes/i.test(padrones),
-        agenteRetencion: /agente\s+de\s+retenci/i.test(padrones),
-        agentePercepcion: /agente\s+de\s+percepci/i.test(padrones),
+        ...leerPadrones(padrones),
         padronesTexto: ningunPadron ? null : padrones || null,
         encontrado: true,
     };

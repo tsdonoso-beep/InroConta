@@ -3,169 +3,140 @@
 <head>
 <meta charset="utf-8">
 <base target="_top">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<?!= include_('shared/Styles') ?>
 <style>
-  /* Paleta e identidad de INRO (app/globals.css): la misma familia visual que
-     la aplicación y el tablero del legajo por OC. */
-  :root {
-    --bg:#EDF1F4; --surface:#FFFFFF; --surface2:#F6F8FA; --surface3:#EEF2F6;
-    --border:#E4E9EE; --border2:#D2DAE2;
-    --accent:#00A298; --accent-texto:#007A72; --accent-suave:#E1F4F2;
-    --azul:#006DB1; --azul-suave:#E3EEF7; --amarillo:#FFDD00;
-    --tinta:#1D1D1B; --text:#101A24; --text2:#52627A; --text3:#8494A8;
-    --danger:#C62828; --danger-suave:#FBE9E9; --warn:#A15C07; --warn-suave:#FCF1E0;
-    --ok:#1E7F4F; --ok-suave:#E4F4EB;
-    --sombra: 0 2px 4px rgba(16,26,38,.05), 0 6px 16px rgba(16,26,38,.06);
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font-family: "DM Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; }
-  h2 { font-family: "Sora", sans-serif; font-size: 15px; font-weight: 700; margin: 0; }
-  button, select, input { font-family: inherit; font-size: 13.5px; }
   /* Menú lateral (filtros + secciones) y una sección a la vez a la derecha,
      a todo el ancho de la pantalla. */
-  .app { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
-  .lateral { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border);
+  .app { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; transition: grid-template-columns .18s ease; }
+  .lateral { position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden; background: var(--surface); border-right: 1px solid var(--border);
              padding: 22px 16px 18px; display: flex; flex-direction: column; gap: 18px; }
-  .lat-marca svg { display: block; width: 138px; height: auto; }
-  .lat-titulo { font-family: "Sora", sans-serif; font-weight: 700; font-size: 15px; margin-top: 14px; }
-  .lat-titulo span { color: var(--accent-texto); }
-  .lat-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .lat-marca { display: flex; align-items: center; gap: 10px; }
+  .lat-marca img { display: block; flex: none; width: 36px; height: 36px; }
+  .lat-marca-texto { min-width: 0; }
+  .lat-colapsar { flex: none; margin-left: auto; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+                  background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-3); cursor: pointer; }
+  .lat-colapsar:hover { background: var(--surface-2); color: var(--text); }
+  .lat-colapsar svg { width: 15px; height: 15px; transition: transform .18s ease; }
+  .lat-titulo { font-weight: 700; font-size: 15px; }
+  .lat-titulo span { color: var(--primary-strong); }
+  .lat-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
   .lat-bloque { display: flex; flex-direction: column; gap: 8px; }
-  .lat-rotulo { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); }
+  .lat-rotulo { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav button { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-radius: 10px; padding: 9px 10px;
-                cursor: pointer; color: var(--text2); font-weight: 600; font-size: 13.5px; text-align: left; }
-  .nav button:hover { background: var(--surface2); color: var(--text); }
-  .nav button.activo { background: var(--accent-suave); color: var(--accent-texto); }
+                cursor: pointer; color: var(--text-2); font-weight: 600; font-size: 13.5px; text-align: left; }
+  .nav button:hover { background: var(--surface-2); color: var(--text); }
+  .nav button.activo { background: var(--primary-soft); color: var(--primary-strong); }
   .nav svg { flex: none; width: 17px; height: 17px; }
   .nav .insignia { margin-left: auto; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
-  .lat-pie { margin-top: auto; border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text2); }
+  .lat-pie { margin-top: auto; border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-2); }
   .lat-pie .grande { font-size: 17px; margin: 0; }
   .lat-pie .boton { justify-content: center; margin-top: 6px; padding: 9px 12px; font-size: 12.5px; }
+  /* Menú colapsado: solo íconos (el nombre de cada sección queda en el title). En el celular no aplica. */
+  @media (min-width: 901px) {
+    .app.colapsado { grid-template-columns: 68px minmax(0, 1fr); }
+    .colapsado .lateral { padding: 22px 10px 18px; }
+    .colapsado .lat-marca { flex-direction: column; gap: 14px; }
+    .colapsado .lat-colapsar { margin-left: 0; }
+    .colapsado .lat-colapsar svg { transform: rotate(180deg); }
+    .colapsado .lat-marca-texto, .colapsado .lat-rotulo, .colapsado .lat-pie,
+    .colapsado .nav button > span:not(.insignia) { display: none; }
+    .colapsado .lat-bloque + .lat-bloque { border-top: 1px solid var(--border); padding-top: 14px; }
+    .colapsado .nav button { justify-content: center; position: relative; padding: 10px; }
+    .colapsado .nav .insignia { position: absolute; top: 2px; right: 2px; margin: 0; font-size: 9.5px; padding: 0 5px; }
+  }
   .principal { padding: 22px 28px 40px; min-width: 0; }
   .encabezado { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-  .encabezado h1 { font-family: "Sora", sans-serif; font-size: 21px; font-weight: 800; margin: 0; }
-  .nav .insignia-gris { background: var(--surface3); color: var(--text2); }
-  .nav .insignia-verde { background: var(--accent); }
+  .encabezado h1 { font-size: 21px; font-weight: 800; margin: 0; }
+  .nav .insignia-gris { background: var(--surface-3); color: var(--text-2); }
+  .nav .insignia-verde { background: var(--primary); }
   .barra-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-  .barra-filtros select { background: var(--surface); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 10px; color: var(--text); }
+  .barra-filtros select { background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; padding: 8px 10px; color: var(--text); }
   .barra-filtros .buscador { flex: 1; min-width: 220px; padding-top: 9px; padding-bottom: 9px; }
-  .chip-rojo { background: var(--danger-suave); color: var(--danger); }
   .tabla td .chip { white-space: normal; }
-  .tabla a.abrir { font-size: 12.5px; font-weight: 600; text-decoration: none; padding: 4px 9px; border-radius: 7px; background: var(--azul-suave); color: var(--azul); white-space: nowrap; }
-  .cargando-base { display: flex; align-items: center; gap: 10px; color: var(--text2); padding: 30px 4px; }
-  .dia { font-family: "Sora", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-texto); margin: 16px 0 6px; }
+  .tabla a.abrir { font-size: 12.5px; font-weight: 600; text-decoration: none; padding: 4px 9px; border-radius: 7px; background: var(--primary-soft); color: var(--primary); white-space: nowrap; }
+  .cargando-base { display: flex; align-items: center; gap: 10px; color: var(--text-2); padding: 30px 4px; }
+  .dia { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--primary-strong); margin: 16px 0 6px; }
   /* Detalle de una carpeta (Legajo por OC → clic en la fila) */
   .tabla tr.fila-click { cursor: pointer; }
-  .tabla tr.fila-click:hover td, .tabla tr.fila-click.abierta td { background: var(--surface2); }
-  .tabla tr.detalle-carpeta > td { background: var(--surface2); padding: 4px 14px 18px; }
+  .tabla tr.fila-click:hover td, .tabla tr.fila-click.abierta td { background: var(--surface-2); }
+  .tabla tr.detalle-carpeta > td { background: var(--surface-2); padding: 4px 14px 18px; }
   .det-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; margin: 6px 0 14px; }
   .det-doc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
   .det-doc .det-marca { font-weight: 800; margin-right: 6px; }
   .grilla.grilla-legajo { grid-template-columns: minmax(0, 1fr) 300px; }
-  .det-doc .m-s { color: var(--accent); } .det-doc .m-n { color: var(--danger); } .det-doc .m-x, .det-doc .m-o { color: var(--text3); }
-  .det-doc.falta { border-color: #F2C9C9; background: #FFF9F9; }
+  .det-doc .m-s { color: var(--primary); } .det-doc .m-n { color: var(--danger); } .det-doc .m-x, .det-doc .m-o { color: var(--text-3); }
+  .det-doc.falta { border-color: var(--danger-line); background: var(--danger-soft); }
   .det-doc .archivos { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
   .det-doc .archivos a { font-size: 12px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .det-doc.porsubir { border-color: #EED3A6; background: #FFFAF1; }
-  .det-doc .m-p { color: var(--warn); }
-  .det-doc .evidencia { margin-top: 4px; font-size: 12px; color: var(--warn); line-height: 1.35; }
-  .det-doc .evidencia a { color: var(--warn); }
+  .det-doc.porsubir { border-color: var(--warning-line); background: var(--warning-soft); }
+  .det-doc .m-p { color: var(--warning-strong); }
+  .det-doc .evidencia { margin-top: 4px; font-size: 12px; color: var(--warning-strong); line-height: 1.35; }
+  .det-doc .evidencia a { color: var(--warning-strong); }
   .det-fuentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; margin-top: 14px; }
   .det-fuente { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); min-width: 0; }
-  .det-fuente h4 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); }
+  .det-fuente h4 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
   .det-fuente .det-info { grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 8px 12px; }
   .det-fuente .vale { font-size: 12.5px; padding: 6px 0; border-top: 1px dashed var(--border); }
   .det-fuente .vale:first-of-type { border-top: 0; }
-  .det-fuente .vale.anulado { text-decoration: line-through; color: var(--text3); }
+  .det-fuente .vale.anulado { text-decoration: line-through; color: var(--text-3); }
   .det-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 18px; font-size: 13px; }
-  .det-info span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); margin-bottom: 2px; }
+  .det-info span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: 2px; }
   .det-lista { font-size: 12.5px; margin-top: 12px; }
-  .det-lista b { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+  .det-lista b { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-bottom: 4px; }
   .vista { display: none; }
   .vista.activa { display: block; }
-  a { color: var(--azul); }
 
-  #cargando { max-width: 1240px; margin: 80px auto; padding: 0 24px; color: var(--text2); font-size: 14px; display: flex; align-items: center; gap: 12px; }
-  .giro { width: 18px; height: 18px; border: 2.5px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: giro .8s linear infinite; }
-  @keyframes giro { to { transform: rotate(360deg); } }
+  #cargando { max-width: 1240px; margin: 80px auto; padding: 0 24px; color: var(--text-2); font-size: 14px; display: flex; align-items: center; gap: 12px; }
   #error { max-width: 520px; margin: 60px auto; }
 
   /* ── Cabecera ── */
   .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-              margin-bottom: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border2); }
+              margin-bottom: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border-2); }
   .marca { display: flex; align-items: center; gap: 16px; }
-  .marca-titulo { font-family: "Sora", sans-serif; font-weight: 700; font-size: 17px; }
-  .marca-sub { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
-  .boton { display: inline-flex; align-items: center; gap: 6px; background: var(--tinta); color: #fff; border: 0; cursor: pointer;
-           text-decoration: none; font-weight: 600; font-size: 13.5px; padding: 11px 18px; border-radius: 10px; box-shadow: var(--sombra); white-space: nowrap; }
-  .boton:hover { background: #000; }
-  .boton-accent { background: var(--accent); }
-  .boton-accent:hover { background: var(--accent-texto); }
+  .marca-titulo { font-weight: 700; font-size: 17px; }
+  .marca-sub { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
 
   /* ── Franja de estado ── */
   .estado { display: grid; grid-template-columns: 1.2fr 1fr 1fr; background: var(--surface); border: 1px solid var(--border);
-            border-radius: 14px; box-shadow: var(--sombra); margin-bottom: 18px; overflow: hidden; }
+            border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 18px; overflow: hidden; }
   .estado > div { padding: 16px 20px; min-width: 0; }
   .estado > div + div { border-left: 1px solid var(--border); }
-  .rotulo { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
-  .chip { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
-  .chip-ok { background: var(--ok-suave); color: var(--ok); }
-  .chip-warn { background: var(--warn-suave); color: var(--warn); }
-  .chip-azul { background: var(--azul-suave); color: var(--azul); }
-  .chip-gris { background: var(--surface3); color: var(--text2); }
   /* Ficha del proveedor (padrón de SUNAT) en «Buscar factura». */
-  .ficha-prov { border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); padding: 12px 14px; margin: 4px 0 12px; }
+  .ficha-prov { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); padding: 12px 14px; margin: 4px 0 12px; }
   .ficha-prov .fp-nombre { font-weight: 700; font-size: 15px; }
   .ficha-prov .fp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
   .ficha-prov .chip { font-size: 12px; padding: 3px 9px; }
-  .ficha-prov .fp-dom { font-size: 13px; color: var(--text2); line-height: 1.45; overflow-wrap: anywhere; }
-  .marca-bc { color: var(--ok); font-weight: 700; }
-  .tabla tr.fila-total td { border-top: 2px solid var(--border); background: var(--surface2); }
-  .tabla tr.mes-elegido td { background: var(--accent-suave); }
-  .punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
-  .pasos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--text2); }
-  .paso { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px; }
-  .linea { font-size: 13px; color: var(--text2); line-height: 1.45; }
-  .linea b { color: var(--text); }
-  .grande { font-family: "Sora", sans-serif; font-size: 20px; font-weight: 700; margin: 2px 0 4px; }
+  .ficha-prov .fp-dom { font-size: 13px; color: var(--text-2); line-height: 1.45; overflow-wrap: anywhere; }
+  .marca-bc { color: var(--success-strong); font-weight: 700; }
+  .tabla tr.fila-total td { border-top: 2px solid var(--border); background: var(--surface-2); }
+  .tabla tr.mes-elegido td { background: var(--primary-soft); }
+  .pasos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--text-2); }
+  .paso { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px; }
 
   /* ── Filtros ── */
   .filtros { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
-             background: rgba(237,241,244,.94); backdrop-filter: blur(6px); padding: 10px 24px 12px; margin: 0 -24px 8px; }
-  .filtros label { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); margin-right: -4px; }
-  .filtros select { background: var(--surface); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 10px; color: var(--text); }
-  .segmento { display: inline-flex; background: var(--surface); border: 1px solid var(--border2); border-radius: 9px; padding: 3px; }
-  .segmento button { white-space: nowrap; background: none; border: 0; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--text2); font-weight: 600; font-size: 12.5px; }
-  .segmento button.activo { background: var(--tinta); color: #fff; }
-  .limpiar { background: none; border: 0; color: var(--azul); cursor: pointer; font-weight: 600; font-size: 12.5px; padding: 6px 4px; }
-  .filtro-activo { font-size: 12px; color: var(--text2); margin-left: auto; }
+             background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(6px); padding: 10px 24px 12px; margin: 0 -24px 8px; }
+  .filtros label { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin-right: -4px; }
+  .filtros select { background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; padding: 8px 10px; color: var(--text); }
+  .filtro-activo { font-size: 12px; color: var(--text-2); margin-left: auto; }
 
   /* ── KPIs ── */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 14px; }
-  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px 14px; box-shadow: var(--sombra); min-width: 0; }
-  .kpi-valor { font-family: "Sora", sans-serif; font-size: 25px; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kpi-valor small { font-size: 13px; font-weight: 700; color: var(--text2); }
-  .kpi-extra { font-size: 12px; color: var(--text2); margin-top: 6px; }
-  .kpi-riesgo { border-color: #F2C9C9; background: linear-gradient(180deg, #FFF 0%, #FFF7F7 100%); }
+  .kpi-riesgo { border-color: var(--danger-line); background: linear-gradient(180deg, var(--surface) 0%, var(--danger-soft) 100%); }
   .kpi-riesgo .kpi-valor { color: var(--danger); }
   .kpi-anillo { display: flex; align-items: center; gap: 14px; }
   .kpi-anillo svg { flex: none; }
   .kpi-anillo .kpi-extra { white-space: normal; min-width: 0; }
   .chispa { display: block; margin-top: 10px; max-width: 100%; height: auto; }
   .variacion { font-weight: 700; }
-  .sube { color: var(--danger); } .baja { color: var(--ok); } .igual { color: var(--text3); }
+  .sube { color: var(--danger); } .baja { color: var(--success-strong); } .igual { color: var(--text-3); }
 
   /* ── Tarjetas ── */
   .grilla { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; margin-bottom: 14px; }
   .grilla-igual { grid-template-columns: 1fr 1fr; }
   .grilla-tres { grid-template-columns: 1fr 1fr 1fr; }
-  .tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: var(--sombra); min-width: 0; }
-  .tarjeta-ancha { margin-bottom: 14px; }
   /* Detracciones a revisar: empieza cerrada, una línea; se abre con un clic. */
-  details.desplegable { padding-top: 14px; padding-bottom: 14px; border-color: #F2C9C9; }
+  details.desplegable { padding-top: 14px; padding-bottom: 14px; border-color: var(--danger-line); }
   details.desplegable > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   details.desplegable > summary::-webkit-details-marker { display: none; }
   details.desplegable > summary h2 { display: flex; align-items: center; gap: 8px; }
@@ -173,30 +144,27 @@
   details.desplegable[open] > summary h2::before { transform: rotate(90deg); }
   details.desplegable[open] > summary { margin-bottom: 14px; }
   details.desplegable .det-cuenta { color: var(--danger); font-weight: 700; }
-  .tarjeta-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-  .nota { font-size: 12px; color: var(--text3); }
-  .vacio { color: var(--text3); font-size: 13px; margin: 0; }
-  .seccion { font-family: "Sora", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-texto); margin: 26px 0 12px; }
+  .seccion { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary-strong); margin: 26px 0 12px; }
 
   /* Meses */
   .meses { display: flex; align-items: flex-end; gap: 10px; height: 210px; padding-top: 6px; overflow-x: auto; }
   .mes { flex: 1 0 46px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; height: 100%; justify-content: flex-end; }
-  .mes-cifra { font-size: 11.5px; font-weight: 700; color: var(--text2); white-space: nowrap; }
-  .mes-barra { width: 70%; max-width: 46px; border-radius: 7px 7px 3px 3px; background: var(--accent); transition: opacity .12s; min-height: 3px; }
+  .mes-cifra { font-size: 11.5px; font-weight: 700; color: var(--text-2); white-space: nowrap; }
+  .mes-barra { width: 70%; max-width: 46px; border-radius: 7px 7px 3px 3px; background: var(--primary); transition: opacity .12s; min-height: 3px; }
   .mes-barra.neg { background: var(--danger); }
   .mes:hover .mes-barra { opacity: .8; }
   .mes.atenuado .mes-barra { opacity: .3; }
-  .mes-etq { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .mes-etq { font-size: 12px; color: var(--text-2); white-space: nowrap; }
   .mes.activo .mes-etq { color: var(--text); font-weight: 700; }
   /* Detracciones: barras apiladas (compras abajo, ventas arriba) */
   .mes-pila { width: 70%; max-width: 46px; display: flex; flex-direction: column-reverse; border-radius: 7px 7px 3px 3px; overflow: hidden; min-height: 3px; transition: opacity .12s; }
   .mes-pila > span { display: block; min-height: 2px; }
   .mes:hover .mes-pila { opacity: .8; }
   .mes.atenuado .mes-pila { opacity: .3; }
-  .leyenda-mini { display: flex; gap: 14px; font-size: 12px; color: var(--text2); margin-top: 8px; flex-wrap: wrap; }
+  .leyenda-mini { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin-top: 8px; flex-wrap: wrap; }
   .leyenda-mini i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-  .fila-barra.elegida { background: var(--accent-suave); }
-  .fb-desc { font-size: 11.5px; color: var(--text3); margin: -2px 0 5px; }
+  .fila-barra.elegida { background: var(--primary-soft); }
+  .fb-desc { font-size: 11.5px; color: var(--text-3); margin: -2px 0 5px; }
   .dif { color: var(--danger); font-weight: 700; }
   .tabla .acciones { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 
@@ -209,17 +177,17 @@
 
   /* Barras */
   .fila-barra { margin-bottom: 11px; border-radius: 8px; padding: 4px 6px; margin-left: -6px; margin-right: -6px; }
-  .fila-barra:hover { background: var(--surface2); }
+  .fila-barra:hover { background: var(--surface-2); }
   .fb-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; gap: 10px; }
   .fb-etq { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fb-cifras { font-size: 12.5px; color: var(--text2); white-space: nowrap; }
-  .fb-pista { height: 8px; background: var(--surface3); border-radius: 6px; overflow: hidden; }
-  .fb-pista > span { display: block; height: 100%; border-radius: 6px; background: var(--accent); }
+  .fb-cifras { font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
+  .fb-pista { height: 8px; background: var(--surface-3); border-radius: 6px; overflow: hidden; }
+  .fb-pista > span { display: block; height: 100%; border-radius: 6px; background: var(--primary); }
 
   /* Mapa de calor proveedor × mes */
   .calor-caja { overflow-x: auto; }
   .calor { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 12.5px; }
-  .calor th { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text3); padding: 0 4px 4px; white-space: nowrap; }
+  .calor th { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); padding: 0 4px 4px; white-space: nowrap; }
   .calor th.activo { color: var(--text); }
   .calor td.prov { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; padding-right: 10px; }
   .calor td.celda { text-align: center; border-radius: 7px; padding: 8px 4px; font-variant-numeric: tabular-nums; min-width: 66px; white-space: nowrap; }
@@ -227,48 +195,39 @@
 
   /* Buscador */
   .buscador-caja { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
-  .buscador { flex: 1; min-width: 260px; padding: 12px 14px 12px 40px; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface) no-repeat 14px center;
-              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238494A8' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 4 4'/%3E%3C/svg%3E"); font-size: 14px; color: var(--text); }
-  .buscador:focus { outline: 2px solid var(--accent-suave); border-color: var(--accent); }
   .resultados { display: flex; flex-direction: column; }
   .producto { display: grid; grid-template-columns: minmax(0, 2.2fr) 1fr 1.1fr 130px 92px; gap: 14px; align-items: center; padding: 12px 6px; border-top: 1px solid var(--border); }
   .producto:first-child { border-top: 0; }
-  .producto:hover { background: var(--surface2); }
+  .producto:hover { background: var(--surface-2); }
   .p-nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .p-sub { font-size: 12px; color: var(--text3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .p-dato { font-size: 13px; font-variant-numeric: tabular-nums; }
-  .p-dato small { display: block; font-size: 11.5px; color: var(--text3); }
+  .p-dato small { display: block; font-size: 11.5px; color: var(--text-3); }
   .p-pdf { font-size: 12.5px; font-weight: 600; text-decoration: none; white-space: nowrap; }
-  .p-cab { display: grid; grid-template-columns: minmax(0, 2.2fr) 1fr 1.1fr 130px 92px; gap: 14px; padding: 0 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border2); }
+  .p-cab { display: grid; grid-template-columns: minmax(0, 2.2fr) 1fr 1.1fr 130px 92px; gap: 14px; padding: 0 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border-2); }
   .mas { margin-top: 10px; }
 
   /* Tablas */
-  .tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  .tabla th { text-align: left; padding: 0 10px 10px 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border2); }
-  .tabla th.num { text-align: right; }
-  .tabla td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .sub { font-size: 11.5px; color: var(--text3); margin-top: 2px; }
 
   /* Buscador de facturas */
-  .buscar-factura { border-color: #BFE6E2; }
+  .buscar-factura { border-color: var(--primary-line); }
   .facturas { display: flex; flex-direction: column; margin-top: 4px; }
   .factura { display: grid; grid-template-columns: 92px minmax(0, 1.1fr) minmax(0, 1.6fr) 130px minmax(0, 1fr) 130px; gap: 12px; align-items: center;
              padding: 11px 8px; border-top: 1px solid var(--border); cursor: pointer; border-radius: 8px; }
   .factura:first-child { border-top: 0; }
-  .factura:hover, .factura.abierta { background: var(--surface2); }
+  .factura:hover, .factura.abierta { background: var(--surface-2); }
   .f-comp { font-weight: 700; font-variant-numeric: tabular-nums; }
   .f-total { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .f-acc { display: flex; gap: 8px; justify-content: flex-end; }
-  .f-acc a { font-size: 12.5px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: var(--azul-suave); color: var(--azul); white-space: nowrap; }
-  .f-acc a:hover { background: #D3E4F2; }
-  .f-det { padding: 14px 16px 16px; margin: 0 0 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; }
-  .f-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 12.5px; color: var(--text2); margin-bottom: 12px; }
+  .f-acc a { font-size: 12.5px; font-weight: 600; text-decoration: none; padding: 5px 9px; border-radius: 7px; background: var(--primary-soft); color: var(--primary); white-space: nowrap; }
+  .f-acc a:hover { background: var(--primary-line); }
+  .f-det { padding: 14px 16px 16px; margin: 0 0 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+  .f-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; }
   .f-meta b { color: var(--text); }
   .ayuda { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-  .ayuda button { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--text2); font-size: 12.5px; }
-  .ayuda button:hover { border-color: var(--accent); color: var(--accent-texto); }
-  .pie { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; font-size: 12px; color: var(--text3); }
+  .ayuda button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--text-2); font-size: 12.5px; }
+  .ayuda button:hover { border-color: var(--primary); color: var(--primary-strong); }
+  .pie { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; font-size: 12px; color: var(--text-3); }
 
   @media (max-width: 900px) {
     /* En el celular el menú pasa arriba: filtros en una fila y las secciones como pestañas. */
@@ -276,7 +235,7 @@
     .lateral { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 14px 16px; gap: 12px; }
     .nav { flex-direction: row; overflow-x: auto; }
     .nav button { width: auto; white-space: nowrap; }
-    .lat-pie { display: none; }
+    .lat-pie, .lat-colapsar { display: none; }
     .principal { padding: 16px; }
   }
   @media (max-width: 980px) {
@@ -311,31 +270,12 @@
 
   <aside class="lateral">
     <div class="lat-marca">
-      <svg width="138" height="31" viewBox="0 0 183 41" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Roland Print">
-        <path opacity="0.15" d="M15.3066 35.9092L26.7855 35.8535L31.4094 40.5052H19.9305L15.3066 35.9092Z" fill="#1D1D1B"/>
-        <path d="M11.9185 20.6918L5.95923 26.6176L0 20.6918L5.95923 14.7715L11.9185 20.6918Z" fill="#006DB1"/>
-        <path d="M18.8459 13.8087L12.8867 19.7345L6.92188 13.8087L12.8867 7.88281L18.8459 13.8087Z" fill="#E30613"/>
-        <path d="M25.7681 6.92584L19.8088 12.8517L13.8496 6.92584L19.8088 1L25.7681 6.92584Z" fill="#006DB1"/>
-        <path d="M18.9683 27.7032L13.009 33.629L7.0498 27.7032L13.009 21.7773L18.9683 27.7032Z" fill="#00A298"/>
-        <path d="M25.8957 20.8148L19.9365 26.7406L13.9717 20.8148L19.9365 14.8945L25.8957 20.8148Z" fill="#FFDD00"/>
-        <path d="M32.8179 13.9317L26.8586 19.8575L20.8994 13.9317L26.8586 8.00586L32.8179 13.9317Z" fill="#00A298"/>
-        <path d="M25.8843 34.5801L19.925 40.506L13.9658 34.5801L19.9306 28.6543L25.8843 34.5801Z" fill="#E30613"/>
-        <path d="M32.812 27.6918L26.8528 33.6176L20.8936 27.6918L26.8528 21.7715L32.812 27.6918Z" fill="#006DB1"/>
-        <path d="M38.5097 24.7486L30.2246 23.2018L31.777 14.9668L40.0621 16.5136L38.5097 24.7486Z" fill="#E30613"/>
-        <path d="M50.4785 16.111H59.0918C61.0171 16.111 62.447 16.5228 63.3763 17.3407C64.3389 18.1976 64.8229 19.444 64.8229 21.0854C64.8229 22.1815 64.5837 23.0829 64.0996 23.8007C63.6879 24.4851 63.0313 24.9803 62.141 25.2864C62.9311 25.559 63.482 25.9707 63.7936 26.516C64.1052 27.0279 64.2943 27.9015 64.3611 29.1312L64.4668 31.2344V31.9021C64.4668 32.1414 64.4835 32.364 64.5169 32.5699C64.6226 33.1875 64.8285 33.577 65.1345 33.7495H61.1116C60.9392 33.41 60.8334 33.0484 60.8 32.67C60.7333 32.1247 60.6943 31.7464 60.6943 31.5405L60.6443 29.6431C60.5775 28.6193 60.3716 27.8793 60.0266 27.4397C59.6483 27.0613 58.975 26.8777 58.0124 26.8777H54.1453V33.7495H50.4841V16.1055L50.4785 16.111ZM54.1397 23.8007H58.4242C59.3534 23.8007 60.0433 23.6115 60.4885 23.2387C60.9336 22.8604 61.1617 22.2817 61.1617 21.4972C61.1617 20.7126 60.9392 20.1284 60.4885 19.7556C60.0767 19.3438 59.4591 19.1379 58.63 19.1379H54.1397V23.8063V23.8007Z" fill="#1D1D1B"/>
-        <path d="M83.786 16.1113V33.7553H80.1748V16.1113H83.786Z" fill="#1D1D1B"/>
-        <path d="M90.3954 33.8169C89.1602 33.8169 88.0751 33.4831 87.1459 32.8154C86.2167 32.1477 85.7549 31.2352 85.7549 29.6994C85.7549 28.2639 86.1778 27.2345 87.018 26.6225C87.4686 26.2942 87.9861 26.0215 88.5704 25.8101C89.0767 25.6265 91.3803 25.2203 91.6919 25.1869C93.2053 24.981 93.962 24.5359 93.962 23.8515C93.962 23.3396 93.695 23.0057 93.1608 22.8499C92.6266 22.6941 92.137 22.6218 91.6919 22.6218C91.2078 22.6218 90.7793 22.6886 90.401 22.8277C90.0226 22.9668 89.75 23.2227 89.5775 23.5955H86.1221C86.2612 22.5384 86.7397 21.6648 87.5688 20.9804C88.498 20.1958 89.8223 19.8008 91.5416 19.8008C93.4668 19.8008 94.9135 20.1235 95.8761 20.7745C96.8721 21.4589 97.3729 22.4159 97.3729 23.6456V33.8169M94.0121 31.046V26.884C93.528 27.1232 92.8603 27.3458 91.9979 27.5517L90.8127 27.8076C90.1951 27.9801 89.7166 28.1749 89.4718 28.4753C89.1935 28.8203 89.1101 29.2265 89.1101 29.6048C89.1101 30.1168 89.2659 30.3338 89.5775 30.6398C89.8835 30.9124 90.3342 31.0515 90.9184 31.0515H94.0121V31.046Z" fill="#1D1D1B"/>
-        <path d="M108.001 33.756V25.037C108.001 24.219 107.751 23.6181 107.256 23.2397C106.755 22.8614 106.198 22.6778 105.581 22.6778C104.963 22.6778 104.412 22.8669 103.928 23.2397C103.45 23.6181 103.205 24.2135 103.205 25.037V33.756H99.5938V25.7547C99.5938 23.4289 100.206 21.8765 101.424 21.0864C102.643 20.3019 103.995 19.8734 105.475 19.8066C106.989 19.8066 108.38 20.2017 109.654 20.9862C110.928 21.7708 111.562 23.3621 111.562 25.7547V33.756H108.001Z" fill="#1D1D1B"/>
-        <path d="M119.864 33.8172C119.096 33.8394 117.889 33.7838 117.232 33.5724C116.575 33.3609 115.685 32.8101 115.168 32.1591C114.172 30.896 113.671 29.1655 113.671 26.9788C113.671 24.7921 114.166 23.1006 115.168 21.7986C116.197 20.4632 117.521 19.7955 119.14 19.7955C120.003 19.7955 120.76 19.968 121.411 20.3074C122.101 20.7191 122.651 21.2477 123.063 21.8987V16.0508H126.569V33.8116H119.858L119.864 33.8172ZM122.941 23.9074C122.39 23.223 120.999 22.8836 120.07 22.8836C119.14 22.8836 118.473 23.2397 117.955 23.9575C117.438 24.6419 117.182 25.5989 117.182 26.8286C117.182 28.1974 117.438 29.2379 117.955 29.9556C118.473 30.6734 119.207 31.0351 120.175 31.0351C121.144 31.0351 121.383 31.0407 122.941 31.0295V23.9074Z" fill="#1D1D1B"/>
-        <path d="M133.758 16.1113H141.653C143.545 16.1113 144.953 16.5898 145.882 17.5469C146.845 18.5039 147.323 19.9228 147.323 21.8035C147.323 23.584 146.861 24.9862 145.932 26.01C145.003 26.967 143.662 27.4455 141.909 27.4455H137.419V33.7553H133.758V16.1113ZM137.425 24.2628H140.986C141.948 24.2628 142.638 24.057 143.05 23.6452C143.495 23.2669 143.723 22.6214 143.723 21.6978C143.723 20.9132 143.517 20.2789 143.106 19.8004C142.627 19.3886 141.987 19.1828 141.197 19.1828H137.43V24.2628H137.425Z" fill="#1D1D1B"/>
-        <path d="M147.612 33.7566V27.1408C147.612 25.8054 147.807 24.687 148.202 23.7801C148.597 22.8731 149.137 22.1498 149.827 21.5989C150.483 21.087 151.246 20.7086 152.125 20.4694C153.004 20.2301 153.905 20.1133 154.835 20.1133H155.352V23.7522H154.167C153.171 23.7522 152.431 23.9915 151.947 24.47C151.468 24.9485 151.223 25.6997 151.223 26.7291V33.7566H147.612Z" fill="#1D1D1B"/>
-        <path d="M161.095 16.1113V18.9324H157.483V16.1113H161.095ZM161.095 20.112V33.7553H157.483V20.112H161.095Z" fill="#1D1D1B"/>
-        <path d="M171.705 33.756V25.037C171.705 24.219 171.455 23.6181 170.96 23.2397C170.459 22.8614 169.903 22.6778 169.285 22.6778C168.667 22.6778 168.116 22.8669 167.632 23.2397C167.148 23.6181 166.909 24.2135 166.909 25.037V33.756H163.298V25.7547C163.298 23.4289 163.91 21.8765 165.128 21.0864C166.347 20.3019 167.699 19.8734 169.179 19.8066C170.693 19.8066 172.089 20.2017 173.358 20.9862C174.632 21.7708 175.266 23.3621 175.266 25.7547V33.756H171.705Z" fill="#1D1D1B"/>
-        <path d="M183.001 22.6211H180.886V33.7495H177.325V16.1055H180.886V20.1562H183.001V22.6155" fill="#1D1D1B"/>
-        <path d="M77.3037 22.8049C76.686 21.553 75.7234 20.6738 74.4159 20.1619C73.2808 19.7558 72.0066 19.6445 70.5988 19.8337C69.1855 20.0228 68.0393 20.6182 67.1435 21.6364C66.5926 22.2429 66.1865 23.0052 65.9305 23.9178C65.6746 24.8303 65.541 25.7484 65.541 26.6609C65.541 27.7793 65.6968 28.8532 66.0084 29.8825C66.3144 30.9175 66.8319 31.7354 67.5552 32.3475C68.2396 32.954 69.1633 33.388 70.3151 33.6439C71.4669 33.8999 72.6131 33.8721 73.7482 33.566C75.0224 33.2989 76.0684 32.6034 76.8975 31.485C77.2758 30.9453 77.5819 30.2832 77.8267 29.5042C78.066 28.7252 78.1884 27.796 78.1884 26.711C78.1884 25.2253 77.8935 23.9178 77.3092 22.7994L77.3037 22.8049ZM71.8619 30.9954C69.9144 30.9954 68.9741 29.1091 68.9741 26.7833C68.9741 24.4575 69.9089 22.5712 71.8619 22.5712C73.8149 22.5712 74.7497 24.4575 74.7497 26.7833C74.7497 29.1091 73.8038 30.9954 71.8619 30.9954Z" fill="#1D1D1B"/>
-      </svg>
-      <div class="lat-titulo">INRO<span>CONTA</span></div>
-      <div class="lat-sub">Contabilidad · SUNAT, compras y legajo</div>
+      <?!= include_('shared/Logo') ?>
+      <div class="lat-marca-texto">
+        <div class="lat-titulo">INRO<span>CONTA</span></div>
+        <div class="lat-sub">Contabilidad · SUNAT, compras y legajo</div>
+      </div>
+      <button class="lat-colapsar" id="colapsarMenu" type="button" title="Colapsar el menú" aria-label="Colapsar el menú"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
     </div>
 
     <div class="lat-bloque">
@@ -585,7 +525,7 @@
   var F = { mes: '', origen: 0, moneda: 0 };
   var B = { texto: '', modo: 'todo', orden: 'gasto', cuantos: 25 };
   var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
-  var TIPOS = { F: ['Facturas', '#00A298'], B: ['Boletas', '#006DB1'], C: ['Notas de crédito', '#C62828'], D: ['Notas de débito', '#A15C07'], O: ['Otros', '#8494A8'] };
+  var TIPOS = { F: ['Facturas', token('teal')], B: ['Boletas', token('primary')], C: ['Notas de crédito', token('danger')], D: ['Notas de débito', token('warning')], O: ['Otros', token('text-3')] };
 
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var plano = function (t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); };
@@ -649,6 +589,16 @@
         var b = e.target.closest('button[data-vista]'); if (b) mostrarSeccion(b.getAttribute('data-vista'));
       };
     });
+    // Colapsado se queda con los íconos: el nombre de cada sección pasa al title.
+    document.querySelectorAll('.nav button[data-vista]').forEach(function (b) { b.title = b.querySelector('span').textContent; });
+    function colapsarMenu(si) {
+      document.getElementById('pagina').classList.toggle('colapsado', si);
+      var b = document.getElementById('colapsarMenu');
+      b.title = si ? 'Expandir el menú' : 'Colapsar el menú'; b.setAttribute('aria-label', b.title);
+      try { localStorage.setItem('vistaSunatMenuColapsado', si ? '1' : ''); } catch (e) { /* sin almacenamiento: no se recuerda */ }
+    }
+    document.getElementById('colapsarMenu').onclick = function () { colapsarMenu(!document.getElementById('pagina').classList.contains('colapsado')); };
+    try { if (localStorage.getItem('vistaSunatMenuColapsado')) colapsarMenu(true); } catch (e) { /* sin almacenamiento: abierto */ }
     cargarBase();
     var guardada = null;
     try { guardada = localStorage.getItem('vistaSunatSeccion'); } catch (e) { /* sin almacenamiento: se empieza por el resumen */ }
@@ -832,7 +782,7 @@
     var conFuentes = delArea.some(function (x) { return x[18]; });
     document.getElementById('lKpis').innerHTML =
       kpi('Carpetas de OC', miles(delArea.length), '<div class="kpi-extra">' + miles(new Set(delArea.map(function (x) { return x[5]; })).size) + ' OC distintas</div>') +
-      kpi('Legajo completo', '<div class="kpi-anillo">' + anillo(pct(ok, delArea.length), '#00A298') + '<div class="kpi-extra" style="margin:0">' + miles(ok) + ' de ' + miles(delArea.length) + '<br>con todo lo que le corresponde</div></div>') +
+      kpi('Legajo completo', '<div class="kpi-anillo">' + anillo(pct(ok, delArea.length), token('success')) + '<div class="kpi-extra" style="margin:0">' + miles(ok) + ' de ' + miles(delArea.length) + '<br>con todo lo que le corresponde</div></div>') +
       (conFuentes
         ? kpi('Falta y no está en ningún lado', miles(delArea.filter(function (x) { return x[20]; }).length),
             '<div class="kpi-extra">guía: ' + miles(sinRastro(/Guía/)) + ' · factura: ' + miles(sinRastro(/Factura/)) + ' · acta: ' + miles(sinRastro(/Acta/)) +
@@ -858,7 +808,7 @@
     document.getElementById('lTabla').innerHTML = lista.length ? '<table class="tabla"><thead><tr><th>OC</th><th>Proveedor</th><th>Comprador</th><th>Legajo</th><th class="num">Facturas SUNAT</th><th></th></tr></thead><tbody>' +
       lista.slice(0, L.cuantos).map(function (x) {
         return '<tr class="fila-click' + (L.abierta === x.i ? ' abierta' : '') + '" data-i="' + x.i + '" title="Clic para ver sus documentos"><td><b>' + esc(x[5]) + '</b>' +
-            (empresaDe(x) !== 'INROPRIN' ? '<div class="sub" style="color:var(--warn);font-weight:600" title="Empresa según ' + esc(x[29] || '') + '">' + esc(empresaDe(x)) + '</div>' : '') +
+            (empresaDe(x) !== 'INROPRIN' ? '<div class="sub" style="color:var(--warning-strong);font-weight:600" title="Empresa según ' + esc(x[29] || '') + '">' + esc(empresaDe(x)) + '</div>' : '') +
             '<div class="sub">' + esc(x[7]) + '</div>' +
             (x[22] || x[23] != null ? '<div class="sub" style="white-space:nowrap">' + esc(fechaIso(x[22])) + (x[23] != null ? ' · ' + montoCod(x[23], 'PEN') : '') + '</div>' : '') + '</td>' +
           '<td>' + esc(x[6]) + '<div class="sub" title="' + esc(x[12]) + '">' + esc(x[12]) + '</div></td>' +
@@ -896,9 +846,9 @@
     var claves = Object.keys(g).sort(function (a, b) { return a === '-' ? 1 : b === '-' ? -1 : g[b].ok / g[b].n - g[a].ok / g[a].n || g[b].n - g[a].n; });
     document.getElementById('lRanking').innerHTML = claves.map(function (k) {
       var c = g[k], p = pct(c.ok, c.n);
-      return '<div class="fila-barra" data-comprador="' + esc(k) + '" style="cursor:pointer' + (L.comprador === k ? ';background:var(--accent-suave)' : '') + '" title="Ver sus carpetas">' +
+      return '<div class="fila-barra" data-comprador="' + esc(k) + '" style="cursor:pointer' + (L.comprador === k ? ';background:var(--primary-soft)' : '') + '" title="Ver sus carpetas">' +
         '<div class="fb-cab"><span class="fb-etq">' + (k === '-' ? 'Por identificar' : esc(k)) + '</span><span class="fb-cifras"><b>' + p + '%</b> · ' + c.ok + ' de ' + c.n + '</span></div>' +
-        '<div class="fb-pista"><span style="width:' + Math.max(2, p) + '%;background:' + (p >= 80 ? 'var(--ok)' : p >= 50 ? 'var(--accent)' : 'var(--warn)') + '"></span></div></div>';
+        '<div class="fb-pista"><span style="width:' + Math.max(2, p) + '%;background:' + (p >= 80 ? 'var(--success)' : p >= 50 ? 'var(--primary)' : 'var(--warning)') + '"></span></div></div>';
     }).join('');
   }
 
@@ -1136,17 +1086,17 @@
   var DET_DESDE = '202601';   // desde cuándo se buscan las facturas sin constancia (p_desde de la migración 067)
   // Los casos, en el orden de la base (el primero que calza), con su color y qué quiere decir.
   var CASOS_DET = [
-    ['Revisar monto', '#C62828', 'Lo depositado difiere en más de S/ 1 de la detracción de la factura'],
-    ['Factura de', '#006DB1', 'Depósito de una factura de un año anterior'],
-    ['Sin factura', '#C62828', 'La factura no está ni en el SIRE ni en los XML'],
-    ['Sin XML', '#A15C07', 'Está en el SIRE, pero falta su XML (no sale en el DETALLE)'],
-    ['XML no declara detracción', '#A15C07', 'Hay XML, pero no trae la detracción'],
-    ['Pago 2+ meses después', '#A15C07', 'Se depositó dos meses o más después del período'],
-    ['Normal', '#1E7F4F', 'Todo cuadra']
+    ['Revisar monto', 'danger', 'Lo depositado difiere en más de S/ 1 de la detracción de la factura'],
+    ['Factura de', 'primary', 'Depósito de una factura de un año anterior'],
+    ['Sin factura', 'danger', 'La factura no está ni en el SIRE ni en los XML'],
+    ['Sin XML', 'warning', 'Está en el SIRE, pero falta su XML (no sale en el DETALLE)'],
+    ['XML no declara detracción', 'warning', 'Hay XML, pero no trae la detracción'],
+    ['Pago 2+ meses después', 'warning', 'Se depositó dos meses o más después del período'],
+    ['Normal', 'success', 'Todo cuadra']
   ];
-  function casoDet(c) { for (var i = 0; i < CASOS_DET.length; i++) if (c.indexOf(CASOS_DET[i][0]) === 0) return CASOS_DET[i].concat([i]); return [c, '#8494A8', '', 99]; }
+  function casoDet(c) { for (var i = 0; i < CASOS_DET.length; i++) if (c.indexOf(CASOS_DET[i][0]) === 0) return CASOS_DET[i].concat([i]); return [c, 'text-3', '', 99]; }
   var chipCaso = function (c) {
-    var k = casoDet(c), clase = k[1] === '#1E7F4F' ? 'chip-ok' : k[1] === '#C62828' ? 'chip-rojo' : k[1] === '#006DB1' ? 'chip-azul' : 'chip-warn';
+    var k = casoDet(c), clase = { success: 'chip-ok', danger: 'chip-rojo', primary: 'chip-azul' }[k[1]] || 'chip-warn';
     return '<span class="chip ' + clase + '" title="' + esc(k[2]) + '">' + esc(c) + '</span>';
   };
   // Bienes y servicios sujetos al SPOT (anexos de la R.S. 183-2004/SUNAT, como en la migración 053).
@@ -1250,14 +1200,14 @@
     document.getElementById('dKpis').innerHTML =
       kpi('Detracción depositada', total >= 1e5 ? '<span title="' + soles(total) + '">' + montoCorto(total) + '</span>' : soles(total), '<div class="kpi-extra">' + (total >= 1e5 ? soles(total) + '<br>' : '') + miles(lista.length) + ' constancias · ' + miles(contrapartes) + (DT.sentido === '1' ? ' clientes' : DT.sentido === '0' ? ' proveedores' : ' proveedores y clientes') +
         (DT.sentido === '' ? '<br>compras ' + soles(compras.reduce(function (a, x) { return a + x[14]; }, 0)) + ' · ventas ' + soles(ventas.reduce(function (a, x) { return a + x[14]; }, 0)) : '') + '</div>') +
-      kpi('Con su constancia', '<div class="kpi-anillo">' + anillo(cob, cob >= 90 ? '#1E7F4F' : cob >= 70 ? '#00A298' : '#A15C07') + '<div class="kpi-extra" style="margin:0">' + miles(con) + ' de ' + miles(con + sin.length) +
+      kpi('Con su constancia', '<div class="kpi-anillo">' + anillo(cob, token(cob >= 90 ? 'success' : cob >= 70 ? 'primary' : 'warning')) + '<div class="kpi-extra" style="margin:0">' + miles(con) + ' de ' + miles(con + sin.length) +
         '<br>facturas con detracción desde ' + etqMes(DET_DESDE) + '</div></div>') +
       kpi('Casos atípicos', miles(raras.length), '<div class="kpi-extra">' + (Object.keys(porCaso).sort(function (a, b) { return porCaso[b] - porCaso[a]; }).slice(0, 3)
         .map(function (k) { return esc(k === 'Factura de' ? 'de otro año' : k.toLowerCase()) + ': ' + porCaso[k]; }).join(' · ') || 'ninguno: todo cuadra') +
         (malas.length ? '<br><span class="variacion sube">' + malas.length + ' para corregir</span>' : '') + '</div>', malas.length ? 'kpi-riesgo' : '') +
       kpi('Sin constancia', miles(sin.length), '<div class="kpi-extra">' + soles(sinMonto) + ' de detracción sin depositar' +
         (viejas ? '<br><span class="variacion sube">' + viejas + ' con 2+ meses desde la emisión</span>' : '') + '</div>', viejas ? 'kpi-riesgo' : '') +
-      kpi('Pagadas a tiempo', '<div class="kpi-anillo">' + anillo(pct(aTiempo, conPlazo.length), '#006DB1') + '<div class="kpi-extra" style="margin:0">' + miles(aTiempo) + ' de ' + miles(conPlazo.length) +
+      kpi('Pagadas a tiempo', '<div class="kpi-anillo">' + anillo(pct(aTiempo, conPlazo.length), token('primary')) + '<div class="kpi-extra" style="margin:0">' + miles(aTiempo) + ' de ' + miles(conPlazo.length) +
         '<br>en el mes o el mes siguiente</div></div>');
   }
 
@@ -1272,11 +1222,11 @@
       return '<div class="mes' + (sel === m ? ' activo' : sel ? ' atenuado' : '') + '" data-m="' + m + '" title="' + esc(etqMes(m) + ': ' + soles(t) + ' · ' + o.n + ' constancias' +
           (o.c && o.v ? ' (compras ' + soles(o.c) + ', ventas ' + soles(o.v) + ')' : '') + (o.raras ? ' · ' + o.raras + ' atípicas' : '')) + '">' +
         '<span class="mes-cifra">' + esc(montoCorto(t)) + '</span>' +
-        '<div class="mes-pila" style="height:' + h + 'px">' + (o.c ? '<span style="flex:' + o.c + ';background:#00A298"></span>' : '') + (o.v ? '<span style="flex:' + o.v + ';background:#006DB1"></span>' : '') + '</div>' +
+        '<div class="mes-pila" style="height:' + h + 'px">' + (o.c ? '<span style="flex:' + o.c + ';background:var(--teal)"></span>' : '') + (o.v ? '<span style="flex:' + o.v + ';background:var(--primary)"></span>' : '') + '</div>' +
         '<span class="mes-etq">' + etqMes(m) + '</span></div>';
     }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
-    document.getElementById('dLeyenda').innerHTML = DT.sentido === '' ? '<span><i style="background:#00A298"></i>Compras (pagamos al proveedor)</span><span><i style="background:#006DB1"></i>Ventas (nos depositó el cliente)</span>'
-      : '<span><i style="background:' + (DT.sentido === '1' ? '#006DB1' : '#00A298') + '"></i>' + (DT.sentido === '1' ? 'Ventas: lo que depositaron los clientes en nuestra cuenta' : 'Compras: lo que depositamos en la cuenta del proveedor') + '</span>';
+    document.getElementById('dLeyenda').innerHTML = DT.sentido === '' ? '<span><i style="background:var(--teal)"></i>Compras (pagamos al proveedor)</span><span><i style="background:var(--primary)"></i>Ventas (nos depositó el cliente)</span>'
+      : '<span><i style="background:' + (DT.sentido === '1' ? 'var(--primary)' : 'var(--teal)') + '"></i>' + (DT.sentido === '1' ? 'Ventas: lo que depositaron los clientes en nuestra cuenta' : 'Compras: lo que depositamos en la cuenta del proveedor') + '</span>';
   }
   function montoCorto(n) { var a = Math.abs(n); return a >= 1e6 ? 'S/ ' + (a / 1e6).toFixed(1) + ' M' : a >= 1e4 ? 'S/ ' + Math.round(a / 1e3) + ' mil' : soles(n).replace(/\.\d\d$/, ''); }
 
@@ -1292,13 +1242,13 @@
     var max = Math.max.apply(null, claves.map(function (k) { return g[k].n; }).concat([1]));
     document.getElementById('dCasos').innerHTML = claves.length ? claves.map(function (k) {
       var c = casoDet(k);
-      return filaBarra(esc(k), '<b>' + miles(g[k].n) + '</b> · ' + soles(g[k].v), 100 * g[k].n / max, c[1],
+      return filaBarra(esc(k), '<b>' + miles(g[k].n) + '</b> · ' + soles(g[k].v), 100 * g[k].n / max, token(c[1]),
         ' data-caso="' + esc(k) + '" style="cursor:pointer" title="' + esc(c[2]) + '"', c[2], DT.caso === k);
     }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
   }
   function pintarDetrPlazo(lista) {
-    var cubos = [['En el mismo mes', function (m) { return m <= 0; }, '#00A298'], ['El mes siguiente (lo normal)', function (m) { return m === 1; }, '#1E7F4F'],
-      ['2 meses después', function (m) { return m === 2; }, '#A15C07'], ['3 meses o más', function (m) { return m >= 3; }, '#C62828']];
+    var cubos = [['En el mismo mes', function (m) { return m <= 0; }, token('primary')], ['El mes siguiente (lo normal)', function (m) { return m === 1; }, token('success')],
+      ['2 meses después', function (m) { return m === 2; }, token('warning')], ['3 meses o más', function (m) { return m >= 3; }, token('danger')]];
     var conDato = lista.filter(function (x) { return x[4] != null; });
     document.getElementById('dPlazo').innerHTML = conDato.length ? cubos.map(function (c) {
       var l = conDato.filter(function (x) { return c[1](x[4]); });
@@ -1313,7 +1263,7 @@
     var total = lista.reduce(function (a, x) { return a + (x[14] || 0); }, 0), max = claves.length ? g[claves[0]].v : 1;
     document.getElementById('dTituloTop').textContent = DT.sentido === '1' ? 'Clientes que más nos depositaron' : DT.sentido === '0' ? 'Proveedores con más detracción' : 'Proveedores y clientes';
     document.getElementById('dTop').innerHTML = claves.length ? claves.map(function (k) {
-      return filaBarra(esc(g[k].n), '<b>' + montoCorto(g[k].v) + '</b> · ' + pct(g[k].v, total) + '%', 100 * g[k].v / max, '#00A298', ' title="' + esc(k + ' · ' + g[k].k + ' constancias') + '" data-ruc="' + esc(k) + '"');
+      return filaBarra(esc(g[k].n), '<b>' + montoCorto(g[k].v) + '</b> · ' + pct(g[k].v, total) + '%', 100 * g[k].v / max, token('teal'), ' title="' + esc(k + ' · ' + g[k].k + ' constancias') + '" data-ruc="' + esc(k) + '"');
     }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
   }
   function pintarDetrCodigos(lista) {
@@ -1322,7 +1272,7 @@
     var claves = Object.keys(g).sort(function (a, b) { return g[b].v - g[a].v; }).slice(0, 8);
     var max = claves.length ? g[claves[0]].v : 1;
     document.getElementById('dCodigos').innerHTML = claves.length ? claves.map(function (k) {
-      return filaBarra(esc(k), '<b>' + montoCorto(g[k].v) + '</b> · ' + miles(g[k].n), 100 * g[k].v / max, '#006DB1', ' title="' + esc(k) + '"');
+      return filaBarra(esc(k), '<b>' + montoCorto(g[k].v) + '</b> · ' + miles(g[k].n), 100 * g[k].v / max, token('primary'), ' title="' + esc(k) + '"');
     }).join('') : '<p class="vacio">Sin constancias con este filtro.</p>';
   }
 
@@ -1433,9 +1383,9 @@
   }
   function anillo(p, color) {
     var r = 24, c = 2 * Math.PI * r;
-    return '<svg width="62" height="62" viewBox="0 0 62 62"><circle cx="31" cy="31" r="' + r + '" fill="none" stroke="#EEF2F6" stroke-width="8"/>' +
+    return '<svg width="62" height="62" viewBox="0 0 62 62"><circle cx="31" cy="31" r="' + r + '" fill="none" stroke="' + token('surface-3') + '" stroke-width="8"/>' +
       '<circle cx="31" cy="31" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="8" stroke-linecap="round" stroke-dasharray="' + (c * p / 100) + ' ' + c + '" transform="rotate(-90 31 31)"/>' +
-      '<text x="31" y="35.5" text-anchor="middle" font-family="Sora, sans-serif" font-size="13" font-weight="800" fill="#101A24">' + p + '%</text></svg>';
+      '<text x="31" y="35.5" text-anchor="middle" font-size="13" font-weight="800" fill="' + token('text') + '">' + p + '%</text></svg>';
   }
   function kpi(rotulo, valor, extra, clase) {
     return '<div class="kpi ' + (clase || '') + '"><div class="rotulo">' + rotulo + '</div><div class="kpi-valor">' + valor + '</div>' + (extra || '') + '</div>';
@@ -1468,13 +1418,13 @@
     var igv = kpiIgv(docs);
     // Resumen: lo principal. Impuestos: IGV, no gravado, notas y detracción. OC: el vínculo con la orden de compra.
     document.getElementById('kpis').innerHTML =
-      kpi(compras ? 'Compras' : 'Ventas', dinero(neto), '<div class="kpi-extra">' + miles(docs.length) + ' comprobantes' + varTxt + '</div>' + chispa(porMes, 220, 34, '#00A298')) +
+      kpi(compras ? 'Compras' : 'Ventas', dinero(neto), '<div class="kpi-extra">' + miles(docs.length) + ' comprobantes' + varTxt + '</div>' + chispa(porMes, 220, 34, token(compras ? 'teal' : 'primary'))) +
       kpi(compras ? 'Proveedores' : 'Clientes', miles(provs), '<div class="kpi-extra">' + (docs.length ? dinero(neto / Math.max(provs, 1), null, true) + ' en promedio' : '') + '</div>') +
       kNotas + (igv ? igv.igv : '') + kDet;
     document.getElementById('kpisImpuestos').innerHTML = (igv ? igv.igv + igv.noGravado : '') + kNotas + kDet;
     document.getElementById('kpisOc').innerHTML = compras ?
-      kpi('Unidos a su OC', '<div class="kpi-anillo">' + anillo(pct(conOc, docs.length), '#00A298') + '<div class="kpi-extra" style="margin:0">' + miles(conOc) + ' de ' + miles(docs.length) + '<br>con su orden de compra</div></div>') +
-      kpi('Con centro de costo', '<div class="kpi-anillo">' + anillo(pct(conCc, docs.length), '#006DB1') + '<div class="kpi-extra" style="margin:0">' + miles(conCc) + ' de ' + miles(docs.length) + '<br>listos para CONCAR</div></div>') +
+      kpi('Unidos a su OC', '<div class="kpi-anillo">' + anillo(pct(conOc, docs.length), token('teal')) + '<div class="kpi-extra" style="margin:0">' + miles(conOc) + ' de ' + miles(docs.length) + '<br>con su orden de compra</div></div>') +
+      kpi('Con centro de costo', '<div class="kpi-anillo">' + anillo(pct(conCc, docs.length), token('primary')) + '<div class="kpi-extra" style="margin:0">' + miles(conCc) + ' de ' + miles(docs.length) + '<br>listos para CONCAR</div></div>') +
       kpi('Importaciones', dinero(suma(docs.filter(function (x) { return x[9]; }), 5)), '<div class="kpi-extra">gastos en Perú unidos a OC de importación</div>')
       : '<p class="vacio">Las órdenes de compra y los centros de costo son de las compras: elige «Compras» en los filtros.</p>';
     pintarCuadre();
@@ -1552,8 +1502,8 @@
     }).join('');
     document.getElementById('notaTipo').textContent = 'monto sin signo';
     document.getElementById('dona').innerHTML = '<svg width="140" height="140" viewBox="0 0 140 140">' + arcos +
-      '<text x="70" y="66" text-anchor="middle" font-family="Sora, sans-serif" font-size="20" font-weight="800" fill="#101A24">' + miles(docs.length) + '</text>' +
-      '<text x="70" y="84" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#8494A8">comprobantes</text></svg>' +
+      '<text x="70" y="66" text-anchor="middle" font-size="20" font-weight="800" fill="' + token('text') + '">' + miles(docs.length) + '</text>' +
+      '<text x="70" y="84" text-anchor="middle" font-size="11" fill="' + token('text-3') + '">comprobantes</text></svg>' +
       '<div class="dona-leyenda">' + claves.map(function (k) {
         return '<div class="ley"><span><i style="background:' + TIPOS[k][1] + '"></i>' + TIPOS[k][0] + ' <span class="nota">(' + grupos[k].n + ')</span></span><b>' + dinero(grupos[k].v, null, true) + '</b></div>';
       }).join('') + '</div>';
@@ -1574,7 +1524,7 @@
         var nombre = (D.dic.prov[k] || ['', ''])[1] || (D.dic.prov[k] || [''])[0];
         return '<tr><td class="prov" title="' + esc(nombre) + '">' + esc(nombre) + '</td>' + ult.map(function (m) {
           var v = prov[k].m[m] || 0, a = v > 0 ? .08 + .8 * v / max : 0;
-          return '<td class="celda" title="' + esc(nombre + ' · ' + etqMes(m) + ': ' + dinero(v)) + '" style="background:rgba(0,162,152,' + a.toFixed(2) + ');color:' + (a > .55 ? '#fff' : v ? '#101A24' : '#B5C0CC') + ';' + (m === F.mes ? 'outline:2px solid #1D1D1B;' : '') + '">' + (v ? esc(dinero(v, null, true)) : '—') + '</td>';
+          return '<td class="celda" title="' + esc(nombre + ' · ' + etqMes(m) + ': ' + dinero(v)) + '" style="background:color-mix(in srgb, var(--teal) ' + Math.round(a * 100) + '%, transparent);color:' + (a > .55 ? '#fff' : v ? 'var(--text)' : 'var(--disabled-ink)') + ';' + (m === F.mes ? 'outline:2px solid var(--ink);' : '') + '">' + (v ? esc(dinero(v, null, true)) : '—') + '</td>';
         }).join('') + '<td class="total">' + esc(dinero(prov[k].t, null, true)) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -1627,7 +1577,7 @@
     document.getElementById('notaCc').textContent = pct(con, docs.length) + '% del gasto ya tiene centro de costo';
     document.getElementById('centros').innerHTML = claves.length ? claves.map(function (k) {
       return '<div class="fila-barra"><div class="fb-cab"><span class="fb-etq" title="' + esc(D.dic.cc[k]) + '">' + esc(D.dic.cc[k]) + '</span><span class="fb-cifras"><b>' + dinero(cc[k], null, true) + '</b></span></div>' +
-        '<div class="fb-pista"><span style="width:' + Math.max(3, 100 * cc[k] / max) + '%;background:#006DB1"></span></div></div>';
+        '<div class="fb-pista"><span style="width:' + Math.max(3, 100 * cc[k] / max) + '%;background:var(--primary)"></span></div></div>';
     }).join('') : '<p class="vacio">Todavía sin centros de costo: llegan cuando la factura queda unida a su OC.</p>';
   }
 
@@ -1740,7 +1690,7 @@
     var v = serie.map(function (x) { return x[1]; }), min = Math.min.apply(null, v), max = Math.max.apply(null, v), rango = max - min || 1;
     var pts = v.map(function (y, i) { return (4 + i * (ancho - 8) / (v.length - 1)).toFixed(1) + ',' + (alto - 4 - (y - min) / rango * (alto - 8)).toFixed(1); });
     var ultimo = pts[pts.length - 1].split(',');
-    var sube = v[v.length - 1] > v[0], color = v[v.length - 1] === v[0] ? '#8494A8' : sube ? '#C62828' : '#1E7F4F';
+    var sube = v[v.length - 1] > v[0], color = token(v[v.length - 1] === v[0] ? 'text-3' : sube ? 'danger' : 'success');
     return '<svg width="' + ancho + '" height="' + alto + '" viewBox="0 0 ' + ancho + ' ' + alto + '"><polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<circle cx="' + ultimo[0] + '" cy="' + ultimo[1] + '" r="3" fill="' + color + '"/></svg>';
   }

@@ -1,16 +1,15 @@
-// What deploy:check and deploy:app share: the repo, git, running a Node tool
-// without a shell, and the mark that says which commit passed the tests.
+// What deploy:check and deploy:app share: the repo, git and running a Node tool
+// without a shell.
 //
 // Nothing here goes through a shell: on Windows a shell splits every argument
 // with spaces ("v2.0.1 Momo de twice" arrived to clasp as four arguments), so
 // each tool is started as `node <its entry file> args…`.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const ROOT = join(import.meta.dirname, '..', '..');
 export const APP_DIR = join(ROOT, 'apps-script', 'inroconta');
-const TESTED_MARK = join(ROOT, 'scripts', 'out', 'deploy', 'tested.json');
 
 export function git(...args: string[]): string {
     return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
@@ -20,13 +19,15 @@ export function git(...args: string[]): string {
 export const headCommit = () => git('rev-parse', 'HEAD');
 
 /**
- * Throws if there is anything uncommitted that could change what is tested or deployed:
- * edits to tracked files, and new files inside the app (clasp would push them). Untracked
- * files elsewhere (data/, notes) never reach Apps Script, so they do not block.
+ * Uncommitted changes inside the app (edits and new files): clasp pushes the files on disk,
+ * so a deployment with these carries code that no commit has. Since 13/10/2026 that is allowed
+ * (the owner's call); it is only reported, and marked with «+» after the commit.
  */
-export function requireCleanTree(what: string): void {
-    const dirty = [git('status', '--porcelain', '--untracked-files=no'), git('status', '--porcelain', '--', 'apps-script')].filter(Boolean);
-    if (dirty.length) throw new Error(`Commit everything before ${what}; uncommitted:\n${[...new Set(dirty.join('\n').split('\n'))].join('\n')}`);
+export function uncommittedAppChanges(): string[] {
+    return git('status', '--porcelain', '--', 'apps-script')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
 }
 
 /** The version people see, from package.json (the owner sets it when releasing). */
@@ -51,16 +52,4 @@ export function runTool(entry: string, args: string[], options: { cwd?: string; 
         throw new Error(`${entry} ${args[0] ?? ''} failed (exit ${r.status})${out ? `:\n${out}` : ''}`);
     }
     return out;
-}
-
-/** Records that this commit passed every test. */
-export function markTested(commit: string): void {
-    mkdirSync(join(TESTED_MARK, '..'), { recursive: true });
-    writeFileSync(TESTED_MARK, JSON.stringify({ commit, at: new Date().toISOString() }, null, 2));
-}
-
-/** The commit that last passed `pnpm deploy:check`, or null. */
-export function testedCommit(): string | null {
-    if (!existsSync(TESTED_MARK)) return null;
-    return (JSON.parse(readFileSync(TESTED_MARK, 'utf8')) as { commit?: string }).commit ?? null;
 }

@@ -1,0 +1,117 @@
+<!--
+  The look of every INROCONTA page: the Roland Print palette, its tokens by role and the parts
+  every page shares (buttons, chips, cards, tables, KPIs). Pasted at the top of each page's <head>
+  with include_('shared/Styles') (VistaEjecutiva.gs). The living sheet of it is ?vista=colores
+  (Colors.html).
+
+  Rule: a component paints with a ROLE token (--primary, --danger-soft…), never with a --brand-*
+  value or a loose hex. The brand values are what the logo and the Roland Print site use
+  (D:\tofold: #006DB1, #005A94, #1D1D1B, #F2F2F2), with Manrope as the font; changing one here
+  moves every page.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Roland Print: the five colours of the logo, plus the dark blue and light grey of its site. */
+    --brand-blue: #006DB1; --brand-blue-dark: #005A94; --brand-red: #E30613; --brand-teal: #00A298;
+    --brand-yellow: #FFDD00; --brand-ink: #1D1D1B; --brand-light: #F2F2F2;
+
+    /* Neutrals: warm greys around the ink of the logo, not the blue-greys of before. */
+    --bg: var(--brand-light); --surface: #FFFFFF; --surface-2: #F7F7F6; --surface-3: #ECECEA;
+    --border: #E4E4E1; --border-2: #D2D2CE;
+    --ink: var(--brand-ink); --text: var(--brand-ink); --text-2: #5C5C58; --text-3: #8A8A86;
+    --disabled: #E6E6E3; --disabled-ink: #9D9D98;
+
+    /* Primary: the brand blue. -strong is its hover and its text on -soft. */
+    --primary: var(--brand-blue); --primary-strong: var(--brand-blue-dark); --primary-soft: #E3EEF7;
+    /* Second data colour (compras next to ventas in blue). */
+    --teal: var(--brand-teal); --teal-strong: #007A72; --teal-soft: #E1F4F2;
+
+    /* Status: solid (bar, dot, badge) · strong (text, and text on -soft) · soft (chip, notice). */
+    --danger: var(--brand-red); --danger-strong: #B0050F; --danger-soft: #FDE8E9;
+    --warning: var(--brand-yellow); --warning-strong: #8A6300; --warning-soft: #FFF6CC;
+    --success: var(--brand-teal); --success-strong: #007A72; --success-soft: #E1F4F2;
+    /* -line: the border of a card or row tinted by its role (a -soft fill is too faint to outline). */
+    --primary-line: color-mix(in srgb, var(--primary) 22%, #fff);
+    --danger-line: color-mix(in srgb, var(--danger) 25%, #fff);
+    --warning-line: color-mix(in srgb, var(--warning-strong) 30%, #fff);
+
+    --shadow: 0 2px 4px rgba(29, 29, 27, .05), 0 6px 16px rgba(29, 29, 27, .06);
+    --font: "Manrope", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; font-size: 14px; }
+  h1, h2 { font-family: var(--font); margin: 0; }
+  h2 { font-size: 15px; font-weight: 700; }
+  button, select, input { font-family: inherit; font-size: 13.5px; }
+  a { color: var(--primary); }
+
+  .giro { width: 18px; height: 18px; border: 2.5px solid var(--border-2); border-top-color: var(--primary); border-radius: 50%; animation: giro .8s linear infinite; }
+  @keyframes giro { to { transform: rotate(360deg); } }
+
+  /* Buttons: ink by default, brand blue for the one main action of a screen. */
+  .boton { display: inline-flex; align-items: center; gap: 6px; background: var(--ink); color: #fff; border: 0; cursor: pointer;
+           text-decoration: none; font-weight: 600; font-size: 13.5px; padding: 11px 18px; border-radius: 10px; box-shadow: var(--shadow); white-space: nowrap; }
+  .boton:hover { background: #000; }
+  .boton-accent { background: var(--primary); }
+  .boton-accent:hover { background: var(--primary-strong); }
+  .boton:disabled { background: var(--disabled); color: var(--disabled-ink); box-shadow: none; cursor: default; }
+  .limpiar { background: none; border: 0; color: var(--primary); cursor: pointer; font-weight: 600; font-size: 12.5px; padding: 6px 4px; }
+  .segmento { display: inline-flex; background: var(--surface); border: 1px solid var(--border-2); border-radius: 9px; padding: 3px; }
+  .segmento button { white-space: nowrap; background: none; border: 0; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--text-2); font-weight: 600; font-size: 12.5px; }
+  .segmento button.activo { background: var(--ink); color: #fff; }
+
+  /* Chips: always the -soft background with the -strong text of the same role. */
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  .chip-ok { background: var(--success-soft); color: var(--success-strong); }
+  .chip-warn { background: var(--warning-soft); color: var(--warning-strong); }
+  .chip-rojo { background: var(--danger-soft); color: var(--danger-strong); }
+  .chip-azul { background: var(--primary-soft); color: var(--primary-strong); }
+  .chip-gris { background: var(--surface-3); color: var(--text-2); }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+
+  /* Text */
+  .rotulo { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
+  .linea { font-size: 13px; color: var(--text-2); line-height: 1.45; }
+  .linea b { color: var(--text); }
+  .grande { font-size: 20px; font-weight: 700; margin: 2px 0 4px; }
+  .nota { font-size: 12px; color: var(--text-3); }
+  .vacio { color: var(--text-3); font-size: 13px; margin: 0; }
+  .sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+  /* Cards */
+  .tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow); min-width: 0; }
+  .tarjeta-ancha { margin-bottom: 14px; }
+  .tarjeta-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px 14px; box-shadow: var(--shadow); min-width: 0; }
+  .kpi-valor { font-size: 24px; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi-valor small { font-size: 13px; font-weight: 700; color: var(--text-2); }
+  .kpi-extra { font-size: 12px; color: var(--text-2); margin-top: 6px; }
+
+  /* Search box */
+  .buscador { flex: 1; min-width: 260px; padding: 12px 14px 12px 40px; border: 1px solid var(--border-2); border-radius: 12px; background: var(--surface) no-repeat 14px center;
+              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238A8A86' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 4 4'/%3E%3C/svg%3E"); font-size: 14px; color: var(--text); }
+  .buscador:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+
+  /* Tables */
+  .tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .tabla th { text-align: left; padding: 0 10px 10px 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border-2); }
+  .tabla th.num { text-align: right; }
+  .tabla td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+</style>
+<script>
+  /**
+   * A token's value, for what CSS cannot reach: SVG attributes (fill, stroke) and colours
+   * computed in JS. token('primary') → '#006DB1'. Read once per call from :root, so the
+   * stylesheet above stays the only place a colour is written.
+   */
+  function token(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
+  }
+</script>

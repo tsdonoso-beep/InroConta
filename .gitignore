@@ -12,6 +12,9 @@
 /scripts/out/*
 !/scripts/out/README.md
 
+# Memoria de Claude: es un repositorio PRIVADO aparte (scripts/memory-sync.mts), este es público
+/memory/
+
 # Varios
 .DS_Store
 *.tsbuildinfo

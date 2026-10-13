@@ -56,8 +56,17 @@ var HOJA_ID_VISTA = '1n_MZD30CQ1b3HZlVCstQZ3giGaE-sKsB5_U3dobtdpE';
 var NOMBRE_PESTANA_VISTA = 'COMPROBANTES SUNAT - DETALLE';
 var URL_HOJA_VISTA = 'https://docs.google.com/spreadsheets/d/' + HOJA_ID_VISTA + '/edit';
 
-/** Punto de entrada de la aplicación web. Apps Script lo llama solo al visitar la URL publicada. */
-function doGet() {
+/**
+ * Punto de entrada de la aplicación web. Apps Script lo llama solo al visitar la URL publicada.
+ * With ?vista=colores it serves the palette sheet (Colores.html) instead of the view.
+ */
+function doGet(e) {
+    if (e && e.parameter && e.parameter.vista === 'colores') {
+        return HtmlService.createTemplateFromFile('Colors')
+            .evaluate()
+            .setTitle('Colores · INROCONTA')
+            .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     return HtmlService.createTemplateFromFile('VistaEjecutivaPagina')
         .evaluate()
         .setTitle('INROCONTA · Contabilidad INROPRIN')
@@ -65,34 +74,48 @@ function doGet() {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
+var FICHA_RUC_CAMPOS = [
+    'ruc',
+    'razon_social',
+    'estado',
+    'condicion',
+    'tipo_contribuyente',
+    'documento',
+    'nombre_comercial',
+    'fecha_inscripcion',
+    'fecha_inicio_actividades',
+    'fecha_baja',
+    'domicilio_fiscal',
+    'sistema_emision',
+    'comercio_exterior',
+    'sistema_contabilidad',
+    'actividades',
+    'comprobantes_impresion',
+    'emision_electronica',
+    'emisor_electronico_desde',
+    'comprobantes_electronicos',
+    'ple_desde',
+    'padrones_detalle',
+    'aviso',
+    'ficha_consultada_en',
+].join(',');
+
 /**
- * SUNAT's list of «sujetos sin capacidad operativa» from the SSCO tab of the book
- * (written by `pnpm ssco:load`), as [ruc, business name, resolution, resolution date,
- * final date, published on, representative]. null when the tab is not there yet or
- * lacks a column: the page then says the list is not loaded.
+ * The full Consulta RUC ficha of one RUC (padron_ruc, migration 068), asked by the page when
+ * a RUC is opened in Consulta RUC: one row, so it stays out of the cached copy of the whole base.
+ * { ficha: {...} }, { ficha: null } when the robot never read that RUC, or { error }.
  */
-function sscoVista_() {
-    var hoja = SpreadsheetApp.openById(HOJA_ID_VISTA).getSheetByName('SSCO');
-    if (!hoja || hoja.getLastRow() < 2) return null;
-    var filas = hoja.getDataRange().getValues();
-    var cab = filas[0].map(String);
-    var columnas = [
-        'RUC',
-        'Razón social',
-        'Resolución de atribución',
-        'Fecha de la resolución',
-        'Fecha en que quedó firme',
-        'Fecha de publicación',
-        'Representante legal',
-    ].map(function (n) {
-        return cab.indexOf(n);
-    });
-    if (columnas.indexOf(-1) >= 0) return null;
-    return filas.slice(1).map(function (f) {
-        return columnas.map(function (i) {
-            return String(f[i] == null ? '' : f[i]).trim();
-        });
-    });
+function fichaRucVista(ruc) {
+    try {
+        if (!/^\d{11}$/.test(String(ruc || ''))) return { error: 'RUC inválido: ' + ruc };
+        var cfg = configuracionBaseVista_();
+        var filas = pedirBaseVista_(cfg, sesionBaseVista_(cfg), 'get', 'padron_ruc?select=' + FICHA_RUC_CAMPOS + '&ruc=eq.' + ruc);
+        var f = filas[0] || null;
+        return { ficha: f && f.ficha_consultada_en ? f : null };
+    } catch (e) {
+        Logger.log('fichaRucVista ' + ruc + ': ' + (e && e.stack ? e.stack : e));
+        return { error: String(e.message || e) };
+    }
 }
 
 /**
@@ -569,6 +592,8 @@ function datosDeLaBaseVistaAhora_() {
                 { metodo: 'post', ruta: 'rpc/fichas_ruc_json', cuerpo: {}, opcional: true },
                 // El cuadre de ventas e IGV por mes, como el PDT 621 (migración 063).
                 { metodo: 'post', ruta: 'rpc/cuadre_ventas_json', cuerpo: { p_empresa_ruc: VISTA_RUC }, opcional: true },
+                // SUNAT's SSCO list (migration 069, loaded with pnpm ssco:db).
+                { metodo: 'post', ruta: 'rpc/ssco_json', cuerpo: {}, opcional: true },
             ].concat(pedidosDetraccionesVista_()),
         );
         // carpetas_madre_fuentes: las carpetas madre con lo que dicen Compras, COMEX y Almacén (la hoja privada de Contabilidad).
@@ -632,7 +657,7 @@ function datosDeLaBaseVistaAhora_() {
         // [ruc, buen contribuyente, agente de retención, agente de percepción, estado, condición,
         //  dirección, distrito, provincia, departamento, consultado el].
         var rucs = r[4] || [];
-        var det = detraccionesVista_(r.slice(6));
+        var det = detraccionesVista_(r.slice(7));
         return {
             error: null,
             carpetas: carpetas,
@@ -642,8 +667,8 @@ function datosDeLaBaseVistaAhora_() {
             rucs: rucs,
             cuadreVentas: r[5] || [],
             // [ruc, business name, resolution, resolution date, final date, published on, representative];
-            // null (not []) when the list could not be read, so the page does not claim «not in the list».
-            ssco: sscoVista_(),
+            // null (not []) when the list could not be read or was never loaded, so the page does not claim «not in the list».
+            ssco: r[6] && r[6].length ? r[6] : null,
             detracciones: det.constancias,
             detSinConstancia: det.sinConstancia,
             detError: det.error,

@@ -5,5 +5,5 @@
   "htmlExtensions": [".html"],
   "jsonExtensions": [".json"],
   "filePushOrder": [],
-  "skipSubdirectories": true
+  "skipSubdirectories": false
 }

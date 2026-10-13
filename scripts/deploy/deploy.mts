@@ -1,6 +1,5 @@
 // Deploys the INROCONTA Apps Script app (apps-script/inroconta) with clasp.
 //
-//   pnpm deploy:check                     first: the tests, which mark the commit as tested
 //   pnpm deploy:app "what changed"        push → new version → same deployment → DESPLIEGUES tab
 //   pnpm deploy:app --dry-run             what would be deployed; nothing is pushed
 //
@@ -9,14 +8,16 @@
 // gives a new /exec link). Each run leaves the link, the app version
 // (package.json) and the commits it carried in the DESPLIEGUES tab.
 //
-// It only deploys a clean tree whose HEAD passed `pnpm deploy:check`. Needs
-// `pnpm exec clasp login` once per machine, and the service account in .env.local.
+// It deploys the files on disk, committed or not, tested or not (the owner's call, 13/10/2026):
+// uncommitted app changes are listed and the commit is recorded as «abc1234+». The tests are
+// `pnpm deploy:check`, run when you want. Needs `pnpm exec clasp login` once per machine, and
+// the service account in .env.local.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { cargarClaveDeArchivo } from '../local/comun/config.mts';
 import { LIBRO_ID } from '../../src/shared/lib/drive/servidor.ts';
 import { connectSheets, lastDeployment, recordDeployment, type Deployment } from './deployments-sheet.mts';
-import { APP_DIR, appVersion, git, headCommit, requireCleanTree, runTool, testedCommit } from './shared.mts';
+import { APP_DIR, appVersion, git, headCommit, runTool, uncommittedAppChanges } from './shared.mts';
 
 // The web app deployment that is shared with Accounting (docs/ESTADO-Y-PENDIENTES.md).
 const DEPLOYMENT_ID = 'AKfycbzwyVcFPhZqhp5bXjo2TWA9JjibhzGJeKE1mC33m0zQKM637f0many_4VsLghUXyLb-';
@@ -32,26 +33,22 @@ const descriptionArg = args
 
 const clasp = (...a: string[]) => runTool(CLASP, a, { cwd: APP_DIR, capture: true });
 
-function checkPreconditions(commit: string): void {
+async function main(): Promise<void> {
+    cargarClaveDeArchivo();
     if (!existsSync(join(APP_DIR, '.clasp.json'))) {
         throw new Error(`${APP_DIR}\\.clasp.json is missing: the scriptId of the INROCONTA project goes there.`);
     }
-    requireCleanTree('deploying');
-    if (testedCommit() !== commit) {
-        throw new Error(`${commit.slice(0, 7)} has not passed the tests yet. Run  pnpm deploy:check  first.`);
+    const uncommitted = uncommittedAppChanges();
+    if (uncommitted.length) {
+        console.log(`⚠ ${uncommitted.length} uncommitted change(s) in the app go too (recorded as ${headCommit().slice(0, 7)}+):`);
+        uncommitted.forEach((l) => console.log(`  ${l}`));
     }
-}
 
-async function main(): Promise<void> {
-    cargarClaveDeArchivo();
-    const commit = headCommit();
-    checkPreconditions(commit);
-
-    const head = commit.slice(0, 7);
+    const head = headCommit().slice(0, 7) + (uncommitted.length ? '+' : '');
     const version = appVersion();
     const sheets = connectSheets();
     const previous = await lastDeployment(sheets, LIBRO_ID);
-    const range = previous ? `${previous.commit}..HEAD` : 'HEAD~10..HEAD';
+    const range = previous ? `${previous.commit.replace(/\+$/, '')}..HEAD` : 'HEAD~10..HEAD';
     const changes = git('log', '--format=%h %s', range, '--', 'apps-script/inroconta').split('\n').filter(Boolean);
     const description = descriptionArg || git('log', '-1', '--format=%s');
 

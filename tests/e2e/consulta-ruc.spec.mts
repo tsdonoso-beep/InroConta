@@ -73,7 +73,36 @@ test('searching by name offers the matches and opens the chosen one', async ({ p
     await expect(page.locator('#rucResultado .ruc-ssco.mal')).toBeVisible();
 });
 
-test('without the SSCO tab the page says the list is not loaded and claims nothing', async ({ page }) => {
+test('opening a RUC shows its full SUNAT ficha, with the deregistration notice', async ({ page }) => {
+    const errors = await openWithBase(page);
+    await consult(page, '20200000002');
+    const ficha = page.locator('#fichaSunat');
+
+    await expect(ficha).toContainText('Consulta RUC al 13/10/2026');
+    await expect(ficha.locator('.aviso')).toContainText('no dan derecho a crédito fiscal del IGV');
+    await expect(ficha).toContainText('BAJA DE OFICIO (baja el 13/07/2026)');
+    await expect(ficha).toContainText('Principal · 4923 · TRANSPORTE DE CARGA POR CARRETERA');
+    await expect(ficha).toContainText('GUIA DE REMISION - TRANSPORTISTA');
+    await expect(ficha).toContainText('30/09/2019');
+    // Empty fields leave no row.
+    await expect(ficha).not.toContainText('Nombre comercial');
+    expect(errors).toEqual([]);
+});
+
+test('a RUC the robot never read says so', async ({ page }) => {
+    await openView(page, { ...defaultResponses(), datosDeLaBaseVista: { ok: baseData() }, fichaRucVista: { ok: { ficha: null } } });
+    await consult(page, '20100000001');
+    await expect(page.locator('#fichaSunat')).toContainText('todavía no consultó este RUC');
+});
+
+test('a failed ficha request says why and leaves the rest of the card', async ({ page }) => {
+    await openView(page, { ...defaultResponses(), datosDeLaBaseVista: { ok: baseData() }, fichaRucVista: { fails: 'tiempo agotado' } });
+    await consult(page, '20100000001');
+    await expect(page.locator('#fichaSunat')).toContainText('No se pudo traer la ficha: tiempo agotado');
+    await expect(page.locator('#rucResultado .ruc-ssco.bien')).toBeVisible();
+});
+
+test('without the SSCO list the page says it is not loaded and claims nothing', async ({ page }) => {
     const errors = await openWithBase(page, baseData({ ssco: null }));
     await consult(page, '20200000002');
 

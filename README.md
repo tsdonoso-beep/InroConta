@@ -57,8 +57,8 @@ pnpm exec playwright install chromium
 | `pnpm test:e2e`             | Pruebas de punta a punta (Playwright) de la vista web, en local                                        |
 | `pnpm check`                | Tipos, lint, formato y que `database.full.sql` esté al día                                             |
 | `pnpm lint` / `pnpm format` | ESLint / Prettier sobre todo el repositorio                                                            |
-| `pnpm deploy:check`         | Corre todas las pruebas y marca el commit como listo para desplegar                                    |
-| `pnpm deploy:app`           | Despliega la app de Apps Script (solo un commit que pasó `deploy:check`)                               |
+| `pnpm deploy:check`         | Corre todas las pruebas (unitarias y de punta a punta); opcional antes de desplegar                    |
+| `pnpm deploy:app`           | Despliega la app de Apps Script tal como está en disco                                                 |
 | `pnpm db:consolidar`        | Regenera `docs/database/database.full.sql` después de una migración nueva                              |
 | `pnpm cpe:local`            | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))            |
 | `pnpm carpetas:local`       | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                |
@@ -73,18 +73,15 @@ corren desde PowerShell o cmd: en Git Bash, `tar` es el de GNU y `domicilios:loc
 La vista web vive en un proyecto de Apps Script dentro del libro INROCONTA. Se despliega desde aquí con
 [clasp](https://github.com/google/clasp), nunca a mano desde el editor:
 
-Son dos pasos, siempre con todo commiteado:
-
 ```bash
-pnpm deploy:check
 pnpm deploy:app "qué cambió"
 ```
 
-1. **`deploy:check`** corre `pnpm test` y `pnpm test:e2e`. Si pasan, deja anotado que **ese commit** está probado
-   (`scripts/out/deploy/tested.json`).
-2. **`deploy:app`** se niega a desplegar si hay algo sin commitear o si el commit actual no pasó `deploy:check`. Luego
-   hace `clasp push`, crea una versión nueva y la pone en **la misma implementación de siempre**: el enlace `/exec` no
-   cambia nunca. Un enlace nuevo solo aparece si se crea una implementación nueva, y eso no se hace.
+1. **`deploy:check`** (opcional) corre `pnpm test` y `pnpm test:e2e`. Desde el 13/10/2026 no hace falta para desplegar.
+2. **`deploy:app`** sube los archivos de `apps-script/inroconta` tal como están en disco, commiteados o no: si hay
+   cambios sin commitear los lista y anota el commit con «+» (`a1b2c3d+`). Hace `clasp push`, crea una versión nueva y
+   la pone en **la misma implementación de siempre**: el enlace `/exec` no cambia nunca. Un enlace nuevo solo aparece
+   si se crea una implementación nueva, y eso no se hace.
 3. Escribe en la pestaña **DESPLIEGUES** del libro el enlace vigente (celda B1), la versión y una fila con la fecha,
    la versión, el commit y los cambios que llevó. Ahí se ve rápido qué cambió en cada despliegue.
 

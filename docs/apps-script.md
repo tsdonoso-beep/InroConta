@@ -293,10 +293,10 @@ que se registra, así que un mes puede diferir un poco del SIRE.
 ### Si se edita el código después
 
 Desde el 09/10/2026 la vista, `CarpetaMadre.gs` y `PadronRuc.gs` viven en
-`apps-script/inroconta/` y se despliegan con `pnpm deploy:check` (las
-pruebas) y después `pnpm deploy:app "qué cambió"` (README, «Desplegar la
-app»): sube el código con clasp y pone una versión nueva en la misma
-implementación, así que la URL no cambia.
+`apps-script/inroconta/` y se despliegan con `pnpm deploy:app "qué cambió"`
+(README, «Desplegar la app»): sube el código con clasp y pone una versión
+nueva en la misma implementación, así que la URL no cambia. Las pruebas
+(`pnpm deploy:check`) son opcionales desde el 13/10/2026.
 El enlace vigente y el historial quedan en la pestaña DESPLIEGUES del libro.
 No se edita en el editor web: el siguiente despliegue lo pisaría.
 
@@ -777,11 +777,13 @@ gasto, así que no se registran.
 - **Aviso en el Resumen**: cuántos comprobantes recibidos son de proveedores
   SSCO y cuántos se emitieron después de que la atribución quedó firme.
 - **La lista**: SUNAT la publica como Excel y la va ampliando. Se guarda en
-  `data/` y se carga con `pnpm ssco:load data/archivo.xlsx` (tabla
-  pestaña **SSCO** del libro INROCONTA); cada carga reemplaza la anterior. Va en el
-  libro y no en la base mientras no se pueda migrar Supabase (la migración
-  está lista para entonces). La vista la toma al armarse (cada hora o con
-  «↻ Actualizar»).
+  `data/` y se carga con `pnpm ssco:db data/archivo.xlsx` en la tabla
+  `ruc_ssco` de la base (migración 069); cada carga reemplaza la anterior.
+  La vista la toma al armarse (cada hora o con «↻ Actualizar»).
+- **Ficha completa**: al abrir un RUC, la vista pide su ficha de la Consulta
+  RUC (`fichaRucVista`, tabla `padron_ruc`, migración 068): tipo, fechas,
+  actividades, comprobantes, emisión electrónica, PLE y el aviso de SUNAT.
+  La llena el robot del padrón; la primera carga fue `pnpm ruc:fichas`.
 - **Pendiente:** el régimen (Nuevo RUS) para las boletas, que no viene en el
   padrón reducido; habría que leerlo de la Consulta RUC con el robot del padrón.
 

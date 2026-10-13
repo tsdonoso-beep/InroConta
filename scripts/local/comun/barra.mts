@@ -44,20 +44,43 @@ export function textoBarra(p: Progreso, ancho: number, ahora = Date.now()): stri
     return `[${'█'.repeat(llenos)}${'░'.repeat(largo - llenos)}] ${cola}`.slice(0, Math.max(20, ancho - 1));
 }
 
+/** A simpler bar for a single-stage run (query → save): done/total, failures, pace and ETA. */
+export interface SimpleProgress {
+    done: number;
+    total: number;
+    failed: number;
+    inFlight: number;
+    start: number; // ms epoch
+    /** Extra text at the end, e.g. «guardados 120». */
+    note?: string;
+}
+
+export function simpleBarText(p: SimpleProgress, width: number, now = Date.now()): string {
+    const frac = p.total ? Math.min(1, p.done / p.total) : 0;
+    const elapsed = now - p.start;
+    const pace = elapsed > 0 ? p.done / (elapsed / 60000) : 0;
+    const eta = p.done > 0 && pace > 0 ? ((p.total - p.done) / pace) * 60000 : NaN;
+    const tail = `${(frac * 100).toFixed(0).padStart(3)}% ${p.done}/${p.total} · ${p.failed} fallidos · ${p.inFlight} en curso · ${pace.toFixed(0)}/min · ETA ${duracion(eta)} · ${duracion(elapsed)}${p.note ? ` · ${p.note}` : ''}`;
+    const size = Math.max(10, Math.min(40, width - tail.length - 4));
+    const full = Math.round(frac * size);
+    return `[${'█'.repeat(full)}${'░'.repeat(size - full)}] ${tail}`.slice(0, Math.max(20, width - 1));
+}
+
 export class Barra {
     private activa: boolean;
     private ultimo = '';
-    private leer: () => Progreso;
+    private texto: (ancho: number) => string;
     private timer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(leer: () => Progreso) {
-        this.leer = leer;
+    /** `texto` paints the bar for a terminal width: textoBarra for the CPE pipeline, simpleBarText for the rest. */
+    constructor(texto: (ancho: number) => string) {
+        this.texto = texto;
         this.activa = !!process.stdout.isTTY && process.env.BARRA !== '0';
     }
 
     private pintar() {
         if (!this.activa) return;
-        this.ultimo = textoBarra(this.leer(), process.stdout.columns || 100);
+        this.ultimo = this.texto(process.stdout.columns || 100);
         process.stdout.write(`\r\x1b[2K${this.ultimo}`);
     }
 

@@ -16,6 +16,8 @@
 // campo que falte: devuelve lo que entendió, con `encontrado: false` cuando
 // ni siquiera reconoció la página.
 
+import { readFicha, type RucFicha } from './ruc-ficha.ts';
+
 export interface CondicionRuc {
     ruc: string;
     razonSocial: string | null;
@@ -30,16 +32,24 @@ export interface CondicionRuc {
     padronesTexto: string | null;
     /** false si la página no trajo ni el Estado ni el RUC: no se pudo leer el resultado. */
     encontrado: boolean;
+    /** Every other field of the page (see ruc-ficha.ts); null when the page could not be read. */
+    ficha: RucFicha | null;
 }
 
 /** Las etiquetas que trae la pantalla, en orden. Marcan dónde termina el valor de la anterior. */
 const ETIQUETAS_CONSULTA_RUC = [
+    // Deregistered RUC only: a red notice before «Número de RUC» and again after «Padrones».
+    'IMPORTANTE:',
     'Número de RUC:',
     'Tipo Contribuyente:',
+    // Natural persons only.
+    'Tipo de Documento:',
     'Nombre Comercial:',
     'Fecha de Inscripción:',
     'Fecha de Inicio de Actividades:',
     'Estado del Contribuyente:',
+    // Deregistered RUC only. Without it the date ended up inside the state («BAJA DE OFICIO Fecha de Baja: …»).
+    'Fecha de Baja:',
     'Condición del Contribuyente:',
     'Domicilio Fiscal:',
     'Sistema Emisión de Comprobante:',
@@ -65,32 +75,36 @@ const ETIQUETAS_CONSULTA_RUC = [
  * las etiquetas, que SUNAT mantiene estables porque las lee gente.
  */
 function textoPlano(html: string): string[] {
-    return html
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<(br|tr|p|div|li|table|\/table)\b[^>]*>/gi, '\n')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
-        .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/&aacute;/gi, 'á')
-        .replace(/&eacute;/gi, 'é')
-        .replace(/&iacute;/gi, 'í')
-        .replace(/&oacute;/gi, 'ó')
-        .replace(/&uacute;/gi, 'ú')
-        .replace(/&Aacute;/g, 'Á')
-        .replace(/&Eacute;/g, 'É')
-        .replace(/&Iacute;/g, 'Í')
-        .replace(/&Oacute;/g, 'Ó')
-        .replace(/&Uacute;/g, 'Ú')
-        .replace(/&ntilde;/gi, 'ñ')
-        .replace(/&Ntilde;/g, 'Ñ')
-        .replace(/&deg;/gi, '°')
-        .replace(/&ordm;/gi, 'º')
-        .replace(/&amp;/gi, '&')
-        .split('\n')
-        .map((l) => l.replace(/\s+/g, ' ').trim())
-        .filter(Boolean);
+    return (
+        html
+            // The page carries a commented-out «Razón Social: eeee» block that leaked into «Padrones».
+            .replace(/<!--[\s\S]*?-->/g, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<(br|tr|p|div|li|table|\/table)\b[^>]*>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+            .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&aacute;/gi, 'á')
+            .replace(/&eacute;/gi, 'é')
+            .replace(/&iacute;/gi, 'í')
+            .replace(/&oacute;/gi, 'ó')
+            .replace(/&uacute;/gi, 'ú')
+            .replace(/&Aacute;/g, 'Á')
+            .replace(/&Eacute;/g, 'É')
+            .replace(/&Iacute;/g, 'Í')
+            .replace(/&Oacute;/g, 'Ó')
+            .replace(/&Uacute;/g, 'Ú')
+            .replace(/&ntilde;/gi, 'ñ')
+            .replace(/&Ntilde;/g, 'Ñ')
+            .replace(/&deg;/gi, '°')
+            .replace(/&ordm;/gi, 'º')
+            .replace(/&amp;/gi, '&')
+            .split('\n')
+            .map((l) => l.replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+    );
 }
 
 /**
@@ -100,8 +114,13 @@ function textoPlano(html: string): string[] {
  * fecha en renglones separados.
  */
 function valorEtiqueta(lineas: string[], etiqueta: string): string {
+    return lineasEtiqueta(lineas, etiqueta).join(' ').trim();
+}
+
+/** Lo mismo que `valorEtiqueta`, pero renglón por renglón: las listas de la ficha (actividades, comprobantes) los necesitan. */
+function lineasEtiqueta(lineas: string[], etiqueta: string): string[] {
     const inicio = lineas.findIndex((l) => l.startsWith(etiqueta));
-    if (inicio === -1) return '';
+    if (inicio === -1) return [];
 
     const partes: string[] = [];
     const resto = lineas[inicio].slice(etiqueta.length).trim();
@@ -111,7 +130,7 @@ function valorEtiqueta(lineas: string[], etiqueta: string): string {
         if (ETIQUETAS_CONSULTA_RUC.some((e) => lineas[j].startsWith(e))) break;
         partes.push(lineas[j]);
     }
-    return partes.join(' ').trim();
+    return partes;
 }
 
 export interface Padrones {
@@ -174,6 +193,7 @@ export function leerResultadoConsultaRuc(html: string, ruc: string): CondicionRu
             agentePercepcion: false,
             padronesTexto: null,
             encontrado: false,
+            ficha: null,
         };
     }
 
@@ -189,5 +209,6 @@ export function leerResultadoConsultaRuc(html: string, ruc: string): CondicionRu
         ...leerPadrones(padrones),
         padronesTexto: ningunPadron ? null : padrones || null,
         encontrado: true,
+        ficha: readFicha((etiqueta) => lineasEtiqueta(lineas, etiqueta)),
     };
 }

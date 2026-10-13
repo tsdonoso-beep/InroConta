@@ -17,7 +17,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { num, texto, LIMITE, PERIODOS, RUCS, SERIES, TIPOS } from './comun/config.mts';
 import { crearBitacora, vigilarProceso, primeraLinea, usarSalida, dormir } from './comun/bitacora.mts';
-import { Barra } from './comun/barra.mts';
+import { Barra, textoBarra } from './comun/barra.mts';
 import { pendientes, pendientesSinPdf } from './comun/base.mts';
 import { publicarDetalle } from './comun/guardar.mts';
 import { Tuberia, type Trabajador } from './comun/tuberia.mts';
@@ -124,7 +124,7 @@ if (VIA === 'api') {
 }
 
 // Barra fija abajo (avance, ritmo, ETA) y los logs de siempre por encima. BARRA=0 la apaga.
-const barra = new Barra(() => tuberia.progreso());
+const barra = new Barra((ancho) => textoBarra(tuberia.progreso(), ancho));
 usarSalida((linea) => barra.escribir(linea));
 barra.iniciar();
 const tLatido = setInterval(() => tuberia.latido(trabajadores), 30000);

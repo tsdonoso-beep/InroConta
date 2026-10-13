@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- database.full.sql — GENERADO, no editar a mano (pnpm db:consolidar)
--- 67 migraciones: 001_esquema_inicial.sql → 067_pestanas_de_detracciones.sql
--- huella: b1c8e51e4abc2bbf
+-- 69 migraciones: 001_esquema_inicial.sql → 069_sujetos_sin_capacidad_operativa.sql
+-- huella: 096c0d6256501e22
 --
 -- Aplicar sobre una base VACÍA (proyecto nuevo de Supabase): SQL Editor →
 -- pegar todo → Run. Para una base existente, aplicar solo las migraciones
@@ -10043,4 +10043,277 @@ revoke execute on function detracciones_hoja(text, text) from public, anon;
 grant execute on function detracciones_hoja(text, text) to authenticated;
 revoke execute on function detracciones_sin_constancia(text, text) from public, anon;
 grant execute on function detracciones_sin_constancia(text, text) to authenticated;
+
+
+-- ┌──────────────────────────────────────────────────────────────
+-- │ 068_ficha_completa_del_ruc.sql
+-- └──────────────────────────────────────────────────────────────
+
+-- The full Consulta RUC ficha in padron_ruc
+--
+-- padron_ruc kept only state, condition and the padrones (038). Contabilidad asked (13/10/2026)
+-- for the whole ficha SUNAT shows — taxpayer type, dates, activities, receipts, electronic
+-- issuing, PLE — inside the app, so nobody has to open e-consultaruc. The robot already loads
+-- that page for every RUC; it was throwing the rest away.
+--
+-- Column names stay in Spanish, like the rest of the table. Lists are jsonb arrays:
+--   actividades             [{ "kind": "Principal", "code": "4652", "description": "…" }]
+--   comprobantes_impresion  ["FACTURA", "BOLETA DE VENTA", …]
+--   emision_electronica     ["FACTURA PORTAL DESDE 05/08/2016", …]
+--
+-- ficha_consultada_en says which rows already carry the full ficha: null = only the old fields
+-- (the 3 018 rows of 13/10/2026). `pnpm ruc:fichas` fills them.
+--
+-- guardar_padron_ruc writes the ficha only when the row brings a "ficha" object, so a caller
+-- that still sends the old shape never blanks a stored ficha. Same name, arguments and return
+-- type as in 038: no DROP needed.
+--
+-- The SSCO migration of P-006 (kept outside the repo, also numbered 068) becomes 069 when it is applied.
+--
+-- Run twice without harm: «add column if not exists» and «create or replace».
+
+begin;
+
+-- Before: every row without a ficha (expected 3 018 on 13/10/2026, the whole table).
+-- select count(*) from padron_ruc;
+
+alter table padron_ruc
+  add column if not exists tipo_contribuyente        text,
+  add column if not exists documento                 text,
+  add column if not exists nombre_comercial          text,
+  add column if not exists fecha_inscripcion         date,
+  add column if not exists fecha_inicio_actividades  date,
+  add column if not exists fecha_baja                date,
+  add column if not exists domicilio_fiscal          text,
+  add column if not exists sistema_emision           text,
+  add column if not exists comercio_exterior         text,
+  add column if not exists sistema_contabilidad      text,
+  add column if not exists actividades               jsonb not null default '[]'::jsonb,
+  add column if not exists comprobantes_impresion    jsonb not null default '[]'::jsonb,
+  add column if not exists emision_electronica       jsonb not null default '[]'::jsonb,
+  add column if not exists emisor_electronico_desde  date,
+  add column if not exists comprobantes_electronicos text,
+  add column if not exists ple_desde                 date,
+  add column if not exists aviso                     text,
+  add column if not exists ficha_consultada_en       timestamptz;
+
+comment on column padron_ruc.documento is 'Natural persons only: «DNI 00872109».';
+comment on column padron_ruc.domicilio_fiscal is 'As the Consulta RUC shows it («-» for natural persons → null). ruc_domicilio keeps the padrón reducido one.';
+comment on column padron_ruc.aviso is 'The red IMPORTANTE notice of a deregistered RUC (its receipts give no IGV credit).';
+comment on column padron_ruc.ficha_consultada_en is 'When the full ficha was last read. Null = the row only has the fields of migration 038.';
+
+create or replace function guardar_padron_ruc(p_filas jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = public, seguridad, pg_temp
+as $$
+declare
+  v_guardados integer := 0;
+  f           jsonb;
+  x           jsonb;
+begin
+  if seguridad.usuario_actual() is null then
+    raise exception 'No hay sesión.';
+  end if;
+  if not seguridad.tiene_rol('ADMIN_SISTEMA') then
+    raise exception 'Solo Administración del sistema actualiza el padrón de RUC.';
+  end if;
+
+  for f in select * from jsonb_array_elements(p_filas)
+  loop
+    insert into padron_ruc (
+      ruc, razon_social, estado, condicion,
+      buen_contribuyente, agente_retencion, agente_percepcion,
+      padrones_detalle, consultado_en
+    ) values (
+      f->>'ruc', nullif(f->>'razonSocial', ''), nullif(f->>'estado', ''), nullif(f->>'condicion', ''),
+      coalesce((f->>'buenContribuyente')::boolean, false),
+      coalesce((f->>'agenteRetencion')::boolean, false),
+      coalesce((f->>'agentePercepcion')::boolean, false),
+      nullif(f->>'padronesTexto', ''), now()
+    )
+    on conflict (ruc) do update set
+      razon_social       = excluded.razon_social,
+      estado             = excluded.estado,
+      condicion          = excluded.condicion,
+      buen_contribuyente = excluded.buen_contribuyente,
+      agente_retencion   = excluded.agente_retencion,
+      agente_percepcion  = excluded.agente_percepcion,
+      padrones_detalle   = excluded.padrones_detalle,
+      consultado_en      = now();
+
+    x := f->'ficha';
+    if jsonb_typeof(x) = 'object' then
+      update padron_ruc set
+        tipo_contribuyente        = nullif(x->>'taxpayerType', ''),
+        documento                 = nullif(x->>'document', ''),
+        nombre_comercial          = nullif(x->>'tradeName', ''),
+        fecha_inscripcion         = (nullif(x->>'registeredOn', ''))::date,
+        fecha_inicio_actividades  = (nullif(x->>'activitiesStartOn', ''))::date,
+        fecha_baja                = (nullif(x->>'deregisteredOn', ''))::date,
+        domicilio_fiscal          = nullif(x->>'fiscalAddress', ''),
+        sistema_emision           = nullif(x->>'issuingSystem', ''),
+        comercio_exterior         = nullif(x->>'foreignTrade', ''),
+        sistema_contabilidad      = nullif(x->>'accountingSystem', ''),
+        actividades               = coalesce(x->'activities', '[]'::jsonb),
+        comprobantes_impresion    = coalesce(x->'printedReceipts', '[]'::jsonb),
+        emision_electronica       = coalesce(x->'electronicIssuing', '[]'::jsonb),
+        emisor_electronico_desde  = (nullif(x->>'electronicIssuerSince', ''))::date,
+        comprobantes_electronicos = nullif(x->>'electronicReceipts', ''),
+        ple_desde                 = (nullif(x->>'pleSince', ''))::date,
+        aviso                     = nullif(x->>'notice', ''),
+        ficha_consultada_en       = now()
+      where ruc = f->>'ruc';
+    end if;
+
+    v_guardados := v_guardados + 1;
+  end loop;
+
+  return v_guardados;
+end;
+$$;
+
+revoke execute on function guardar_padron_ruc(jsonb) from public, anon;
+grant  execute on function guardar_padron_ruc(jsonb) to authenticated;
+
+commit;
+
+-- After: the new columns exist and nothing has a ficha yet (expected: 3 018 | 0).
+-- select count(*) as filas, count(ficha_consultada_en) as con_ficha from padron_ruc;
+
+
+-- ┌──────────────────────────────────────────────────────────────
+-- │ 069_sujetos_sin_capacidad_operativa.sql
+-- └──────────────────────────────────────────────────────────────
+
+-- Sujetos sin capacidad operativa (SSCO)
+--
+-- Meeting with Accounting (07/10/2026): before registering a purchase they
+-- check the supplier in SUNAT — active and «habido», good taxpayer, withholding
+-- and perception agent — and also whether it is in SUNAT's list of «sujetos
+-- sin capacidad operativa»: taxpayers SUNAT has declared unable to have really
+-- supplied what they invoiced. Their invoices do not support tax credit or
+-- expense, so Accounting does not register them.
+--
+-- SUNAT publishes the list as an Excel file that it keeps adding to (766 RUC
+-- on 30/09/2026). It is not part of the reduced registry (padrón reducido) nor
+-- of the RUC query, so it gets its own table, loaded from the file with
+-- `pnpm ssco:db <file.xlsx>` (scripts/load-ssco-db.mts). Each load REPLACES the
+-- list: a RUC that SUNAT removed must stop being flagged.
+--
+-- The view reads it whole (ssco_json): the ficha of a supplier, the «Consulta
+-- RUC» section (any RUC, not only ours) and the warning about received
+-- invoices from SSCO suppliers.
+--
+-- Written on 09/10/2026 as 068 and kept outside the repo while the project could not take
+-- migrations (the list lived in the SSCO tab of the book). Applied on 13/10/2026 as 069
+-- (068 went to the full RUC ficha); from then on the view reads the list from here.
+
+create table if not exists ruc_ssco (
+  ruc                      text primary key check (ruc ~ '^\d{11}$'),
+  business_name            text not null,
+  tax_address              text,
+  resolution               text not null,
+  resolution_date          date,
+  final_date               date,
+  representative_document  text,
+  representative_name      text,
+  published_on             date,
+  loaded_at                timestamptz not null default now()
+);
+
+comment on table ruc_ssco is
+  'SUNAT list of «sujetos sin capacidad operativa» (SSCO), loaded from the Excel SUNAT publishes (scripts/load-ssco-db.mts). Replaced whole on each load. final_date: when the attribution resolution became final; published_on: when SUNAT added it to the list.';
+
+alter table ruc_ssco enable row level security;
+
+-- Dropped first so the migration can run twice.
+drop policy if exists ruc_ssco_read on ruc_ssco;
+create policy ruc_ssco_read on ruc_ssco for select using (seguridad.puede_ver_todo());
+
+revoke all on ruc_ssco from anon;
+revoke insert, update, delete, truncate, references, trigger on ruc_ssco from authenticated;
+
+-- Replaces the list with p_rows (one object per RUC) in one transaction and
+-- returns how many rows were loaded and removed. Refuses a list with less
+-- than half the rows already loaded: that is a cut file, not SUNAT removing
+-- half of the list.
+create or replace function load_ssco(p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, seguridad, pg_temp
+as $$
+declare
+  v_new integer;
+  v_old integer;
+  v_removed integer;
+  v_loaded integer;
+begin
+  if seguridad.usuario_actual() is null then
+    raise exception 'No hay sesión.';
+  end if;
+  if not seguridad.tiene_rol('ADMIN_SISTEMA') then
+    raise exception 'Solo Administración del sistema carga la lista SSCO.';
+  end if;
+
+  select count(distinct f->>'ruc') into v_new from jsonb_array_elements(p_rows) f where f->>'ruc' ~ '^\d{11}$';
+  select count(*) into v_old from ruc_ssco;
+  if v_new = 0 or v_new < v_old / 2 then
+    raise exception 'La lista nueva trae % RUC y la cargada tiene %: no se reemplaza (¿archivo incompleto?).', v_new, v_old;
+  end if;
+
+  delete from ruc_ssco s
+   where not exists (select 1 from jsonb_array_elements(p_rows) f where f->>'ruc' = s.ruc);
+  get diagnostics v_removed = row_count;
+
+  insert into ruc_ssco as s (ruc, business_name, tax_address, resolution, resolution_date, final_date,
+                             representative_document, representative_name, published_on, loaded_at)
+  select distinct on (f->>'ruc')
+         f->>'ruc', f->>'businessName', nullif(f->>'taxAddress', ''), f->>'resolution',
+         nullif(f->>'resolutionDate', '')::date, nullif(f->>'finalDate', '')::date,
+         nullif(f->>'representativeDocument', ''), nullif(f->>'representativeName', ''),
+         nullif(f->>'publishedOn', '')::date, now()
+    from jsonb_array_elements(p_rows) f
+   where f->>'ruc' ~ '^\d{11}$'
+   order by f->>'ruc', nullif(f->>'publishedOn', '')::date desc nulls last
+  on conflict (ruc) do update set
+    business_name = excluded.business_name, tax_address = excluded.tax_address, resolution = excluded.resolution,
+    resolution_date = excluded.resolution_date, final_date = excluded.final_date,
+    representative_document = excluded.representative_document, representative_name = excluded.representative_name,
+    published_on = excluded.published_on, loaded_at = excluded.loaded_at;
+  get diagnostics v_loaded = row_count;
+
+  return jsonb_build_object('loaded', v_loaded, 'removed', v_removed);
+end;
+$$;
+
+-- The whole list for the view, in one row:
+-- [ruc, business name, resolution, resolution date, final date, published on, representative name]
+-- (dates as yyyy-mm-dd, '' when SUNAT left them blank).
+create or replace function ssco_json()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select coalesce(jsonb_agg(jsonb_build_array(
+           s.ruc, s.business_name, s.resolution,
+           coalesce(to_char(s.resolution_date, 'YYYY-MM-DD'), ''), coalesce(to_char(s.final_date, 'YYYY-MM-DD'), ''),
+           coalesce(to_char(s.published_on, 'YYYY-MM-DD'), ''), coalesce(s.representative_name, '')
+         ) order by s.ruc), '[]'::jsonb)
+    from ruc_ssco s
+   where (select seguridad.puede_ver_todo());
+$$;
+
+revoke execute on function load_ssco(jsonb) from public, anon;
+grant execute on function load_ssco(jsonb) to authenticated;
+revoke execute on function ssco_json() from public, anon;
+grant execute on function ssco_json() to authenticated;
+
+-- Check after applying (read only):
+--   select count(*) from ruc_ssco;                       -- 0 until the first `pnpm ssco:db`
+--   select jsonb_array_length(ssco_json());              -- the same number, as the robot user
 

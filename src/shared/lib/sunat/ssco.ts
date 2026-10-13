@@ -3,7 +3,7 @@
 //
 // Columns are found by their header, not by position, so a reordered or
 // widened file still loads; a missing required column stops the load with its
-// name. The rows end in the «SSCO» tab of the INROCONTA book (scripts/load-ssco.mts).
+// name. The rows end in the ruc_ssco table (scripts/load-ssco-db.mts, migration 069).
 import { excelSerialToIso } from '../xlsx/read-sheet.ts';
 
 export interface SscoRow {
@@ -41,29 +41,6 @@ const HEADERS: [keyof SscoRow, string, boolean][] = [
     ['publishedOn', 'FECHA DE PUBLICACION', false],
 ];
 const DATES = new Set<keyof SscoRow>(['resolutionDate', 'finalDate', 'publishedOn']);
-
-/** The tab of the INROCONTA book that holds the list (read by VistaEjecutiva.gs → sscoVista_). */
-export const SSCO_TAB = 'SSCO';
-
-/** The tab's header; the view reads the columns by these names. */
-export const SSCO_TAB_HEADER = [
-    'RUC',
-    'Razón social',
-    'Resolución de atribución',
-    'Fecha de la resolución',
-    'Fecha en que quedó firme',
-    'Fecha de publicación',
-    'Representante legal',
-    'Domicilio fiscal',
-];
-
-/** The rows written to the tab: the header, then one row per RUC (dates as yyyy-mm-dd). */
-export function sscoTabRows(rows: SscoRow[]): string[][] {
-    return [
-        SSCO_TAB_HEADER,
-        ...rows.map((r) => [r.ruc, r.businessName, r.resolution, r.resolutionDate, r.finalDate, r.publishedOn, r.representativeName, r.taxAddress]),
-    ];
-}
 
 export interface ParsedSsco {
     rows: SscoRow[];

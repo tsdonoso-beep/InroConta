@@ -25,11 +25,12 @@
 //   • Real (DEBUG=0): trae la lista de RUC vencidos de la base, los consulta
 //     todos (hasta MAX_CONSULTAS) y guarda cada resultado con `guardar_padron_ruc`.
 
-import { chromium, type Page } from 'playwright';
+import { type Page } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
-import { leerResultadoConsultaRuc, type CondicionRuc } from '../src/shared/lib/sunat/consulta-ruc.ts';
+import { type CondicionRuc } from '../src/shared/lib/sunat/consulta-ruc.ts';
+import { consultarRuc, launchBrowser, newRucPage, randomPause as pausaAlAzar } from './local/comun/consulta-ruc-web.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
@@ -53,8 +54,6 @@ const RUCS_PRUEBA = (process.env.RUCS?.trim() || '20501529363')
     .map((r) => r.trim())
     .filter(Boolean);
 
-const URL_FORMULARIO = 'https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp';
-
 const CAPTURAS = join(process.cwd(), 'scripts', 'out', 'capturas');
 mkdirSync(CAPTURAS, { recursive: true });
 
@@ -69,35 +68,6 @@ async function evidencia(page: Page, nombre: string) {
     } catch (e) {
         console.log(`  · no se pudo capturar ${nombre}: ${e instanceof Error ? e.message : e}`);
     }
-}
-
-/** Una pausa aleatoria entre consultas: parecerse a un ritmo humano, no a un bucle. */
-function pausaAlAzar(minMs: number, maxMs: number): Promise<void> {
-    const ms = minMs + Math.random() * (maxMs - minMs);
-    return new Promise((r) => setTimeout(r, ms));
-}
-
-// ── La consulta, en el navegador ───────────────────────────────────
-
-/**
- * Consulta un RUC en la pantalla pública, dejando que el propio navegador
- * resuelva el reCAPTCHA v3 al hacer clic en «Buscar» — ninguna cabecera ni
- * token se arma a mano.
- */
-async function consultarRuc(page: Page, ruc: string): Promise<CondicionRuc> {
-    await page.goto(URL_FORMULARIO, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('#txtRuc', { timeout: 30000 });
-
-    await page.fill('#txtRuc', ruc);
-    await page.click('#btnAceptar');
-
-    // Tras el clic: grecaptcha.execute(...) resuelve el token (silencioso, sin
-    // UI) y recién ahí el formulario navega a jcrS00Alias con el resultado.
-    await page.waitForURL(/jcrS00Alias/i, { timeout: 30000 }).catch(() => {});
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-
-    const html = await page.content();
-    return leerResultadoConsultaRuc(html, ruc);
 }
 
 // ── Guardar en la base ──────────────────────────────────────────────
@@ -189,15 +159,9 @@ async function guardarResultado(sb: ReturnType<typeof clienteSupabase>, r: Condi
 // no se pudieron leer —la señal de que SUNAT empieza a rechazar—, todas paran
 // 60 s y la pausa entre consultas se duplica (hasta 16 s).
 const PARALELO = Math.max(1, Number(process.env.PARALELO?.trim() || '1'));
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
-const navegador = await chromium.launch({
-    headless: true,
-    args: ['--disable-blink-features=AutomationControlled'],
-});
-// Un User-Agent de navegador real: sin esto el WAF de SUNAT trata distinto
-// la petición — se vio lo mismo con el portal SOL en descargar-cpe.mts.
-const nuevaPagina = async () => (await navegador.newContext({ locale: 'es-PE', userAgent: USER_AGENT })).newPage();
+const navegador = await launchBrowser();
+const nuevaPagina = () => newRucPage(navegador);
 const page = await nuevaPagina();
 
 try {

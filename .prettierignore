@@ -12,3 +12,6 @@ docs/**/*.sql
 # <style> that Prettier's HTML printer rewraps in ways that are hard to review.
 src/*.html
 apps-script/**/*.html
+
+# Pages exactly as SUNAT served them (parser fixtures): not ours to format, and not valid HTML.
+tests/fixtures/sunat/

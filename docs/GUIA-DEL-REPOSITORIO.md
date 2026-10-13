@@ -444,9 +444,9 @@ versionan acá.
 
 ---
 
-**Sin migrar (09/10/2026):** la lista SSCO no está en la base sino en la pestaña
-**SSCO** del libro INROCONTA (`pnpm ssco:load`), porque el proyecto de Supabase
-no admite migraciones por ahora.
+La lista SSCO de SUNAT vive en `ruc_ssco` (migración 069, se carga con
+`pnpm ssco:db`); la ficha completa de la Consulta RUC, en `padron_ruc`
+(migración 068, la primera carga fue `pnpm ruc:fichas`).
 
 ## 7. Las hojas de Google que se publican
 

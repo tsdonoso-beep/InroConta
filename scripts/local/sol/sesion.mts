@@ -52,15 +52,26 @@ export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGI
     const { usuario, clave } = credencialesSol();
     b.log('info', quien, `entrando a SOL como ${RUC} / ${usuario}`);
     await irConReintento(b, page, menu, quien);
-    const hay = await page
-        .waitForSelector('#txtRuc', { timeout: 20000 })
-        .then(() => true)
-        .catch(() => false);
+    let hay: boolean;
+    // SUNAT's gateway sometimes answers 502/503/504 on the login page (seen 14/10/2026): wait and ask again.
+    for (let intento = 1; ; intento++) {
+        hay = await page
+            .waitForSelector('#txtRuc', { timeout: 20000 })
+            .then(() => true)
+            .catch(() => false);
+        if (hay || intento > 3 || !(await errorDePasarela(page))) break;
+        b.log('aviso', quien, `SUNAT respondió un error de pasarela (5xx) en el ingreso; se pide otra vez (${intento}/3)`);
+        await dormir(10000 * intento);
+        await irConReintento(b, page, menu, quien);
+    }
     if (!hay) {
-        if (/MenuInternet/i.test(page.url())) {
+        // By host and path: the login page's URL also says «MenuInternet», inside its originalUrl parameter
+        // (that made a 502 on the login read as «the session was already open», 14/10/2026).
+        if (enMenuSol(page.url())) {
             b.log('info', quien, 'la sesión ya estaba abierta');
             return;
         }
+        await guardarEvidencia(b, page, 'login-sin-formulario');
         throw new ErrorSesion(`sin formulario de ingreso ni menú en ${ocultarCodigos(page.url())}`);
     }
     let vuelta: Vuelta | null = vueltaDe(page.url());
@@ -136,6 +147,25 @@ export async function entrar(b: Bitacora, page: Page, quien: string, menu = LOGI
     }
     await guardarEvidencia(b, page, 'login-sin-menu');
     throw new ErrorSesion(`después del login no apareció el menú (${vueltas} vuelta(s) por la portada; ${ocultarCodigos(page.url()).slice(0, 120)})`);
+}
+
+/** The page IS a SOL menu (e-menu.sunat.gob.pe/…/MenuInternet*.htm), not a page that only names it in a parameter. */
+function enMenuSol(url: string): boolean {
+    try {
+        const u = new URL(url);
+        return /(^|\.)e-menu\.sunat\.gob\.pe$/i.test(u.hostname) && /MenuInternet/i.test(u.pathname);
+    } catch {
+        return false;
+    }
+}
+
+/** The page is a gateway error of SUNAT («502 Bad Gateway», 503, 504), not a form. */
+async function errorDePasarela(page: Page): Promise<boolean> {
+    const t = await page
+        .locator('body')
+        .innerText({ timeout: 2000 })
+        .catch(() => '');
+    return /\b50[234]\b.*(gateway|service|unavailable|time-?out)|bad gateway/i.test(t);
 }
 
 /** La portada del servicio de autenticación de SUNAT (a veces el login termina ahí en vez de en el menú). */

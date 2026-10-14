@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+
+/*
+ * The Roland Print palette as Tailwind tokens: bg-primary, text-danger-strong, border-line…
+ * The same roles as apps-script/inroconta/shared/Styles.html (the Apps Script view), so both
+ * read alike while they live side by side. Rule: a component paints with a ROLE, never with a
+ * brand value or a loose hex. The living sheet is /dev/colores.
+ */
+@theme {
+    --font-sans: var(--font-manrope), system-ui, sans-serif;
+
+    /* Roland Print: the five colours of the logo, plus the dark blue and light grey of its site. */
+    --color-brand-blue: #006db1;
+    --color-brand-blue-dark: #005a94;
+    --color-brand-red: #e30613;
+    --color-brand-teal: #00a298;
+    --color-brand-yellow: #ffdd00;
+    --color-brand-ink: #1d1d1b;
+    --color-brand-light: #f2f2f2;
+
+    /* Neutrals: warm greys around the ink of the logo. */
+    --color-canvas: var(--color-brand-light);
+    --color-surface: #ffffff;
+    --color-surface-2: #f7f7f6;
+    --color-surface-3: #ececea;
+    --color-line: #e4e4e1;
+    --color-control: #d2d2ce;
+    --color-ink: var(--color-brand-ink);
+    --color-ink-2: #5c5c58;
+    --color-ink-3: #8a8a86;
+    --color-disabled: #e6e6e3;
+    --color-disabled-ink: #9d9d98;
+
+    /* Primary: the brand blue. -strong is its hover and its text on -soft. */
+    --color-primary: var(--color-brand-blue);
+    --color-primary-strong: var(--color-brand-blue-dark);
+    --color-primary-soft: #e3eef7;
+    --color-primary-line: color-mix(in srgb, var(--color-brand-blue) 22%, #fff);
+    /* Second data colour (compras next to ventas in blue). */
+    --color-teal: var(--color-brand-teal);
+    --color-teal-strong: #007a72;
+    --color-teal-soft: #e1f4f2;
+
+    /* Status: solid (bar, dot, badge) · strong (text, and text on -soft) · soft (chip, notice). */
+    --color-danger: var(--color-brand-red);
+    --color-danger-strong: #b0050f;
+    --color-danger-soft: #fde8e9;
+    --color-danger-line: color-mix(in srgb, var(--color-brand-red) 25%, #fff);
+    --color-warning: var(--color-brand-yellow);
+    --color-warning-strong: #8a6300;
+    --color-warning-soft: #fff6cc;
+    --color-success: var(--color-brand-teal);
+    --color-success-strong: #007a72;
+    --color-success-soft: #e1f4f2;
+
+    --shadow-card: 0 2px 4px rgba(29, 29, 27, 0.05), 0 6px 16px rgba(29, 29, 27, 0.06);
+}
+
+@layer base {
+    body {
+        @apply bg-canvas font-sans text-[14px] text-ink antialiased;
+    }
+    a {
+        @apply text-primary;
+    }
+}

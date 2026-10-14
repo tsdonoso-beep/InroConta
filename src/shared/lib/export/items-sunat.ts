@@ -83,6 +83,14 @@ export interface FilaDetalleCpe {
     detraccionHtml?: string | null;
     /** «Con constancia», «Revisar monto», «Falta constancia» o vacío. */
     detraccionConstanciaEstado?: string | null;
+    /** De los comprobantes de retención (migración 070): los CRE, la fecha del último pago, lo retenido y sus enlaces en Drive. */
+    retencionComprobante?: string | null;
+    retencionFechaPago?: string | null;
+    retencionMonto?: number | null;
+    retencionPdf?: string | null;
+    retencionXml?: string | null;
+    /** «Emitido», «Revertido», «Emitido y revertido» (con « · revisar: también tiene detracción» si la tiene) o vacío. */
+    retencionEstado?: string | null;
 }
 
 // El orden importa: lo que se busca primero —de qué comprobante es, qué se
@@ -144,6 +152,12 @@ export const CABECERAS_ITEMS = [
     'PDF constancia de detracción',
     'HTML constancia de detracción',
     'Detracción: constancia',
+    'Comprobante de retención',
+    'Fecha de pago (retención)',
+    'Retención',
+    'PDF comprobante de retención',
+    'XML comprobante de retención',
+    'Retención: estado',
 ];
 
 export const TIPOS_ITEMS: TipoColumna[] = [
@@ -201,6 +215,12 @@ export const TIPOS_ITEMS: TipoColumna[] = [
     'texto', // PDF constancia de detracción
     'texto', // HTML constancia de detracción
     'texto', // Detracción: constancia
+    'texto', // Comprobante de retención
+    'fecha', // Fecha de pago (retención)
+    'numero', // Retención
+    'texto', // PDF comprobante de retención
+    'texto', // XML comprobante de retención
+    'texto', // Retención: estado
 ];
 
 /** Lo mínimo de un `SupabaseClient` que hace falta para paginar un RPC. */
@@ -216,7 +236,8 @@ interface ClienteConRpc {
 const TAMANO_PAGINA_DETALLE = 1000;
 
 /**
- * Trae TODO el detalle, paginando. Sale de `detalle_cpe_hoja_con_detraccion`:
+ * Trae TODO el detalle, paginando. Sale de `detalle_cpe_hoja_con_retencion` (070), que es
+ * `detalle_cpe_hoja_con_detraccion` (066) con la retención de cada factura al final:
  * `detalle_cpe_hoja` (el mismo `detalle_cpe` con lo que dice la carpeta madre
  * de cada OC, el IGV desglosado, el total en soles y la detracción a revisar)
  * más la constancia de depósito de detracción de cada comprobante, al final.
@@ -245,7 +266,7 @@ export async function detalleCpeCompleto(sb: ClienteConRpc, periodo: string | nu
 }
 
 async function paginasDelDetalle(sb: ClienteConRpc, periodo: string): Promise<Record<string, unknown>[]> {
-    return paginasDeRpc(sb, 'detalle_cpe_hoja_con_detraccion', { p_periodo: periodo });
+    return paginasDeRpc(sb, 'detalle_cpe_hoja_con_retencion', { p_periodo: periodo });
 }
 
 async function paginasDeRpc(sb: ClienteConRpc, fn: string, args: Record<string, unknown>): Promise<Record<string, unknown>[]> {
@@ -325,6 +346,12 @@ export function filaDetalleDesdeRpc(d: Record<string, unknown>): FilaDetalleCpe 
         detraccionPdf: (d.detraccion_pdf as string) ?? null,
         detraccionHtml: (d.detraccion_html as string) ?? null,
         detraccionConstanciaEstado: (d.detraccion_constancia_estado as string) ?? null,
+        retencionComprobante: (d.retencion_comprobante as string) ?? null,
+        retencionFechaPago: (d.retencion_fecha_pago as string) ?? null,
+        retencionMonto: aNum(d.retencion_monto),
+        retencionPdf: (d.retencion_pdf as string) ?? null,
+        retencionXml: (d.retencion_xml as string) ?? null,
+        retencionEstado: (d.retencion_estado as string) ?? null,
     };
 }
 
@@ -396,6 +423,12 @@ export function filasItemsSunat(filas: FilaDetalleCpe[]): string[][] {
             f.detraccionPdf ?? '',
             f.detraccionHtml ?? '',
             f.detraccionConstanciaEstado ?? '',
+            f.retencionComprobante ?? '',
+            fechaCorta(f.retencionFechaPago ?? null),
+            num(f.retencionMonto ?? null, 2),
+            f.retencionPdf ?? '',
+            f.retencionXml ?? '',
+            f.retencionEstado ?? '',
         ]),
     ];
 }

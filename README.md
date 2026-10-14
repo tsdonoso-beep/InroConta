@@ -21,15 +21,16 @@ SUNAT (SIRE, API de comprobantes, SOL)          Drive (carpetas de OC)      Hoja
                                        │
                          Supabase (comprobantes, ítems, OC, detracciones…)
                                        │
-                 Libro INROCONTA (Google Sheets) ──► App de Apps Script: la vista web de Contabilidad
+                 Libro INROCONTA (Google Sheets) ──► App web (Next.js en Vercel): la vista de Contabilidad
 ```
 
-| Pieza                                    | Dónde corre                                    | Cómo se actualiza                                      |
-| ---------------------------------------- | ---------------------------------------------- | ------------------------------------------------------ |
-| Robots de SUNAT, carpetas y detracciones | GitHub Actions (cron diario, hora de Lima)     | Se leen de `main` en cada corrida                      |
-| Base de datos                            | Supabase                                       | Migraciones de `docs/database/migrations/`             |
-| Libro INROCONTA                          | Google Sheets                                  | Lo escriben los robots y la app                        |
-| Vista web de Contabilidad                | Google Apps Script, dentro del libro INROCONTA | `pnpm deploy:app` (ver [Desplegar](#desplegar-la-app)) |
+| Pieza                                    | Dónde corre                                   | Cómo se actualiza                                    |
+| ---------------------------------------- | --------------------------------------------- | ---------------------------------------------------- |
+| Robots de SUNAT, carpetas y detracciones | GitHub Actions (cron diario, hora de Lima)    | Se leen de `main` en cada corrida                    |
+| Base de datos                            | Supabase                                      | Migraciones de `docs/database/migrations/`           |
+| Libro INROCONTA                          | Google Sheets                                 | Lo escriben los robots y la app                      |
+| Vista web de Contabilidad                | Vercel (Next.js, `src/app`)                   | `vercel --prod` (ver [Desplegar](#desplegar-la-app)) |
+| Pestañas CARPETA MADRE y PADRÓN RUC      | Apps Script del libro INROCONTA (activadores) | `pnpm apps-script:push`                              |
 
 ## Primeros pasos
 
@@ -47,64 +48,41 @@ pnpm exec playwright install chromium
 
 ## Comandos
 
-| Comando                     | Qué hace                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`                  | Abre la vista en local con datos de prueba (F5 tras editar `apps-script/inroconta/`)                   |
-| `pnpm app:push`             | Sube la app a Apps Script **sin desplegarla**: se prueba con datos reales en el enlace `/dev`          |
-| `pnpm ssco:db archivo.xlsx` | Carga la lista SSCO de SUNAT en la base (`--dry-run` solo la lee)                                      |
-| `pnpm ruc:fichas`           | Trae de SUNAT la ficha completa de los RUC del padrón que no la tienen (`--dry-run` no guarda)         |
-| `pnpm test`                 | Pruebas unitarias (vitest): los `.gs` de la app, el despliegue y los workflows                         |
-| `pnpm test:e2e`             | Pruebas de punta a punta (Playwright) de la vista web, en local                                        |
-| `pnpm check`                | Tipos, lint, formato y que `database.full.sql` esté al día                                             |
-| `pnpm lint` / `pnpm format` | ESLint / Prettier sobre todo el repositorio                                                            |
-| `pnpm deploy:check`         | Corre todas las pruebas (unitarias y de punta a punta); opcional antes de desplegar                    |
-| `pnpm deploy:app`           | Despliega la app de Apps Script tal como está en disco                                                 |
-| `pnpm db:consolidar`        | Regenera `docs/database/database.full.sql` después de una migración nueva                              |
-| `pnpm cpe:local`            | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))            |
-| `pnpm carpetas:local`       | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                |
-| `pnpm hojas:detalle`        | Republica COMPROBANTES SUNAT - DETALLE                                                                 |
-| `pnpm detracciones:local`   | Constancias de detracción a Drive y a la base ([docs/detracciones-spot.md](docs/detracciones-spot.md)) |
+| Comando                     | Qué hace                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                  | La app web (Next.js) en `localhost:3000`, con los datos reales del libro ([docs/app-web.md](docs/app-web.md)) |
+| `pnpm build`                | Compila la app web como en Vercel                                                                             |
+| `pnpm apps-script:push`     | Sube CarpetaMadre.gs y PadronRuc.gs (`apps-script/inroconta/`) a su proyecto de Apps Script                   |
+| `pnpm ssco:db archivo.xlsx` | Carga la lista SSCO de SUNAT en la base (`--dry-run` solo la lee)                                             |
+| `pnpm ruc:fichas`           | Trae de SUNAT la ficha completa de los RUC del padrón que no la tienen (`--dry-run` no guarda)                |
+| `pnpm test`                 | Pruebas unitarias (vitest): las reglas de la app web, los `.gs` y los workflows                               |
+| `pnpm check`                | Tipos, lint, formato y que `database.full.sql` esté al día                                                    |
+| `pnpm lint` / `pnpm format` | ESLint / Prettier sobre todo el repositorio                                                                   |
+| `pnpm db:consolidar`        | Regenera `docs/database/database.full.sql` después de una migración nueva                                     |
+| `pnpm cpe:local`            | Comprobantes por la API de SUNAT ([docs/pipeline-cpe-local.md](docs/pipeline-cpe-local.md))                   |
+| `pnpm carpetas:local`       | Carpetas de OC ([docs/carpetas-oc-local.md](docs/carpetas-oc-local.md))                                       |
+| `pnpm hojas:detalle`        | Republica COMPROBANTES SUNAT - DETALLE                                                                        |
+| `pnpm detracciones:local`   | Constancias de detracción a Drive y a la base ([docs/detracciones-spot.md](docs/detracciones-spot.md))        |
 
 En PowerShell las variables van antes con `$env:`, por ejemplo `$env:DEBUG="0"; pnpm padron:local`. Los robots se
 corren desde PowerShell o cmd: en Git Bash, `tar` es el de GNU y `domicilios:local` falla con rutas `D:\…`.
 
 ## Desplegar la app
 
-La vista web vive en un proyecto de Apps Script dentro del libro INROCONTA. Se despliega desde aquí con
-[clasp](https://github.com/google/clasp), nunca a mano desde el editor:
+La vista de Contabilidad es la app web de `src/app` (Next.js), en Vercel. Desde el 13/10/2026 reemplaza a la
+vista de Apps Script, que se retiró. Se despliega desde la raíz con la CLI de Vercel enlazada al proyecto
+(`vercel link`, una vez):
 
 ```bash
-pnpm deploy:app "qué cambió"
+vercel --prod
 ```
 
-1. **`deploy:check`** (opcional) corre `pnpm test` y `pnpm test:e2e`. Desde el 13/10/2026 no hace falta para desplegar.
-2. **`deploy:app`** sube los archivos de `apps-script/inroconta` tal como están en disco, commiteados o no: si hay
-   cambios sin commitear los lista y anota el commit con «+» (`a1b2c3d+`). Hace `clasp push`, crea una versión nueva y
-   la pone en **la misma implementación de siempre**: el enlace `/exec` no cambia nunca. Un enlace nuevo solo aparece
-   si se crea una implementación nueva, y eso no se hace.
-3. Escribe en la pestaña **DESPLIEGUES** del libro el enlace vigente (celda B1), la versión y una fila con la fecha,
-   la versión, el commit y los cambios que llevó. Ahí se ve rápido qué cambió en cada despliegue.
+Las variables de entorno, el cliente OAuth de Google y quién puede entrar están en [docs/app-web.md](docs/app-web.md).
 
-**La versión** es la de `package.json` (la pones tú antes de desplegar, por ejemplo con un commit
-`chore(release): …`); Apps Script además numera cada despliegue (4, 5, 6…) y los dos números quedan en la pestaña. Si
-la app cambió y la versión es la misma que en el despliegue anterior, `deploy:app` lo avisa. La descripción es una
-frase para Contabilidad; si no se pone, va el asunto del último commit.
-
-`pnpm deploy:app --dry-run` muestra qué se desplegaría, sin subir nada.
-
-**La primera vez en cada computadora:**
-
-1. Activar «Google Apps Script API» en <https://script.google.com/home/usersettings>.
-2. `pnpm exec clasp login` con la cuenta que despliega (`pnpm exec clasp show-authorized-user` dice cuál es).
-3. `.env.local` con `GOOGLE_SA_EMAIL` y `GOOGLE_SA_KEY_FILE=secrets/sa.json`, y la clave en `secrets/sa.json`: la
-   cuenta de servicio es la que escribe la pestaña DESPLIEGUES.
-
-**Ojo con la cuenta:** la app está publicada como «Ejecutar como: el usuario que implementa» (`appsscript.json`). Lee
-el libro, Drive y la base con los permisos de quien despliega, así que hay que desplegar siempre con una cuenta que
-tenga acceso a todo eso. Cambiar de cuenta cambia con qué permisos corre la vista para todos.
-
-El proyecto (`apps-script/inroconta/`) es exactamente lo que hay en Apps Script: lo que no esté ahí no se sube, y lo
-que se edite en el editor web se pierde en el siguiente despliegue.
+En `apps-script/inroconta/` quedan solo los scripts que mantienen pestañas del libro (CarpetaMadre.gs y
+PadronRuc.gs, con sus activadores). Se suben con `pnpm apps-script:push` (la primera vez en cada computadora:
+activar «Google Apps Script API» en <https://script.google.com/home/usersettings> y `pnpm exec clasp login`). Lo
+que se edite en el editor web se pierde en el siguiente push.
 
 ## Calidad
 
@@ -120,13 +98,14 @@ que se edite en el editor web se pierde en el siguiente despliegue.
 
 ## Carpetas
 
-| Carpeta                  | Qué hay                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `.github/workflows/`     | Los robots de GitHub Actions (SUNAT diario, XML, padrón, carpetas de OC, detracciones…)                   |
-| `apps-script/inroconta/` | La app del área: el proyecto de Apps Script del libro INROCONTA (vista, carpeta madre, padrón), con clasp |
-| `src/`                   | Otros Apps Script que se pegan a mano en sus libros ([docs/apps-script.md](docs/apps-script.md))          |
-| `src/shared/lib/`        | Lógica compartida de los robots: SUNAT, Drive, armado de hojas                                            |
-| `scripts/`               | Lo que corren los workflows, los comandos locales y el despliegue (`scripts/deploy/`)                     |
-| `scripts/out/`           | Lo que deja cada corrida: bitácoras, salidas, capturas y reportes de pruebas (fuera de git)               |
-| `tests/`                 | `unit/` (vitest), `e2e/` (Playwright), `fixtures/` (datos de prueba) y `helpers/`                         |
-| `docs/`                  | Documentación; `docs/database/` tiene las migraciones de Supabase y `database.full.sql`                   |
+| Carpeta                    | Qué hay                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `.github/workflows/`       | Los robots de GitHub Actions (SUNAT diario, XML, padrón, carpetas de OC, detracciones…)          |
+| `apps-script/inroconta/`   | El proyecto de Apps Script del libro INROCONTA (carpeta madre y padrón), con clasp               |
+| `apps-script/hojas/`       | Otros Apps Script que se pegan a mano en sus libros ([docs/apps-script.md](docs/apps-script.md)) |
+| `src/app/`, `src/modules/` | La app web (Next.js), con DDD y arquitectura hexagonal ([docs/app-web.md](docs/app-web.md))      |
+| `src/shared/lib/`          | Lógica compartida de los robots y la app: SUNAT, Drive, armado de hojas                          |
+| `scripts/`                 | Lo que corren los workflows, los comandos locales y el despliegue (`scripts/deploy/`)            |
+| `scripts/out/`             | Lo que deja cada corrida: bitácoras, salidas, capturas y reportes de pruebas (fuera de git)      |
+| `tests/`                   | `unit/` (vitest), `e2e/` (Playwright), `fixtures/` (datos de prueba) y `helpers/`                |
+| `docs/`                    | Documentación; `docs/database/` tiene las migraciones de Supabase y `database.full.sql`          |

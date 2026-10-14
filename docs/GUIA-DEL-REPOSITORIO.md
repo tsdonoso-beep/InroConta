@@ -41,9 +41,11 @@ Empresa: **INDUSTRIAS ROLAND PRINT S.A.C. — INROPRIN**, RUC `20512201611`.
 
 ```
 .github/workflows/        Los 11 workflows (sección 4)
-src/                      Google Apps Script: los .gs y .html que se pegan en
+apps-script/hojas/        Google Apps Script: los .gs y .html que se pegan en
                           el libro y las hojas (sección 10)
-  shared/lib/             Lógica compartida que usan los scripts (sección 9)
+src/                      La app web en Next.js (docs/app-web.md)
+  app/, modules/          Páginas y contextos (DDD + hexagonal)
+  shared/lib/             Lógica compartida que usan los scripts y la app (sección 9)
     sunat/                Token, SIRE, lectura de XML, catálogo de consultas, padrón
     export/               Armado de las hojas (COMPROBANTES SUNAT, DETALLE…)
     drive/                Escritura en Drive, publicación de hojas, carpetas de OC, OCR
@@ -487,7 +489,7 @@ Vercel). Desde ahí también se consulta el SIRE y la cobertura
 
 ---
 
-## 10. Google Apps Script (`src/`)
+## 10. Google Apps Script (`apps-script/hojas/`)
 
 El código vive acá versionado, pero **se ejecuta pegado en cada hoja de
 Google**. Instalación de cada uno en `docs/apps-script.md`.

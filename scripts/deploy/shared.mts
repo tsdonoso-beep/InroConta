@@ -1,4 +1,4 @@
-// What deploy:check and deploy:app share: the repo, git and running a Node tool
+// What apps-script:push (scripts/dev/push.mts) needs: the repo, git and running a Node tool
 // without a shell.
 //
 // Nothing here goes through a shell: on Windows a shell splits every argument

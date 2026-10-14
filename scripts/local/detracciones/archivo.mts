@@ -35,8 +35,8 @@ export async function aPdf(ctx: BrowserContext, html: Buffer): Promise<Buffer> {
 }
 
 /** Copia en disco antes de subir: si Drive falla, la constancia no se pierde. */
-export function respaldar(ruta: string[], nombre: string, datos: Buffer): void {
-    const dir = join(DIR_SALIDA, ...ruta.slice(1));
+export function respaldar(ruta: string[], nombre: string, datos: Buffer, raiz = DIR_SALIDA): void {
+    const dir = join(raiz, ...ruta.slice(1));
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, nombre), datos);
 }

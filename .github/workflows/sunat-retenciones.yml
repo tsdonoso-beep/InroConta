@@ -1,0 +1,114 @@
+# Comprobantes de retención del IGV (CRE): bajarlos de SOL y archivarlos
+#
+# INROPRIN es agente de retención: al pagar a un proveedor le retiene el 3 % y emite un CRE. Entra a
+# SOL por el menú de siempre, abre «Consultar Emisión y Recepción» (opción 11.5.8) y, por la API que
+# esa pantalla usa por debajo, pide los CRE emitidos y recibidos por FECHA DE EMISIÓN. De cada CRE
+# nuevo (o que pasó a revertido) baja su detalle —las facturas que cubre, con la fecha de pago y lo
+# retenido—, su PDF y su XML; los dos van a Drive, a Retenciones/Compras|Ventas/AAAA-MM. Guarda cada
+# CRE y sus facturas en la base (retencion_comprobante y retencion_documento, migración 070) y, si
+# bajó nuevos, republica COMPROBANTES SUNAT - DETALLE, que trae la retención de cada factura en seis
+# columnas al final, al lado de las de detracción.
+#
+# El cron mira los últimos 10 días; lo ya guardado igual no se vuelve a bajar. La primera carga se
+# pide a mano (desde = 01/01/2026). Es el mismo script que en local: `pnpm retenciones:local`
+# (scripts/local/retenciones/retenciones.mts).
+
+name: SUNAT retenciones
+
+on:
+  schedule:
+    # 09:00 y 17:30 en Lima (UTC-5): después de «SUNAT detracciones» (08:30 y
+    # 17:00). Comparte la cuenta de SOL: si la otra sigue, este espera.
+    - cron: '0 14 * * *'
+    - cron: '30 22 * * *'
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Fecha de emisión desde (dd/mm/aaaa). Vacío = hace «dias» días. Primera carga: 01/01/2026.'
+        required: false
+        default: ''
+      hasta:
+        description: 'Fecha de emisión hasta (dd/mm/aaaa). Vacío = hoy en Lima.'
+        required: false
+        default: ''
+      dias:
+        description: 'Si no hay «desde»: cuántos días hacia atrás.'
+        required: false
+        default: '10'
+      guardar:
+        description: 'Subir a Drive y guardar en la base. Desmarcado = prueba (solo disco).'
+        type: boolean
+        required: false
+        default: true
+      limite:
+        description: 'Cuántos comprobantes bajar como máximo (0 = todos).'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+# El MISMO grupo que los demás que usan la cuenta secundaria de SOL: dos
+# sesiones a la vez pueden hacer que SUNAT cierre una. La segunda espera.
+concurrency:
+  group: consultar-cpe-individual
+  cancel-in-progress: false
+
+jobs:
+  retenciones:
+    runs-on: ubuntu-latest
+    # La lista de un año es menos de un segundo; cada CRE (detalle, PDF, XML) unos segundos, uno a
+    # uno. La primera carga (~490 CRE de enero a octubre) entra con holgura.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Bajar los comprobantes de retención, archivarlos en Drive y guardarlos en la base
+        env:
+          SUNAT_RUC: ${{ secrets.SUNAT_RUC }}
+          SUNAT_SOL_USUARIO: ${{ secrets.SUNAT_SOL_USUARIO }}
+          SUNAT_SOL_CLAVE: ${{ secrets.SUNAT_SOL_CLAVE }}
+          SUNAT_INROPRIN_USUARIO: ${{ secrets.SUNAT_INROPRIN_USUARIO }}
+          SUNAT_INROPRIN_CLAVE: ${{ secrets.SUNAT_INROPRIN_CLAVE }}
+          SUNAT_DRIVE_FOLDER: ${{ secrets.SUNAT_DRIVE_FOLDER }}
+          GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
+          GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          PROJECT_URL: ${{ secrets.PROJECT_URL }}
+          ANON_KEY: ${{ secrets.ANON_KEY }}
+          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
+          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          # En una corrida por cron los inputs vienen vacíos: se usan los valores por omisión.
+          DESDE: ${{ inputs.desde }}
+          HASTA: ${{ inputs.hasta }}
+          DIAS: ${{ inputs.dias || '10' }}
+          # Solo una corrida a mano con «guardar» desmarcado es de prueba (en el cron el input viene vacío,
+          # y vacío == false en las expresiones de GitHub: por eso se mira el evento).
+          GUARDAR: ${{ github.event_name == 'workflow_dispatch' && !inputs.guardar && '0' || '1' }}
+          LIMITE: ${{ inputs.limite || '0' }}
+        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/retenciones/retenciones.mts
+
+      # Solo las bitácoras: los CRE ya quedaron en Drive, y si alguno no subió,
+      # la próxima corrida lo vuelve a bajar.
+      - name: Subir bitácoras
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitacoras-retenciones
+          path: scripts/out/logs/
+          if-no-files-found: warn
+          retention-days: 14

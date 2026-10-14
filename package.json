@@ -20,6 +20,8 @@
     "fuentes:local": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/fuentes-compras.mts",
     "detracciones:local": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/detracciones/detracciones.mts",
     "detracciones:reconocer": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/detracciones/reconocer.mts",
+    "retenciones:local": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/retenciones/retenciones.mts",
+    "retenciones:reconocer": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/retenciones/reconocer.mts",
     "hojas:detalle": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/local/publicar-detalle.mts",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src/app src/modules src/shared --config .dependency-cruiser.cjs",

@@ -237,7 +237,8 @@ function hojaFija(nombre: string): string | null {
  * Mientras dura la mudanza se sigue publicando también en los archivos de
  * antes (la vista y las hojas viejas siguen al día). HOJAS_SUELTAS=0 lo apaga.
  */
-export const LIBRO_ID = (process.env.HOJA_LIBRO_ID?.trim() || '1n_MZD30CQ1b3HZlVCstQZ3giGaE-sKsB5_U3dobtdpE').replace(/^no$/i, '');
+import { LIBRO_ID } from './libro.ts';
+export { LIBRO_ID };
 const HOJAS_SUELTAS = process.env.HOJAS_SUELTAS?.trim() !== '0';
 
 export async function publicarHoja(p: {

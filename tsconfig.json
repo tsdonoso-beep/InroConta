@@ -1,6 +1,6 @@
 {
-  // Solo para el editor y `pnpm typecheck`: los scripts corren con
-  // `node --experimental-strip-types`, sin compilar.
+  // For the editor, `pnpm typecheck` and the Next build. The scripts run with
+  // `node --experimental-strip-types`, without compiling.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["esnext", "dom", "dom.iterable"],
@@ -13,8 +13,34 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "noEmit": true,
-    "types": ["node"]
+    "jsx": "react-jsx",
+    "incremental": true,
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "allowJs": true
   },
-  "include": ["scripts/**/*.mts", "scripts/**/*.ts", "src/shared/**/*.ts", "tests/**/*.mts", "*.config.mts"],
-  "exclude": ["node_modules", "scripts/out"]
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
+    "src/modules/**/*.ts",
+    "src/modules/**/*.tsx",
+    "src/shared/**/*.ts",
+    "src/shared/**/*.tsx",
+    "scripts/**/*.mts",
+    "scripts/**/*.ts",
+    "tests/**/*.mts",
+    "*.config.mts",
+    "*.config.ts"
+  ],
+  "exclude": ["node_modules", "scripts/out", ".next"]
 }

@@ -15,6 +15,11 @@
 # Memoria de Claude: es un repositorio PRIVADO aparte (scripts/memory-sync.mts), este es público
 /memory/
 
+# Next.js y Vercel
+/.next/
+/next-env.d.ts
+/.vercel/
+
 # Varios
 .DS_Store
 *.tsbuildinfo

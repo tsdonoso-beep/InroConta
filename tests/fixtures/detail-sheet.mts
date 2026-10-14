@@ -3,7 +3,8 @@
 // the INROCONTA view reads (apps-script/inroconta/VistaEjecutiva.gs). Each case covers a branch
 // of the view: several lines of one invoice, a credit note, dollars, a sale,
 // a withholding (detracción) with its deposit, and an import order.
-import type { Cell } from '../helpers/apps-script.mts';
+/** A cell as the Sheets API or a sheet's getValues() gives it. */
+export type Cell = string | number | boolean | Date | null;
 
 export const DETAIL_TAB = 'COMPROBANTES SUNAT - DETALLE';
 

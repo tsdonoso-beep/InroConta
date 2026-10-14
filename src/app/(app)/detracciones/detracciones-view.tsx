@@ -1,0 +1,175 @@
+'use client';
+
+// Detracciones: the SPOT proofs (Banco de la Nación) and the invoices with detraction that have
+// none, with their own filters (direction, month, case, text). The port of the «detracciones»
+// section of the Apps Script view (iniciarDetracciones / pintarDetr). Everything is drawn at
+// once; only the numbers wait for the base (detractionsStore, read once per tab).
+import { useMemo, useState } from 'react';
+import {
+    DEFAULT_FILTERS,
+    detractionKpis,
+    filterDetractions,
+    latestFirst,
+    monthOptions,
+    paymentMonths,
+    type DetractionFilters,
+} from '../../../modules/detracciones/application/views.ts';
+import { FilterRow, Notice, SearchBox, SectionTitle, Select, TextButton } from '../../../shared/ui/bits.tsx';
+import { Card, Segmented } from '../../../shared/ui/card.tsx';
+import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
+import { limaDateTime, monthLabel, thousands } from '../../../shared/ui/format.ts';
+import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { MonthBarsGap } from '../_comprobantes/charts.tsx';
+import { detractionsStore } from '../_lib/stores.ts';
+import { BarsGap, CaseBars, DelayBars, GoodsBars, PaymentBars, PaymentLegend, TopBars } from './charts.tsx';
+import { DetractionKpis } from './kpis.tsx';
+import { soles } from './labels.tsx';
+import { MissingTable, ProofsTable, STEP } from './tables.tsx';
+
+// The filters survive moving to another section and back (not a reload), like the old view's DT.
+let saved: DetractionFilters = DEFAULT_FILTERS;
+
+const DIRECTIONS: { value: DetractionFilters['direction']; label: string }[] = [
+    { value: 'compra', label: 'Compras' },
+    { value: 'venta', label: 'Ventas' },
+    { value: '', label: 'Compras y ventas' },
+];
+
+const BASES: { value: DetractionFilters['basis']; label: string; title: string }[] = [
+    { value: 'pago', label: 'Por fecha de pago', title: 'El período filtra las constancias por el día en que se depositó' },
+    { value: 'periodo', label: 'Por período de la factura', title: 'El período filtra por el mes del Registro de Compras de la factura' },
+];
+
+const TableGap = () => (
+    <div className="flex flex-col gap-3">
+        {[0, 1, 2, 3].map((i) => (
+            <Hueco key={i} className="h-8 w-full" />
+        ))}
+    </div>
+);
+
+export function DetraccionesView() {
+    const { data, error } = detractionsStore.use();
+    const [f, setF] = useState<DetractionFilters>(saved);
+    const [shown, setShown] = useState(STEP);
+    const [shownMissing, setShownMissing] = useState(STEP);
+    /** Changes the filters; `both` also starts the table of invoices without proof over. */
+    const set = (patch: Partial<DetractionFilters>, both = true) => {
+        saved = { ...f, ...patch };
+        setF(saved);
+        setShown(STEP);
+        if (both) setShownMissing(STEP);
+    };
+
+    const months = useMemo(() => (data ? monthOptions(data, f.basis) : []), [data, f.basis]);
+    const v = useMemo(() => {
+        if (!data) return null;
+        const r = filterDetractions(data, f);
+        return {
+            ...r,
+            k: detractionKpis(r.proofs, r.missing, data.since),
+            bars: paymentMonths(r.anyMonth.filter((p) => !f.case || p.case === f.case)),
+            sorted: latestFirst(r.proofs),
+            deposited: r.proofs.reduce((a, p) => a + (p.deposited ?? 0), 0),
+            missingAmount: r.missing.reduce((a, m) => a + (m.detraction ?? 0), 0),
+        };
+    }, [data, f]);
+    // The bars are months of payment: one is lit when the period is that month, by payment.
+    const paidMonth = f.basis === 'pago' && /^m\d{6}$/.test(f.period) ? f.period.slice(1) : '';
+    const since = data?.since ?? '';
+
+    return (
+        <>
+            <SectionTitle
+                title="Detracciones"
+                note={data ? `Constancias del SPOT · leído de la base el ${limaDateTime(data.readAt)}` : !error && <Hueco className="h-3 w-72" />}
+            />
+            {error ? (
+                <Notice>No se pudieron leer las detracciones de la base: {error} El detalle está en el log del servidor.</Notice>
+            ) : (
+                <>
+                    <FilterRow>
+                        <Segmented options={DIRECTIONS} value={f.direction} onChange={(direction) => set({ direction })} />
+                        <Segmented options={BASES} value={f.basis} onChange={(basis) => set({ basis, period: '' })} />
+                        <PeriodPicker value={f.period} onChange={(period) => set({ period })} months={months} disabled={!data} allLabel="Todas las fechas" />
+                        <Select label="Caso" value={f.case} onChange={(c) => set({ case: c }, false)}>
+                            <option value="">Todos los casos</option>
+                            {v?.cases.map((c) => (
+                                <option key={c.name} value={c.name}>
+                                    {c.name} ({thousands(c.count)})
+                                </option>
+                            ))}
+                        </Select>
+                        <SearchBox
+                            value={f.text}
+                            onChange={(text) => set({ text })}
+                            placeholder="Proveedor, cliente, RUC, constancia, F001-123 o N.° de operación"
+                        />
+                        <TextButton onClick={() => set({ period: '', case: '', text: '' })}>Quitar filtros</TextButton>
+                    </FilterRow>
+                    <DetractionKpis k={v?.k ?? null} direction={f.direction} since={since} />
+                    <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1.55fr_1fr]">
+                        <Card title="Depósitos por mes de pago" note="Constancias del SPOT (Banco de la Nación) · clic en un mes para filtrar">
+                            {v ? (
+                                <PaymentBars months={v.bars} month={paidMonth} onPick={(m) => set({ period: m ? `m${m}` : '', basis: 'pago' }, false)} />
+                            ) : (
+                                <MonthBarsGap />
+                            )}
+                            <PaymentLegend direction={f.direction} />
+                        </Card>
+                        <Card title="Por caso" note="Clic en un caso para ver sus constancias">
+                            {v ? <CaseBars proofs={v.anyCase} chosen={f.case} onPick={(c) => set({ case: c }, false)} /> : <BarsGap />}
+                        </Card>
+                    </div>
+                    <div className="mb-3.5 grid gap-3.5 lg:grid-cols-3">
+                        <Card title="¿Cuándo se depositó?" note="Meses entre el período de la factura y el pago">
+                            {v ? <DelayBars proofs={v.proofs} /> : <BarsGap />}
+                        </Card>
+                        <Card
+                            title={
+                                f.direction === 'venta'
+                                    ? 'Clientes que más nos depositaron'
+                                    : f.direction === 'compra'
+                                      ? 'Proveedores con más detracción'
+                                      : 'Proveedores y clientes'
+                            }
+                            note="Monto depositado"
+                        >
+                            {v ? <TopBars proofs={v.proofs} /> : <BarsGap />}
+                        </Card>
+                        <Card title="Por bien o servicio" note="Código del anexo de la R.S. 183-2004/SUNAT">
+                            {v ? <GoodsBars proofs={v.proofs} /> : <BarsGap />}
+                        </Card>
+                    </div>
+                    <Card
+                        className="mb-3.5"
+                        title="Constancias de detracción"
+                        note={
+                            v ? `${thousands(v.proofs.length)} constancias · ${soles(v.deposited)} · las más recientes primero` : <Hueco className="h-3 w-56" />
+                        }
+                    >
+                        {v ? <ProofsTable proofs={v.sorted} direction={f.direction} shown={shown} onMore={() => setShown((n) => n + STEP)} /> : <TableGap />}
+                    </Card>
+                    <Card
+                        title="Facturas con detracción sin constancia"
+                        note={
+                            v ? (
+                                `${thousands(v.missing.length)} facturas · ${soles(v.missingAmount)} de detracción · desde ${monthLabel(since)}` +
+                                (paidMonth ? ' · el mes de pago no aplica: no hay pago' : '') +
+                                ' · las más antiguas primero'
+                            ) : (
+                                <Hueco className="h-3 w-72" />
+                            )
+                        }
+                    >
+                        {v ? (
+                            <MissingTable rows={v.missing} direction={f.direction} shown={shownMissing} onMore={() => setShownMissing((n) => n + STEP)} />
+                        ) : (
+                            <TableGap />
+                        )}
+                    </Card>
+                </>
+            )}
+        </>
+    );
+}

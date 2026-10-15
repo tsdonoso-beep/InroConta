@@ -71,7 +71,7 @@ export function Segmented<T extends string>({
                     type="button"
                     title={o.title}
                     onClick={() => onChange(o.value)}
-                    className={`rounded-[7px] px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap ${o.value === value ? 'bg-ink text-white' : 'text-ink-2 hover:text-ink'}`}
+                    className={`rounded-[7px] px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap ${o.value === value ? 'bg-ink text-on-fill' : 'text-ink-2 hover:text-ink'}`}
                 >
                     {o.label}
                 </button>

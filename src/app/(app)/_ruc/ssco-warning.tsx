@@ -6,13 +6,13 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { sscoHits } from '../../../modules/ruc/application/views.ts';
+import { buttonClass } from '../../../shared/ui/button.tsx';
 import { Card } from '../../../shared/ui/card.tsx';
 import { thousands } from '../../../shared/ui/format.ts';
 import { useDocs } from '../_comprobantes/docs-store.ts';
 import { usePeekRucIndex, useRucIndex } from '../_lib/stores.ts';
 
-const BUTTON =
-    'inline-flex items-center rounded-[10px] bg-ink px-[18px] py-[11px] text-[13.5px] font-semibold whitespace-nowrap text-white shadow-card hover:opacity-90';
+const BUTTON = buttonClass('dark', 'lg');
 
 /** The received documents from SSCO suppliers; null while the documents or the list travel. */
 export function useSscoHits() {

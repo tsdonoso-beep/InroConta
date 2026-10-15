@@ -13,6 +13,7 @@ import {
     type LegajoDoc,
 } from '../../../modules/legajo/application/views.ts';
 import { Empty } from '../../../shared/ui/bits.tsx';
+import { buttonClass } from '../../../shared/ui/button.tsx';
 import { dayTime, dmy, driveFolder, money } from '../../../shared/ui/format.ts';
 import { folderStore } from '../_lib/stores.ts';
 import { Datum, DetailList, LINK } from './detail-bits.tsx';
@@ -49,7 +50,7 @@ function DocBox({ d }: { d: LegajoDoc }) {
             {d.files.length > 0 && (
                 <div className="mt-1 flex flex-col gap-0.5">
                     {d.files.slice(0, 4).map((a) => (
-                        <a key={a.url} href={a.url} {...LINK} title={a.nombre} className="truncate text-xs text-primary hover:underline">
+                        <a key={a.url} href={a.url} {...LINK} title={a.nombre} className={`truncate text-xs ${LINK.className}`}>
                             ↗ {a.serie || a.nombre}
                         </a>
                     ))}
@@ -150,12 +151,7 @@ function Detail({ x, d }: { x: Folder; d: FolderDetail }) {
                 </DetailList>
             )}
             <div className="mt-3.5">
-                <a
-                    href={driveFolder(x.folderId)}
-                    target="_blank"
-                    rel="noopener"
-                    className="inline-flex rounded-[9px] bg-primary px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-primary-strong"
-                >
+                <a href={driveFolder(x.folderId)} target="_blank" rel="noopener" className={buttonClass()}>
                     Abrir la carpeta de la OC ↗
                 </a>
             </div>

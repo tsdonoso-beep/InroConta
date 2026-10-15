@@ -2,6 +2,7 @@
 import { supplierOcsShort, type NoOcInvoice } from '../../../modules/legajo/application/views.ts';
 import { Chip } from '../../../shared/ui/card.tsx';
 import { Empty, T } from '../../../shared/ui/bits.tsx';
+import { LINK_CLASS } from '../../../shared/ui/button.tsx';
 import { dmy, driveFile, money } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 
@@ -35,7 +36,7 @@ function Row({ x }: { x: NoOcInvoice }) {
             </td>
             <td className={`${T.td} whitespace-nowrap`}>
                 {x.pdf ? (
-                    <a href={driveFile(x.pdf)} target="_blank" rel="noopener" className="text-primary hover:text-primary-strong">
+                    <a href={driveFile(x.pdf)} target="_blank" rel="noopener" className={LINK_CLASS}>
                         {x.number}
                     </a>
                 ) : (

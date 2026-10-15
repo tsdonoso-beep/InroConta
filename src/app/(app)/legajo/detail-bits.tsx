@@ -1,7 +1,8 @@
 // The small pieces the opened folder's panels share: a labelled value, a titled list, a Drive link.
 import type { ReactNode } from 'react';
+import { LINK_CLASS } from '../../../shared/ui/button.tsx';
 
-export const LINK = { target: '_blank', rel: 'noopener', className: 'text-primary hover:underline' } as const;
+export const LINK = { target: '_blank', rel: 'noopener', className: LINK_CLASS } as const;
 
 /** A labelled value of the info grid; nothing when the value is empty. */
 export function Datum({ label, value }: { label: string; value: ReactNode }) {

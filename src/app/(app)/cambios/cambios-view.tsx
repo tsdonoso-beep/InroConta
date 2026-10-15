@@ -16,6 +16,7 @@ import {
 } from '../../../modules/legajo/application/views.ts';
 import { Card, Chip, Segmented } from '../../../shared/ui/card.tsx';
 import { Empty, FilterRow, Notice, SearchBox, SectionTitle, T } from '../../../shared/ui/bits.tsx';
+import { LINK_CLASS } from '../../../shared/ui/button.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
 import { driveFolder, limaDateTime } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
@@ -58,7 +59,7 @@ function Day({ d }: { d: ChangeDay }) {
                                             href={driveFolder(x.folderId)}
                                             target="_blank"
                                             rel="noopener"
-                                            className="text-[12.5px] font-semibold text-primary hover:text-primary-strong"
+                                            className={`text-[12.5px] font-semibold ${LINK_CLASS}`}
                                         >
                                             Carpeta ↗
                                         </a>

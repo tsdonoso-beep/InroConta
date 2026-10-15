@@ -13,7 +13,7 @@ import { SECTION_GROUPS, type Section } from './sections.tsx';
 
 const STORAGE_KEY = 'inroconta.menu.collapsed';
 
-const TONE: Record<BadgeTone, string> = { danger: 'bg-danger text-white', muted: 'bg-surface-3 text-ink-2', info: 'bg-primary text-white' };
+const TONE: Record<BadgeTone, string> = { danger: 'bg-danger text-on-fill', muted: 'bg-surface-3 text-ink-2', info: 'bg-primary text-on-fill' };
 
 function Badge({ b, collapsed }: { b: MenuBadges[string]; collapsed: boolean }) {
     if (!b?.count) return null;

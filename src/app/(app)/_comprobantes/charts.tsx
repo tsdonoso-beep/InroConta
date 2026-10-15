@@ -145,7 +145,7 @@ export function HeatMap({ months, rows, lit, currency }: { months: string[]; row
                                     <td
                                         key={m}
                                         title={`${r.name} · ${monthLabel(m)}: ${money(v, currency)}`}
-                                        className={`min-w-[66px] rounded-[7px] px-1 py-2 text-center whitespace-nowrap tabular-nums ${a > 0.55 ? 'text-white' : v ? 'text-ink' : 'text-disabled-ink'} ${lit.includes(m) ? 'outline-2 outline-ink' : ''}`}
+                                        className={`min-w-[66px] rounded-[7px] px-1 py-2 text-center whitespace-nowrap tabular-nums ${a > 0.55 ? 'text-on-fill' : v ? 'text-ink' : 'text-disabled-ink'} ${lit.includes(m) ? 'outline-2 outline-ink' : ''}`}
                                         style={{ background: `color-mix(in srgb, var(--color-teal) ${Math.round(a * 100)}%, transparent)` }}
                                     >
                                         {v ? money(v, currency, true) : '—'}

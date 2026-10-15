@@ -2,6 +2,7 @@
 
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
+import { buttonClass } from '../../shared/ui/button.tsx';
 
 export function SignInButton() {
     const [busy, setBusy] = useState(false);
@@ -13,7 +14,7 @@ export function SignInButton() {
                 setBusy(true);
                 void signIn('google', { callbackUrl: '/' });
             }}
-            className="w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-card hover:bg-primary-strong disabled:bg-disabled disabled:text-disabled-ink"
+            className={buttonClass('primary', 'lg', 'w-full')}
         >
             {busy ? 'Abriendo Google…' : 'Entrar con Google'}
         </button>

@@ -2,9 +2,9 @@
 
 /*
  * The Roland Print palette as Tailwind tokens: bg-primary, text-danger-strong, border-line…
- * The same roles as apps-script/inroconta/shared/Styles.html (the Apps Script view), so both
- * read alike while they live side by side. Rule: a component paints with a ROLE, never with a
- * brand value or a loose hex. The living sheet is /dev/colores.
+ * Rule: a component paints with a ROLE, never with a brand value, a loose hex or Tailwind's own
+ * palette (no text-white, no gray-500). The living sheet, with every role and component, is
+ * /dev/colores (`pnpm dev`).
  */
 @theme {
     --font-sans: var(--font-manrope), system-ui, sans-serif;
@@ -30,6 +30,8 @@
     --color-ink-3: #8a8a86;
     --color-disabled: #e6e6e3;
     --color-disabled-ink: #9d9d98;
+    /* Text and icons on a solid fill (primary, ink, danger). */
+    --color-on-fill: #ffffff;
 
     /* Primary: the brand blue. -strong is its hover and its text on -soft. */
     --color-primary: var(--color-brand-blue);
@@ -50,8 +52,8 @@
     --color-warning-strong: #8a6300;
     --color-warning-soft: #fff6cc;
     --color-success: var(--color-brand-teal);
-    --color-success-strong: #007a72;
-    --color-success-soft: #e1f4f2;
+    --color-success-strong: var(--color-teal-strong);
+    --color-success-soft: var(--color-teal-soft);
 
     --shadow-card: 0 2px 4px rgba(29, 29, 27, 0.05), 0 6px 16px rgba(29, 29, 27, 0.06);
 }

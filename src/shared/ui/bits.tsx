@@ -101,6 +101,10 @@ export function Ring({ pct, color = 'primary', children }: { pct: number; color?
     );
 }
 
+/** The look of every form control: search box, select, period picker. */
+export const CONTROL =
+    'rounded-[9px] border border-control bg-surface px-2.5 py-2 text-[13.5px] outline-none focus:border-primary disabled:bg-disabled disabled:text-disabled-ink';
+
 /** A search box that tells its value `delay` ms after the last key (the old view's 150 ms). */
 export function SearchBox({
     value,
@@ -133,7 +137,7 @@ export function SearchBox({
                 if (timer.current) clearTimeout(timer.current);
                 timer.current = setTimeout(() => onChange(v), delay);
             }}
-            className={`min-w-[220px] flex-1 rounded-[9px] border border-control bg-surface px-3 py-2 text-[13.5px] outline-none focus:border-primary ${className}`}
+            className={`${CONTROL} min-w-[220px] flex-1 ${className}`}
         />
     );
 }
@@ -153,13 +157,7 @@ export function Select({
     title?: string;
 }) {
     return (
-        <select
-            aria-label={label}
-            title={title}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="rounded-[9px] border border-control bg-surface px-2.5 py-2 text-[13.5px]"
-        >
+        <select aria-label={label} title={title} value={value} onChange={(e) => onChange(e.target.value)} className={CONTROL}>
             {children}
         </select>
     );
@@ -169,7 +167,11 @@ export const FilterRow = ({ children }: { children: ReactNode }) => <div classNa
 
 export function TextButton({ children, onClick, className = '' }: { children: ReactNode; onClick: () => void; className?: string }) {
     return (
-        <button type="button" onClick={onClick} className={`px-1 py-1.5 text-[12.5px] font-semibold text-primary hover:text-primary-strong ${className}`}>
+        <button
+            type="button"
+            onClick={onClick}
+            className={`rounded px-1 py-1.5 text-[12.5px] font-semibold text-primary hover:text-primary-strong focus-visible:outline-2 focus-visible:outline-primary ${className}`}
+        >
             {children}
         </button>
     );

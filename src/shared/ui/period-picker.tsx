@@ -5,6 +5,7 @@
 // (`months`, YYYYMM); a day and a range take any date. The value is a code of shared/period.ts.
 import { useState } from 'react';
 import { parsePeriod, periodCode, periodLabel, rangeCode, type PeriodKind } from '../period.ts';
+import { CONTROL } from './bits.tsx';
 
 const KINDS: { value: PeriodKind | ''; label: string }[] = [
     { value: '', label: 'Todo el período' },
@@ -16,8 +17,6 @@ const KINDS: { value: PeriodKind | ''; label: string }[] = [
     { value: 'year', label: 'Año' },
     { value: 'range', label: 'Rango de fechas' },
 ];
-
-const CONTROL = 'rounded-[9px] border border-control bg-surface px-2.5 py-2 text-[13.5px] disabled:opacity-60';
 
 /** The periods of `kind` that have data, newest first, as [code, label]. */
 function optionsOf(kind: PeriodKind, months: string[]): [string, string][] {

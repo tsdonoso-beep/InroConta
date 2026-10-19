@@ -1,0 +1,4 @@
+# Dependencies whose install scripts pnpm may run. core-js (via jspdf) only prints a funding
+# banner after installing: it is not needed, and an unanswered entry makes pnpm 11 fail every command.
+allowBuilds:
+  core-js: false

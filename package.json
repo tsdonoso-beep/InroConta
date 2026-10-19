@@ -39,6 +39,7 @@
     "apps-script:push": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev/push.mts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:datos": "vitest run --config vitest.data.config.mts",
     "check": "pnpm typecheck && pnpm lint && pnpm depcruise && pnpm format:check && pnpm db:consolidar --revisar && pnpm db:consolidar --v2 --revisar",
     "prepare": "husky"
   },

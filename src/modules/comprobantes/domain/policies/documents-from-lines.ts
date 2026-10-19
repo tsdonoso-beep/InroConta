@@ -21,7 +21,8 @@ export function documentsFromLines(rows: FilaDetalleCpe[]): Doc[] {
         if (!f.proveedorRuc && !f.serie) continue;
         const typeName = nombreDeTipo(f.tipoComprobante);
         const origin = ORIGIN[f.origen ?? ''] ?? 'otro';
-        const key = [f.proveedorRuc, typeName, f.serie, f.numero, origin].join('|');
+        // Series and number as the document shows them (F001-123): «00000123» and «123» are one invoice.
+        const key = [f.proveedorRuc, typeName, text(f.serie).toUpperCase(), text(f.numero).replace(/^0+(?=\d)/, ''), origin].join('|');
         if (seen.has(key)) continue;
         seen.add(key);
 

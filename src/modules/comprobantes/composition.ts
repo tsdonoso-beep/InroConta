@@ -3,17 +3,16 @@
 // knows which adapter serves each port; the app (src/app) calls the functions below on the
 // server, and uses application/views.ts for everything that also runs in the browser.
 import 'server-only';
-import { LIBRO_ID } from '../../shared/lib/drive/libro.ts';
 import { COMPANY_RUC } from '../../shared/config/company.ts';
 import { GetDocuments } from './application/use-cases/GetDocuments.ts';
 import { GetSalesTax } from './application/use-cases/GetSalesTax.ts';
-import { SheetDetailLinesAdapter } from './infrastructure/SheetDetailLinesAdapter.ts';
+import { SupabaseDetailLinesAdapter } from './infrastructure/SupabaseDetailLinesAdapter.ts';
 import { SupabaseSalesTaxAdapter } from './infrastructure/SupabaseSalesTaxAdapter.ts';
 
-export const DETAIL_TAB = 'COMPROBANTES SUNAT - DETALLE';
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
-const documents = new GetDocuments(new SheetDetailLinesAdapter(LIBRO_ID, DETAIL_TAB), FIFTEEN_MINUTES);
+// From the base, not from the tab: the tab is a copy for Contabilidad and lacks the documents without XML.
+const documents = new GetDocuments(new SupabaseDetailLinesAdapter(COMPANY_RUC), FIFTEEN_MINUTES);
 const salesTax = new GetSalesTax(new SupabaseSalesTaxAdapter(), COMPANY_RUC, FIFTEEN_MINUTES);
 
 export const getDocuments = (fresh = false) => documents.execute(fresh);

@@ -3,9 +3,8 @@ import type { FilaDetalleCpe } from '../../../../shared/lib/export/items-sunat.t
 import type { ComprobantesError } from '../../domain/errors.ts';
 
 /**
- * Where the detail lines (one per item) come from. Today the DETALLE tab of the book
- * (SheetDetailLinesAdapter): the robots publish it from the base, already computed, and it
- * reads in ~7 s against ~93 s from the base by pages (measured 13/10/2026).
+ * Where the detail lines (one per item) come from: the v2 base (SupabaseDetailLinesAdapter).
+ * Until 19/10/2026 it was the DETALLE tab of the book, which lacked the documents without XML.
  */
 export interface DetailLinesPort {
     readLines(): Promise<Result<FilaDetalleCpe[], ComprobantesError>>;

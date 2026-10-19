@@ -4,18 +4,19 @@ Base nueva de **INROCONTA**, en un **proyecto Supabase nuevo**, para la app
 web Next.js (Vercel) y los jobs (GitHub Actions y laptop). Por ahora solo se
 diseña: la migración de datos y el arreglo de los workflows van después.
 
-| Archivo                           | Qué contiene                                                                                                                                        |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001_nucleo.sql`                  | Empresa (con INROPRIN), centros de costo, corridas de los jobs, historial                                                                           |
-| `002_comprobantes.sql`            | Contribuyentes, lista SSCO, comprobantes, registro de compras, ítems, cuotas, detracciones                                                          |
-| `003_ordenes_de_compra.sql`       | OC, centros de costo y DUA de cada OC, vales de almacén, carpetas y archivos de Drive, vínculo con facturas, reglas a mano                          |
-| `004_escrituras_comprobantes.sql` | `guardar_comprobantes_sunat`, `guardar_cpe`, `marcar_descargas_cpe`, `guardar_detracciones`, `guardar_retenciones`, `load_ssco`                     |
-| `005_escrituras_oc.sql`           | `guardar_fuente_oc`, `guardar_carpetas_oc`, `cerrar_recorrido_oc`, `guardar_lecturas_archivo`, `guardar_calculos_oc`                                |
-| `006_viaticos.sql`                | Viáticos: personas, roles, áreas, memos (con su solicitud), anexo, gastos, caja chica, movilidad, liquidación, pagos, devoluciones, parámetros      |
-| `007_escrituras_viaticos.sql`     | Solicitud, emisión, anexo, estados, presentación, visto bueno, gastos, caja chica, firma de movilidad, liquidación y pagos                          |
-| `008_aplicaciones.sql`            | Apps de escritorio: versiones publicadas por plataforma y canal, equipos instalados, y `buscar_actualizacion` (la llamada de «¿hay actualización?») |
-| `009_acceso.sql`                  | Permisos de todo: solo `service_role`                                                                                                               |
-| `010_documento_relacionado.sql`   | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                            |
+| Archivo                               | Qué contiene                                                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_nucleo.sql`                      | Empresa (con INROPRIN), centros de costo, corridas de los jobs, historial                                                                           |
+| `002_comprobantes.sql`                | Contribuyentes, lista SSCO, comprobantes, registro de compras, ítems, cuotas, detracciones                                                          |
+| `003_ordenes_de_compra.sql`           | OC, centros de costo y DUA de cada OC, vales de almacén, carpetas y archivos de Drive, vínculo con facturas, reglas a mano                          |
+| `004_escrituras_comprobantes.sql`     | `guardar_comprobantes_sunat`, `guardar_cpe`, `marcar_descargas_cpe`, `guardar_detracciones`, `guardar_retenciones`, `load_ssco`                     |
+| `005_escrituras_oc.sql`               | `guardar_fuente_oc`, `guardar_carpetas_oc`, `cerrar_recorrido_oc`, `guardar_lecturas_archivo`, `guardar_calculos_oc`                                |
+| `006_viaticos.sql`                    | Viáticos: personas, roles, áreas, memos (con su solicitud), anexo, gastos, caja chica, movilidad, liquidación, pagos, devoluciones, parámetros      |
+| `007_escrituras_viaticos.sql`         | Solicitud, emisión, anexo, estados, presentación, visto bueno, gastos, caja chica, firma de movilidad, liquidación y pagos                          |
+| `008_aplicaciones.sql`                | Apps de escritorio: versiones publicadas por plataforma y canal, equipos instalados, y `buscar_actualizacion` (la llamada de «¿hay actualización?») |
+| `009_acceso.sql`                      | Permisos de todo: solo `service_role`                                                                                                               |
+| `010_documento_relacionado.sql`       | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                            |
+| `011_documento_del_contribuyente.sql` | El documento de la persona natural de la ficha («DNI 43762331»), que la app muestra                                                                 |
 
 Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 (GENERADO con `pnpm db:consolidar --v2`; `pnpm check` avisa si quedó viejo).

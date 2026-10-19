@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- database.full.v2.sql — GENERADO, no editar a mano (pnpm db:consolidar --v2)
--- 10 migraciones: 001_nucleo.sql → 010_documento_relacionado.sql
--- huella: 3be6258f5f896ad8
+-- 11 migraciones: 001_nucleo.sql → 011_documento_del_contribuyente.sql
+-- huella: 714adfbde8202ddb
 --
 -- Aplicar sobre una base VACÍA (proyecto nuevo de Supabase): SQL Editor →
 -- pegar todo → Run. Para una base existente, aplicar solo las migraciones
@@ -3569,5 +3569,26 @@ end;
 $$;
 
 -- PostgREST ve las columnas nuevas sin esperar.
+notify pgrst, 'reload schema';
+
+
+-- ┌──────────────────────────────────────────────────────────────
+-- │ 011_documento_del_contribuyente.sql
+-- └──────────────────────────────────────────────────────────────
+
+-- ════════════════════════════════════════════════════════════════
+-- 011 · EL DOCUMENTO DEL CONTRIBUYENTE
+--
+-- La ficha de la Consulta RUC trae el documento de la persona natural
+-- («DNI 43762331») y la app lo muestra en la ficha SUNAT
+-- (src/app/(app)/_ruc/sunat-ficha.tsx). La base vieja lo tenía en
+-- padron_ruc.documento; contribuyente (002) no tenía dónde guardarlo.
+-- Lo escribe quien guarda la ficha (upsert de sus columnas), con ficha_en.
+--
+-- Se puede correr dos veces.
+-- ════════════════════════════════════════════════════════════════
+
+alter table contribuyente add column if not exists documento text;   -- DNI 43762331
+
 notify pgrst, 'reload schema';
 

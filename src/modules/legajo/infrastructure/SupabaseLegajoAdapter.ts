@@ -1,119 +1,132 @@
-// The folders, the invoices without OC and the changes from the base, each list in ONE call (the
-// *_json functions, migration 058), each on its own so a screen only waits for its own.
+// The folders, the invoices without OC, the changes and one folder, from the v2 tables. Each list
+// on its own so a screen only waits for its own. What the old *_json functions recalculated on
+// every read (vinculos_oc, facturas_sin_oc) is stored in v2: comprobante_oc and comprobante.sin_oc_*.
 import 'server-only';
 import { err, ok, type Result } from 'neverthrow';
 import type { SourceError } from '../../../shared/errors.ts';
-import { rpc, select } from '../../../shared/supabase/rpc.ts';
+import { all, one } from '../../../shared/supabase/tables.ts';
 import { nameCase, sentenceCase } from '../../../shared/text.ts';
 import type { LegajoPort } from '../application/ports/LegajoPort.ts';
-import {
-    fileIdOf,
-    folderIdOf,
-    type ChangesRead,
-    type Folder,
-    type FolderChange,
-    type FoldersRead,
-    type NoOcInvoice,
-    type NoOcRead,
-    type SourceCopy,
-} from '../domain/entities/Folder.ts';
+import type { ChangesRead, FolderChange, FoldersRead, NoOcInvoice, NoOcRead } from '../domain/entities/Folder.ts';
 import type { FolderDetail } from '../domain/entities/FolderDetail.ts';
+import { readFolderDetail } from './folder-detail.ts';
+import { readFolderList } from './folder-list.ts';
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? '' : String(v));
-const n = (v: unknown) => (v == null ? null : Number(v));
-
-const folder = (f: Row): Folder => ({
-    isImport: f.procedencia === 'Importación',
-    area: s(f.area_responsable),
-    buyer: nameCase(s(f.comprador)),
-    paymentStatus: sentenceCase(s(f.situacion_pago)),
-    paymentForm: s(f.forma_pago),
-    oc: s(f.oc),
-    supplier: nameCase(s(f.proveedor)),
-    project: s(f.proyecto_carpeta).trim(),
-    folderName: s(f.carpeta_nombre),
-    folderId: folderIdOf(s(f.carpeta_url)),
-    status: s(f.estado),
-    missing: s(f.le_falta),
-    documents: s(f.documentos),
-    sunatInvoices: Number(f.facturas_sunat_n) || 0,
-    costCenter: nameCase(s(f.cc_nombre)),
-    lastChange: s(f.ultimo_cambio),
-    lastChangeAt: s(f.ultimo_cambio_fecha),
-    loadedAt: s(f.cargado_en),
-    statusDetail: s(f.estado_detalle),
-    toUpload: s(f.por_subir),
-    missingNowhere: s(f.falta_sin_rastro),
-    buyerSource: s(f.comprador_segun),
-    ocDate: s(f.fecha_oc),
-    amountPen: n(f.monto_soles),
-    warehouseEntry: s(f.ingreso_almacen),
-    comexStatus: sentenceCase(s(f.estado_comex)),
-    plantArrival: s(f.llegada_planta),
-    sourceChanges: Number(f.cambios_fuentes) || 0,
-    company: s(f.empresa) || 'INROPRIN',
-    companySource: s(f.empresa_segun),
-});
-
-const noOc = (f: Row): NoOcInvoice => ({
-    signal: s(f.senal),
-    reason: s(f.razon),
-    likelyArea: s(f.area_probable),
-    likelyBuyer: nameCase(s(f.comprador_probable)),
-    issuedOn: s(f.fecha_emision),
-    ruc: s(f.proveedor_ruc),
-    name: nameCase(s(f.proveedor_nombre)),
-    number: `${s(f.serie)}-${s(f.numero)}`,
-    currency: s(f.moneda) || 'PEN',
-    total: Number(f.total) || 0,
-    supplierOcs: s(f.ocs_del_proveedor),
-    pdf: fileIdOf(s(f.enlace_pdf)),
-});
-
-const change = (f: Row): FolderChange => ({
-    at: s(f.fecha),
-    isImport: f.procedencia === 'Importación',
-    oc: s(f.oc),
-    type: sentenceCase(s(f.tipo)),
-    detail: s(f.detalle),
-    folderId: folderIdOf(s(f.carpeta_url)),
-});
-
 const now = () => new Date().toISOString();
+
+/**
+ * What the supplier's other invoices say: the OCs they are tied to, and the (area, buyer) of the
+ * approvals table that appears most among them, as facturas_sin_oc did (only the legajo's buyer).
+ */
+function bySupplier(links: Row[]) {
+    const out = new Map<string, { ocs: Set<string>; buyers: Map<string, number> }>();
+    for (const l of links) {
+        const ruc = s((l.comprobante as Row | null)?.emisor_ruc);
+        const o = (l.orden_compra ?? {}) as Row;
+        const x = out.get(ruc) ?? { ocs: new Set<string>(), buyers: new Map<string, number>() };
+        if (o.codigo) x.ocs.add(s(o.codigo));
+        const buyer = o.comprador_segun === 'LEGAJO' ? s(o.comprador) : '';
+        const area = o.legajo_en ? s(o.area) : '';
+        if (buyer || area) x.buyers.set(`${area}\u0001${buyer}`, (x.buyers.get(`${area}\u0001${buyer}`) ?? 0) + 1);
+        out.set(ruc, x);
+    }
+    return out;
+}
 
 export class SupabaseLegajoAdapter implements LegajoPort {
     async readFolders(companyRuc: string): Promise<Result<FoldersRead, SourceError>> {
-        const [folders, copies] = await Promise.all([
-            rpc<Row[]>('carpetas_madre_fuentes_json', { p_empresa_ruc: companyRuc }),
-            // Optional: without it, the screen only loses the «read on» note.
-            select<SourceCopy>('fuente_copia', (c) =>
-                c.from('fuente_copia').select('pestana,filas,fin,resultado,leido_en').eq('empresa_ruc', companyRuc).order('pestana'),
-            ),
-        ]);
-        if (folders.isErr()) return err(folders.error);
-        return ok({ folders: (folders.value ?? []).map(folder), copies: copies.unwrapOr([]), readAt: now() });
+        const r = await readFolderList(companyRuc);
+        return r.map((x) => ({ ...x, readAt: now() }));
     }
 
     async readNoOc(companyRuc: string): Promise<Result<NoOcRead, SourceError>> {
-        const r = await rpc<Row[]>('facturas_sin_oc_json', { p_empresa_ruc: companyRuc });
-        return r.map((rows) => ({ noOc: (rows ?? []).map(noOc), readAt: now() }));
+        const [docs, links] = await Promise.all([
+            all<Row>('comprobante (sin OC)', (c) =>
+                c
+                    .from('comprobante')
+                    .select(
+                        'id,fecha_emision,emisor_ruc,serie,numero,moneda,total,pdf_drive_id,sin_oc_senal,sin_oc_razon,area_probable,emisor:emisor_ruc(razon_social)',
+                    )
+                    .eq('empresa_ruc', companyRuc)
+                    .in('sin_oc_senal', ['ALTA', 'MEDIA'])
+                    .order('id'),
+            ),
+            all<Row>('comprobante_oc (proveedores)', (c) =>
+                c
+                    .from('comprobante_oc')
+                    .select(
+                        'comprobante_id,orden_compra_id,comprobante:comprobante_id(emisor_ruc),orden_compra:orden_compra_id(codigo,comprador,comprador_segun,area,legajo_en)',
+                    )
+                    .order('comprobante_id')
+                    .order('orden_compra_id'),
+            ),
+        ]);
+        if (docs.isErr()) return err(docs.error);
+        const suppliers = bySupplier(links.unwrapOr([]));
+        const soles = (d: Row) => Number(d.total ?? 0) * (d.moneda === 'USD' ? 3.75 : 1);
+        const rank = (d: Row) => (d.sin_oc_senal === 'ALTA' ? 0 : 1);
+        const list = docs.value
+            .slice()
+            .sort(
+                (a, z) =>
+                    rank(a) - rank(z) ||
+                    soles(z) - soles(a) ||
+                    s(a.emisor_ruc).localeCompare(s(z.emisor_ruc)) ||
+                    s(a.serie).localeCompare(s(z.serie)) ||
+                    s(a.numero).localeCompare(s(z.numero)),
+            )
+            .map((d): NoOcInvoice => {
+                const x = suppliers.get(s(d.emisor_ruc));
+                const buyer = x ? ([...x.buyers].sort((a, z) => z[1] - a[1])[0]?.[0] ?? '').split('\u0001')[1] : '';
+                return {
+                    signal: s(d.sin_oc_senal),
+                    reason: s(d.sin_oc_razon),
+                    likelyArea: s(d.area_probable),
+                    likelyBuyer: nameCase(s(buyer)),
+                    issuedOn: s(d.fecha_emision),
+                    ruc: s(d.emisor_ruc),
+                    name: nameCase(s((d.emisor as Row | null)?.razon_social)),
+                    number: `${s(d.serie)}-${s(d.numero)}`,
+                    currency: s(d.moneda) || 'PEN',
+                    total: Number(d.total) || 0,
+                    supplierOcs: x ? [...x.ocs].sort().join(', ') : '',
+                    pdf: s(d.pdf_drive_id),
+                };
+            });
+        return ok({ noOc: list, readAt: now() });
     }
 
+    // cambio has no company column: v2 holds INROPRIN only (one company, 001_nucleo.sql).
     async readChanges(companyRuc: string): Promise<Result<ChangesRead, SourceError>> {
-        const r = await select<Row>('carpeta_cambio', (c) =>
+        void companyRuc;
+        const r = await one<Row>('cambio (carpetas)', (c) =>
             c
-                .from('carpeta_cambio')
-                .select('fecha,procedencia,oc,tipo,detalle,carpeta_url')
-                .eq('empresa_ruc', companyRuc)
-                .order('fecha', { ascending: false })
+                .from('cambio')
+                .select('clave,tipo,despues,detalle,ocurrido_en')
+                .eq('entidad', 'carpeta_oc')
+                .order('ocurrido_en', { ascending: false })
                 .order('id', { ascending: false })
                 .limit(500),
         );
-        return r.map((rows) => ({ changes: rows.map(change), readAt: now() }));
+        return r.map((rows) => ({
+            changes: rows.map((c): FolderChange => {
+                const d = (c.detalle ?? {}) as Row;
+                return {
+                    at: s(c.ocurrido_en),
+                    isImport: d.procedencia === 'IMPORTACION',
+                    oc: s(d.oc),
+                    type: sentenceCase(s(c.tipo)),
+                    detail: s(c.despues),
+                    folderId: s(c.clave),
+                };
+            }),
+            readAt: now(),
+        }));
     }
 
     readFolder(companyRuc: string, folderId: string): Promise<Result<FolderDetail | null, SourceError>> {
-        return rpc<FolderDetail | null>('detalle_de_carpeta', { p_carpeta: folderId, p_empresa_ruc: companyRuc });
+        return readFolderDetail(companyRuc, folderId);
     }
 }

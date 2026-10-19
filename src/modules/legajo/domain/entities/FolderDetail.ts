@@ -55,6 +55,9 @@ export interface WarehouseSlip {
     items: number | null;
     cantidad: number | null;
     recepcionado: string | null;
+    operacion?: string | null;
+    proveedor?: string | null;
+    responsable?: string | null;
     documento_url: string | null;
     tiene_escaneo: boolean;
 }

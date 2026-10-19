@@ -15,6 +15,7 @@ diseña: la migración de datos y el arreglo de los workflows van después.
 | `007_escrituras_viaticos.sql`     | Solicitud, emisión, anexo, estados, presentación, visto bueno, gastos, caja chica, firma de movilidad, liquidación y pagos                          |
 | `008_aplicaciones.sql`            | Apps de escritorio: versiones publicadas por plataforma y canal, equipos instalados, y `buscar_actualizacion` (la llamada de «¿hay actualización?») |
 | `009_acceso.sql`                  | Permisos de todo: solo `service_role`                                                                                                               |
+| `010_documento_relacionado.sql`   | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                            |
 
 Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 (GENERADO con `pnpm db:consolidar --v2`; `pnpm check` avisa si quedó viejo).

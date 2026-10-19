@@ -124,35 +124,24 @@ export async function prune(db: SupabaseClient, p: Pool, table: string, key: str
 }
 
 /**
- * corrida and cambio have generated ids: each moved row carries `mudanza` (old table:id) inside
- * its JSON, and only the ones not moved before are inserted.
+ * corrida and cambio have generated ids, so they cannot be upserted: each moved row carries
+ * `mudanza` (old table:id) inside its JSON, and every run deletes the rows it moved before and
+ * inserts them again, as the old base has them now. What the v2 workflows write carries no mark
+ * and is not touched. A cambio that points to a moved corrida would block its delete: the moved
+ * ones point to none.
  */
-export async function append(db: SupabaseClient, p: Pool, table: 'corrida' | 'cambio', json: 'resumen' | 'detalle', rows: Row[]): Promise<number> {
-    const seen = new Set<string>();
-    for (let from = 0; ; from += 1000) {
-        const page = await retry(`${table} marcas`, async () => {
-            const { data, error } = await db
-                .from(table)
-                .select(`m:${json}->>mudanza`)
-                .not(`${json}->>mudanza`, 'is', null)
-                .order('id', { ascending: true })
-                .range(from, from + 999);
-            if (error) throw error;
-            return (data ?? []) as unknown as { m: string }[];
-        });
-        for (const r of page) seen.add(r.m);
-        if (page.length < 1000) break;
-    }
-    const fresh = rows.filter((r) => !seen.has(r[json].mudanza));
+export async function replaceMoved(db: SupabaseClient, p: Pool, table: 'corrida' | 'cambio', json: 'resumen' | 'detalle', rows: Row[]): Promise<number> {
+    const { error } = await db.from(table).delete().not(`${json}->>mudanza`, 'is', null);
+    if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${raw(error)}`), { code: error.code });
     // No retry here: an insert whose answer was lost may have gone in, and a second one would
-    // duplicate it. If a batch fails, running the move again inserts only what is missing.
+    // duplicate it. If a batch fails, running the move again starts this table over.
     await Promise.all(
-        chunks(fresh, BATCH).map((batch, i) =>
+        chunks(rows, BATCH).map((batch, i) =>
             p.run(async () => {
                 const { error } = await db.from(table).insert(batch, { defaultToNull: false });
                 if (error) throw Object.assign(new Error(`${table} lote ${i + 1}: ${raw(error)}`), { code: error.code });
             }),
         ),
     );
-    return fresh.length;
+    return rows.length;
 }

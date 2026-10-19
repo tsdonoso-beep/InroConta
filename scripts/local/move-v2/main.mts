@@ -20,7 +20,7 @@ import { documents } from './map-documents.mts';
 import { detractions, withholdings } from './map-payments.mts';
 import { controlBase, orders, Orders, warehouse } from './map-orders.mts';
 import { folders, links, rules, withoutOc } from './map-links.mts';
-import { append, newDb, prune, TABLES, write } from './target.mts';
+import { newDb, prune, replaceMoved, TABLES, write } from './target.mts';
 
 const dry = process.argv.includes('--seco');
 const keep = process.argv.includes('--sin-limpiar');
@@ -122,8 +122,8 @@ const start = (table: string): Promise<void> => {
 };
 await Promise.all([
     ...TABLES.map((t) => start(t.table)),
-    append(db, writers, 'corrida', 'resumen', corrida).then((n) => console.log(`  ✓ ${'corrida'.padEnd(28)} ${String(n).padStart(7)} nuevas`)),
-    append(db, writers, 'cambio', 'detalle', cambio).then((n) => console.log(`  ✓ ${'cambio'.padEnd(28)} ${String(n).padStart(7)} nuevos`)),
+    replaceMoved(db, writers, 'corrida', 'resumen', corrida).then((n) => console.log(`  ✓ ${'corrida'.padEnd(28)} ${String(n).padStart(7)} filas`)),
+    replaceMoved(db, writers, 'cambio', 'detalle', cambio).then((n) => console.log(`  ✓ ${'cambio'.padEnd(28)} ${String(n).padStart(7)} filas`)),
 ]);
 
 if (!keep) {

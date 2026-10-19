@@ -224,29 +224,33 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
 
 /**
  * The exchange rate for documents in another currency that have none (the XML does not bring
- * it): the most common one the SIRE declared that day for that currency, as cuadre_ventas_json
- * did with mode() on every read. Without it, the *_pen columns stay null.
+ * it), as cuadre_ventas_json found it on every read: the most common rate (> 1) the SIRE declared
+ * for that currency on the latest day up to the document's date. Without one, *_pen stays null.
  */
 function exchangeRates(docs: Map<string, Row>, old: OldData, notes: Notes) {
-    const seen = new Map<string, Map<number, number>>();
+    const seen = new Map<string, Map<string, Map<number, number>>>(); // currency → day → rate → times
     for (const s of old.comprobantes_sunat) {
         const tc = num(s.tipo_cambio),
             m = currency(s.moneda),
             d = date(s.fecha_emision);
-        if (!tc || !m || m === 'PEN' || !d) continue;
-        const k = `${d}|${m}`;
-        const counts = seen.get(k) ?? new Map<number, number>();
+        if (!tc || tc <= 1 || !m || m === 'PEN' || !d) continue;
+        const days = seen.get(m) ?? new Map<string, Map<number, number>>();
+        const counts = days.get(d) ?? new Map<number, number>();
         counts.set(tc, (counts.get(tc) ?? 0) + 1);
-        seen.set(k, counts);
+        days.set(d, counts);
+        seen.set(m, days);
     }
+    // mode(): the most frequent; on a tie, the lowest (its order by).
+    const mode = (counts: Map<number, number>) => [...counts].sort((a, z) => z[1] - a[1] || a[0] - z[0])[0][0];
+    const byCurrency = new Map([...seen].map(([m, days]) => [m, [...days].map(([d, c]) => [d, mode(c)] as const).sort((a, z) => a[0].localeCompare(z[0]))]));
     for (const d of docs.values()) {
         if (d.tipo_cambio || !d.moneda || d.moneda === 'PEN') continue;
-        const counts = seen.get(`${d.fecha_emision}|${d.moneda}`);
-        if (!counts) {
+        const day = (byCurrency.get(d.moneda) ?? []).filter(([x]) => d.fecha_emision && x <= d.fecha_emision).at(-1);
+        if (!day) {
             notes.add('comprobante: en moneda extranjera sin tipo de cambio');
             continue;
         }
-        d.tipo_cambio = [...counts].sort((a, z) => z[1] - a[1])[0][0];
-        notes.add('comprobante: tipo de cambio tomado del SIRE del mismo día');
+        d.tipo_cambio = day[1];
+        notes.add('comprobante: tipo de cambio tomado del SIRE (último día hasta su fecha)');
     }
 }

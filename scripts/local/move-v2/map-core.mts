@@ -2,7 +2,7 @@
 // appears anywhere), lista_ssco, centro_costo (+ equivalencia_centro_costo), corrida and cambio.
 
 import { uuidFor } from './pool.mts';
-import { COMPANY, date, docType, folderId, int, origin, text, type Notes, type Row } from './helpers.mts';
+import { COMPANY, date, docType, folderId, int, origin, parseOc, text, type Notes, type Row } from './helpers.mts';
 import type { OldData } from './source.mts';
 
 /** Every RUC the move touches. Whoever sees one first with a name gives it its name. */
@@ -45,6 +45,7 @@ function blank(ruc: string, tipo: string, ssco: boolean): Row {
         tipo_documento: tipo,
         razon_social: null,
         nombre_comercial: null,
+        documento: null,
         tipo_contribuyente: null,
         estado: null,
         condicion: null,
@@ -85,6 +86,7 @@ export function lookups(old: OldData, people: Taxpayers) {
         people.fill(ruc, {
             razon_social: text(p.razon_social),
             nombre_comercial: text(p.nombre_comercial),
+            documento: text(p.documento),
             tipo_contribuyente: text(p.tipo_contribuyente),
             estado: text(p.estado),
             condicion: text(p.condicion),
@@ -221,9 +223,18 @@ export function runs(old: OldData): Row[] {
         periodo: null,
         iniciada_en: f.inicio ?? f.leido_en,
         terminada_en: f.fin,
-        resultado: ['OK', 'PARCIAL', 'ERROR'].includes(f.resultado) ? f.resultado : null,
+        resultado: ['OK', 'PARCIAL', 'ERROR'].find((r) => String(f.resultado ?? '').startsWith(r)) ?? null,
         filas: int(f.filas),
-        resumen: { pestana: f.pestana, origen: f.origen, inicio: f.inicio, fin: f.fin, leido_en: f.leido_en, mudanza: `fuente_copia:${f.pestana}` },
+        // The full result text («OK · 0 enlaces nuevos…») does not fit corrida.resultado's check.
+        resumen: {
+            pestana: f.pestana,
+            origen: f.origen,
+            inicio: f.inicio,
+            fin: f.fin,
+            leido_en: f.leido_en,
+            resultado: f.resultado,
+            mudanza: `fuente_copia:${f.pestana}`,
+        },
         error: null,
         origen: null,
     }));
@@ -267,14 +278,19 @@ export function changes(old: OldData, sireKey: Map<string, string>, notes: Notes
         });
     for (const c of old.fuente_cambio) {
         const tipo = c.antes == null ? 'NUEVO' : c.despues == null ? 'ELIMINADO' : 'CAMBIO';
+        // The OC as orden_compra.codigo writes it (0172-2026 national, 172-2026 import): the app
+        // counts an OC's changes by «PROCEDENCIA|codigo». A kardex change keeps its voucher in detalle.
+        const proc = origin(c.procedencia) ?? 'NACIONAL';
+        const oc = parseOc(c.oc);
+        const codigo = oc ? `${oc.numero.padStart(proc === 'NACIONAL' ? 4 : 3, '0')}-${oc.anio}` : String(c.oc ?? c.clave);
         out.push({
             entidad: c.fuente === 'ALMACEN' ? 'vale_almacen' : 'orden_compra',
-            clave: `${origin(c.procedencia) ?? ''}|${c.clave ?? c.oc}`,
+            clave: `${proc}|${codigo}`,
             tipo,
             campo: text(c.campo),
             antes: text(c.antes),
             despues: text(c.despues),
-            detalle: { fuente: c.fuente, oc: c.oc, mudanza: `fuente_cambio:${c.id}` },
+            detalle: { fuente: c.fuente, oc: c.oc, clave_fuente: c.clave, mudanza: `fuente_cambio:${c.id}` },
             hecho_por: null,
             corrida_id: null,
             ocurrido_en: c.fecha,

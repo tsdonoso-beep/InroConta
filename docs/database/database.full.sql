@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- database.full.sql — GENERADO, no editar a mano (pnpm db:consolidar)
 -- 70 migraciones: 001_esquema_inicial.sql → 070_comprobantes_de_retencion.sql
--- huella: 471f5a13c958dafe
+-- huella: 36cb86c7e9098edc
 --
 -- Aplicar sobre una base VACÍA (proyecto nuevo de Supabase): SQL Editor →
 -- pegar todo → Run. Para una base existente, aplicar solo las migraciones

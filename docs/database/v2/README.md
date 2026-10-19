@@ -33,8 +33,14 @@ Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 4. Settings → API: copiar la URL y la llave **service_role** (secreta: va en
    variables de entorno de Vercel y secretos de GitHub, nunca en el
    navegador). La llave anon no sirve para nada en esta base.
-5. Los datos y el cambio de la app y los workflows a la base nueva van
-   después (ver «Qué cambia para cada consumidor»).
+5. Los datos: `pnpm db:mudanza --seco` (lee la base vieja y deja en
+   `scripts/out/move-v2/seco/` lo que escribiría) y `pnpm db:mudanza` (copia; se
+   puede repetir: actualiza las mismas filas y quita lo que la vieja ya no tiene).
+   Lee con `SUPABASE_URL` + `SUPABASE_ANON_KEY` + `ROBOT_*` y escribe con
+   `SUPABASE_URL_V2` + `SUPABASE_SECRET_KEY`. No muda viáticos (va con su app)
+   ni CAPTURA (retirada). Código: `scripts/local/move-v2/`.
+6. El cambio de la app y los workflows a la base nueva va después (ver «Qué
+   cambia para cada consumidor»).
 
 ## Cómo se probó
 

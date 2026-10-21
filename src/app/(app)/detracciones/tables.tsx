@@ -1,5 +1,5 @@
 // The two tables of Detracciones: the proofs (pintarDetrTabla) and the invoices with detraction
-// that have none (pintarDetrSin), each cut at `shown` rows with «Ver más».
+// that have none (pintarDetrSin), each one page at a time (shared/ui/pager.tsx).
 import {
     counterpart,
     depositDifference,
@@ -9,13 +9,14 @@ import {
     type MissingProof,
     type Proof,
 } from '../../../modules/detracciones/application/views.ts';
-import { Empty, MoreButton, T } from '../../../shared/ui/bits.tsx';
+import { Empty, T } from '../../../shared/ui/bits.tsx';
 import { Chip } from '../../../shared/ui/card.tsx';
 import { dmy, driveFile, monthLabel } from '../../../shared/ui/format.ts';
+import { Pager, type Paged } from '../../../shared/ui/pager.tsx';
 import { CaseChip, inCurrency, partyLabel, soles } from './labels.tsx';
 
 type Dir = DetractionFilters['direction'];
-/** Rows per «Ver más» (the old view's 25). */
+/** Rows per page (the old view's 25 per «Ver más»). */
 export const STEP = 25;
 
 function DocLink({ pdf, children }: { pdf: string; children: string }) {
@@ -100,8 +101,8 @@ function ProofRow({ p }: { p: Proof }) {
 }
 
 /** `proofs` already sorted (latest payment first). */
-export function ProofsTable({ proofs, direction, shown, onMore }: { proofs: Proof[]; direction: Dir; shown: number; onMore: () => void }) {
-    if (!proofs.length) return <Empty>Ninguna constancia con este filtro.</Empty>;
+export function ProofsTable({ paged, direction }: { paged: Paged<Proof>; direction: Dir }) {
+    if (!paged.total) return <Empty>Ninguna constancia con este filtro.</Empty>;
     return (
         <>
             <div className="overflow-x-auto">
@@ -119,13 +120,13 @@ export function ProofsTable({ proofs, direction, shown, onMore }: { proofs: Proo
                         </tr>
                     </thead>
                     <tbody>
-                        {proofs.slice(0, shown).map((p, i) => (
+                        {paged.rows.map((p, i) => (
                             <ProofRow key={`${p.constancia}-${p.series}-${p.number}-${i}`} p={p} />
                         ))}
                     </tbody>
                 </table>
             </div>
-            <MoreButton shown={shown} total={proofs.length} onMore={onMore} />
+            <Pager paged={paged} />
         </>
     );
 }
@@ -137,8 +138,8 @@ function AgeChip({ months }: { months: number | null }) {
     return <Chip tone="muted">este mes</Chip>;
 }
 
-export function MissingTable({ rows, direction, shown, onMore }: { rows: MissingProof[]; direction: Dir; shown: number; onMore: () => void }) {
-    if (!rows.length) return <Empty>Todas las facturas con detracción de este filtro tienen su constancia.</Empty>;
+export function MissingTable({ paged, direction }: { paged: Paged<MissingProof>; direction: Dir }) {
+    if (!paged.total) return <Empty>Todas las facturas con detracción de este filtro tienen su constancia.</Empty>;
     return (
         <>
             <div className="overflow-x-auto">
@@ -155,7 +156,7 @@ export function MissingTable({ rows, direction, shown, onMore }: { rows: Missing
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.slice(0, shown).map((m, i) => (
+                        {paged.rows.map((m, i) => (
                             <tr key={`${m.ruc}-${m.series}-${m.number}-${i}`} className={T.row}>
                                 <td className={`${T.td} whitespace-nowrap`}>
                                     {dmy(m.issuedOn)}
@@ -185,7 +186,7 @@ export function MissingTable({ rows, direction, shown, onMore }: { rows: Missing
                     </tbody>
                 </table>
             </div>
-            <MoreButton shown={shown} total={rows.length} onMore={onMore} />
+            <Pager paged={paged} />
         </>
     );
 }

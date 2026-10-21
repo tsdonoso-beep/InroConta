@@ -65,6 +65,18 @@ export function importsByPo(all: Doc[], period: string, currency: CurrencyFilter
     return [...g.values()].map(({ names, ...o }) => ({ ...o, suppliers: [...names] })).sort((a, b) => b.sortValue - a.sortValue);
 }
 
+export type ImportSort = 'spend-desc' | 'spend-asc' | 'docs' | 'oc';
+
+/** The import POs whose OC or supplier has every word of `text`, in the order asked (importsByPo's is spend-desc). */
+export function pickImports(list: ImportPo[], text: string, sort: ImportSort): ImportPo[] {
+    const words = text.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    const hits = words.length ? list.filter((o) => words.every((w) => `${o.oc} ${o.suppliers.join(' ')}`.toUpperCase().includes(w))) : [...list];
+    if (sort === 'spend-asc') return hits.sort((a, b) => a.sortValue - b.sortValue);
+    if (sort === 'docs') return hits.sort((a, b) => b.docs - a.docs || b.sortValue - a.sortValue);
+    if (sort === 'oc') return hits.sort((a, b) => a.oc.localeCompare(b.oc, 'es', { numeric: true }));
+    return hits;
+}
+
 /** The tone of the legajo chip: complete, something missing, or anything else. */
 export const legajoTone = (legajo: string): 'ok' | 'warn' | 'muted' => (/^Completo/.test(legajo) ? 'ok' : /^Falta/.test(legajo) ? 'warn' : 'muted');
 

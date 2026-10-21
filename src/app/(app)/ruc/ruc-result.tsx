@@ -5,15 +5,13 @@
 import { useMemo } from 'react';
 import { docsOfRuc, type Doc } from '../../../modules/comprobantes/application/views.ts';
 import type { SscoEntry } from '../../../modules/ruc/application/views.ts';
-import { Card } from '../../../shared/ui/card.tsx';
-import { dmy, thousands } from '../../../shared/ui/format.ts';
+import { dmy } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import type { RucIndex } from '../_lib/stores.ts';
-import { DocsTable } from '../_ruc/docs-table.tsx';
+import { DocsList } from '../_ruc/docs-list.tsx';
 import { SunatFichaCard } from '../_ruc/sunat-ficha.tsx';
 import { TaxpayerCardGap, TaxpayerCardView } from '../_ruc/taxpayer-card.tsx';
 
-const SHOWN = 30;
 const BOX = 'rounded-xl border px-3.5 py-3 text-[13.5px]';
 
 function SscoBox({ entry, idx }: { entry: SscoEntry | null | undefined; idx: RucIndex }) {
@@ -61,11 +59,8 @@ export function RucResult({ ruc, all, idx }: { ruc: string; all: Doc[] | null; i
             )}
             <SscoBox entry={entry} idx={idx} />
             <SunatFichaCard ruc={ruc} />
-            {docs.length > 0 && (
-                <Card title={`${thousands(docs.length)} comprobantes con nosotros`} note={docs.length > SHOWN ? `los ${SHOWN} más recientes` : undefined}>
-                    <DocsTable docs={docs.slice(0, SHOWN)} withProvider={false} />
-                </Card>
-            )}
+            {/* key: another RUC starts with its filters cleared and on page 1. */}
+            {docs.length > 0 && <DocsList key={ruc} docs={docs} />}
         </div>
     );
 }

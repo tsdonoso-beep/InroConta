@@ -3,7 +3,7 @@
 // paintSscoWarning of the Apps Script view did.
 import { describe, expect, it } from 'vitest';
 import type { Doc } from '../../../src/modules/comprobantes/domain/entities/Doc.ts';
-import { docsOfRuc, searchDocs, SEARCH_LIMIT, splitNumber } from '../../../src/modules/comprobantes/domain/policies/search.ts';
+import { docsOfRuc, searchDocs, splitNumber } from '../../../src/modules/comprobantes/domain/policies/search.ts';
 import type { SscoEntry, TaxpayerCard } from '../../../src/modules/ruc/domain/entities/Taxpayer.ts';
 import { isNaturalPerson, isOdd, placeOf, rucsByName, sscoHits } from '../../../src/modules/ruc/domain/policies.ts';
 
@@ -72,11 +72,11 @@ describe('searchDocs (buscarFacturas)', () => {
         expect(searchDocs(DOCS, 'dhl peru')!.total).toBe(2);
         expect(searchDocs(DOCS, 'nadie')!.total).toBe(0);
     });
-    it('says nothing for an empty search and cuts at the limit', () => {
+    it('says nothing for an empty search and gives every match (the screen pages them)', () => {
         expect(searchDocs(DOCS, '  ')).toBeNull();
         const many = Array.from({ length: 40 }, (_, i) => doc({ number: `F001-${i + 1}` }));
         const r = searchDocs(many, 'ACME')!;
-        expect([r.total, r.found.length]).toEqual([40, SEARCH_LIMIT]);
+        expect([r.total, r.found.length]).toEqual([40, 40]);
     });
     it('splits the number as the lines store keys it', () => {
         expect(splitNumber('F001-123')).toEqual({ series: 'F001', num: '123' });

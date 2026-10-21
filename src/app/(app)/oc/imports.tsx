@@ -1,18 +1,38 @@
+'use client';
+
 // The local expenses of each import PO (freight, customs, courier…): the port of pintarImpo()
-// of the Apps Script view. The first 10 POs, the biggest first.
-import { importsByPo, legajoTone, type Doc } from '../../../modules/comprobantes/application/views.ts';
-import { Empty, T } from '../../../shared/ui/bits.tsx';
+// of the Apps Script view. All the POs, found by OC or supplier, in the order asked and in pages.
+import { useMemo, useState } from 'react';
+import { importsByPo, legajoTone, pickImports, type Doc, type ImportSort } from '../../../modules/comprobantes/application/views.ts';
+import { Empty, FilterRow, SearchBox, T } from '../../../shared/ui/bits.tsx';
 import { Chip } from '../../../shared/ui/card.tsx';
 import { parsePeriod, periodLabel } from '../../../shared/period.ts';
 import { money } from '../../../shared/ui/format.ts';
+import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 
-const SHOWN = 10;
+const SORTS: { value: ImportSort; label: string }[] = [
+    { value: 'spend-desc', label: 'Más gasto' },
+    { value: 'spend-asc', label: 'Menos gasto' },
+    { value: 'docs', label: 'Más comprobantes' },
+    { value: 'oc', label: 'Número de OC' },
+];
 
 export function Imports({ docs, period, currency }: { docs: Doc[]; period: string; currency: string }) {
-    const list = importsByPo(docs, period, currency);
-    if (!list.length) return <Empty>Todavía no hay facturas unidas a OC de importación{period ? ` en ${periodLabel(parsePeriod(period))}` : ''}.</Empty>;
+    const all = useMemo(() => importsByPo(docs, period, currency), [docs, period, currency]);
+    const [text, setText] = useState('');
+    const [sort, setSort] = useState<ImportSort>('spend-desc');
+    const list = useMemo(() => pickImports(all, text, sort), [all, text, sort]);
+    const paged = usePaged(list, `${text}|${sort}|${period}|${currency}`, 10);
+    if (!all.length) return <Empty>Todavía no hay facturas unidas a OC de importación{period ? ` en ${periodLabel(parsePeriod(period))}` : ''}.</Empty>;
     return (
         <>
+            {all.length > 10 && (
+                <FilterRow>
+                    <SearchBox value={text} onChange={setText} placeholder="OC o proveedor" />
+                    <SortSelect value={sort} onChange={setSort} options={SORTS} />
+                </FilterRow>
+            )}
+            {!list.length && <Empty>Ninguna importación con «{text.trim()}».</Empty>}
             <div className="overflow-x-auto">
                 <table className={T.table}>
                     <thead>
@@ -24,7 +44,7 @@ export function Imports({ docs, period, currency }: { docs: Doc[]; period: strin
                         </tr>
                     </thead>
                     <tbody>
-                        {list.slice(0, SHOWN).map((o) => (
+                        {paged.rows.map((o) => (
                             <tr key={o.oc} className={T.row}>
                                 <td className={T.td}>
                                     <b>{o.oc}</b>
@@ -49,7 +69,7 @@ export function Imports({ docs, period, currency }: { docs: Doc[]; period: strin
                     </tbody>
                 </table>
             </div>
-            {list.length > SHOWN && <p className="mt-2 text-xs text-ink-3">y {list.length - SHOWN} importaciones más (las de menos gasto).</p>}
+            <Pager paged={paged} />
         </>
     );
 }

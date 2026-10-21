@@ -9,22 +9,39 @@ import {
     DEFAULT_FILTERS,
     detractionKpis,
     filterDetractions,
-    latestFirst,
     monthOptions,
     paymentMonths,
+    sortMissing,
+    sortProofs,
     type DetractionFilters,
+    type MissingSort,
+    type ProofSort,
 } from '../../../modules/detracciones/application/views.ts';
 import { FilterRow, Notice, SearchBox, SectionTitle, Select, TextButton } from '../../../shared/ui/bits.tsx';
 import { Card, Segmented } from '../../../shared/ui/card.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
 import { limaDateTime, monthLabel, thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { MonthBarsGap } from '../_comprobantes/charts.tsx';
 import { detractionsStore } from '../_lib/stores.ts';
 import { BarsGap, CaseBars, DelayBars, GoodsBars, PaymentBars, PaymentLegend, TopBars } from './charts.tsx';
 import { DetractionKpis } from './kpis.tsx';
 import { soles } from './labels.tsx';
 import { MissingTable, ProofsTable, STEP } from './tables.tsx';
+
+const PROOF_SORTS: { value: ProofSort; label: string }[] = [
+    { value: 'paid-desc', label: 'Pago más reciente' },
+    { value: 'paid-asc', label: 'Pago más antiguo' },
+    { value: 'deposit-desc', label: 'Depósito mayor' },
+    { value: 'supplier', label: 'Proveedor o cliente' },
+];
+const MISSING_SORTS: { value: MissingSort; label: string }[] = [
+    { value: 'issued-asc', label: 'Más antiguas' },
+    { value: 'issued-desc', label: 'Más recientes' },
+    { value: 'detraction-desc', label: 'Detracción mayor' },
+    { value: 'supplier', label: 'Proveedor o cliente' },
+];
 
 // The filters survive moving to another section and back (not a reload), like the old view's DT.
 let saved: DetractionFilters = DEFAULT_FILTERS;
@@ -51,14 +68,12 @@ const TableGap = () => (
 export function DetraccionesView() {
     const { data, error } = detractionsStore.use();
     const [f, setF] = useState<DetractionFilters>(saved);
-    const [shown, setShown] = useState(STEP);
-    const [shownMissing, setShownMissing] = useState(STEP);
-    /** Changes the filters; `both` also starts the table of invoices without proof over. */
-    const set = (patch: Partial<DetractionFilters>, both = true) => {
+    const [proofSort, setProofSort] = useState<ProofSort>('paid-desc');
+    const [missingSort, setMissingSort] = useState<MissingSort>('issued-asc');
+    /** Changes the filters (each table goes back to its first page when its rows change). */
+    const set = (patch: Partial<DetractionFilters>) => {
         saved = { ...f, ...patch };
         setF(saved);
-        setShown(STEP);
-        if (both) setShownMissing(STEP);
     };
 
     const months = useMemo(() => (data ? monthOptions(data, f.basis) : []), [data, f.basis]);
@@ -69,11 +84,15 @@ export function DetraccionesView() {
             ...r,
             k: detractionKpis(r.proofs, r.missing, data.since),
             bars: paymentMonths(r.anyMonth.filter((p) => !f.case || p.case === f.case)),
-            sorted: latestFirst(r.proofs),
+
             deposited: r.proofs.reduce((a, p) => a + (p.deposited ?? 0), 0),
             missingAmount: r.missing.reduce((a, m) => a + (m.detraction ?? 0), 0),
         };
     }, [data, f]);
+    const proofs = useMemo(() => (v ? sortProofs(v.proofs, proofSort) : []), [v, proofSort]);
+    const missing = useMemo(() => (v ? sortMissing(v.missing, missingSort) : []), [v, missingSort]);
+    const proofsPage = usePaged(proofs, proofs, STEP);
+    const missingPage = usePaged(missing, missing, STEP);
     // The bars are months of payment: one is lit when the period is that month, by payment.
     const paidMonth = f.basis === 'pago' && /^m\d{6}$/.test(f.period) ? f.period.slice(1) : '';
     const since = data?.since ?? '';
@@ -92,7 +111,7 @@ export function DetraccionesView() {
                         <Segmented options={DIRECTIONS} value={f.direction} onChange={(direction) => set({ direction })} />
                         <Segmented options={BASES} value={f.basis} onChange={(basis) => set({ basis, period: '' })} />
                         <PeriodPicker value={f.period} onChange={(period) => set({ period })} months={months} disabled={!data} allLabel="Todas las fechas" />
-                        <Select label="Caso" value={f.case} onChange={(c) => set({ case: c }, false)}>
+                        <Select label="Caso" value={f.case} onChange={(c) => set({ case: c })}>
                             <option value="">Todos los casos</option>
                             {v?.cases.map((c) => (
                                 <option key={c.name} value={c.name}>
@@ -111,14 +130,14 @@ export function DetraccionesView() {
                     <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1.55fr_1fr]">
                         <Card title="Depósitos por mes de pago" note="Constancias del SPOT (Banco de la Nación) · clic en un mes para filtrar">
                             {v ? (
-                                <PaymentBars months={v.bars} month={paidMonth} onPick={(m) => set({ period: m ? `m${m}` : '', basis: 'pago' }, false)} />
+                                <PaymentBars months={v.bars} month={paidMonth} onPick={(m) => set({ period: m ? `m${m}` : '', basis: 'pago' })} />
                             ) : (
                                 <MonthBarsGap />
                             )}
                             <PaymentLegend direction={f.direction} />
                         </Card>
                         <Card title="Por caso" note="Clic en un caso para ver sus constancias">
-                            {v ? <CaseBars proofs={v.anyCase} chosen={f.case} onPick={(c) => set({ case: c }, false)} /> : <BarsGap />}
+                            {v ? <CaseBars proofs={v.anyCase} chosen={f.case} onPick={(c) => set({ case: c })} /> : <BarsGap />}
                         </Card>
                     </div>
                     <div className="mb-3.5 grid gap-3.5 lg:grid-cols-3">
@@ -144,26 +163,41 @@ export function DetraccionesView() {
                     <Card
                         className="mb-3.5"
                         title="Constancias de detracción"
-                        note={
-                            v ? `${thousands(v.proofs.length)} constancias · ${soles(v.deposited)} · las más recientes primero` : <Hueco className="h-3 w-56" />
-                        }
+                        note={v ? `${thousands(v.proofs.length)} constancias · ${soles(v.deposited)}` : <Hueco className="h-3 w-56" />}
                     >
-                        {v ? <ProofsTable proofs={v.sorted} direction={f.direction} shown={shown} onMore={() => setShown((n) => n + STEP)} /> : <TableGap />}
+                        {v ? (
+                            <>
+                                {v.proofs.length > 1 && (
+                                    <div className="mb-2.5 flex justify-end">
+                                        <SortSelect value={proofSort} onChange={setProofSort} options={PROOF_SORTS} />
+                                    </div>
+                                )}
+                                <ProofsTable paged={proofsPage} direction={f.direction} />
+                            </>
+                        ) : (
+                            <TableGap />
+                        )}
                     </Card>
                     <Card
                         title="Facturas con detracción sin constancia"
                         note={
                             v ? (
                                 `${thousands(v.missing.length)} facturas · ${soles(v.missingAmount)} de detracción · desde ${monthLabel(since)}` +
-                                (paidMonth ? ' · el mes de pago no aplica: no hay pago' : '') +
-                                ' · las más antiguas primero'
+                                (paidMonth ? ' · el mes de pago no aplica: no hay pago' : '')
                             ) : (
                                 <Hueco className="h-3 w-72" />
                             )
                         }
                     >
                         {v ? (
-                            <MissingTable rows={v.missing} direction={f.direction} shown={shownMissing} onMore={() => setShownMissing((n) => n + STEP)} />
+                            <>
+                                {v.missing.length > 1 && (
+                                    <div className="mb-2.5 flex justify-end">
+                                        <SortSelect value={missingSort} onChange={setMissingSort} options={MISSING_SORTS} />
+                                    </div>
+                                )}
+                                <MissingTable paged={missingPage} direction={f.direction} />
+                            </>
                         ) : (
                             <TableGap />
                         )}

@@ -24,4 +24,5 @@ export { decodeDocs, encodeDocs, type WireDocs } from './wire.ts';
 export type { Product, ProductList } from '../domain/policies/products.ts';
 export type { DocumentLine, DocumentLines } from '../domain/policies/document-lines.ts';
 export * from '../domain/policies/search.ts';
+export * from '../domain/policies/doc-list.ts';
 export * from '../domain/policies/purchases.ts';

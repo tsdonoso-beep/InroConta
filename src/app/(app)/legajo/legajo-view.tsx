@@ -12,20 +12,32 @@ import {
     effectiveCompany,
     folderList,
     latestInstant,
+    sortFolders,
     type FolderArea,
     type FolderFilters,
     type FolderKpis,
+    type FolderSort,
     type FolderState,
 } from '../../../modules/legajo/application/views.ts';
 import { BarRow, FilterRow, Notice, Ring, SearchBox, SectionTitle, Select } from '../../../shared/ui/bits.tsx';
 import { Card, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
 import { dayTime, thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { KpiGrid } from '../_comprobantes/kpi-cards.tsx';
 import { folderStore, foldersStore } from '../_lib/stores.ts';
 import { FolderTable } from './folder-table.tsx';
 
 const PAGE = 50;
+
+const SORTS: { value: FolderSort; label: string }[] = [
+    { value: 'base', label: 'Orden del robot' },
+    { value: 'oc-date-desc', label: 'OC más recientes' },
+    { value: 'change-desc', label: 'Último cambio' },
+    { value: 'amount-desc', label: 'Monto mayor' },
+    { value: 'supplier', label: 'Proveedor' },
+    { value: 'oc', label: 'Número de OC' },
+];
 
 const AREAS: { value: FolderArea; label: string }[] = [
     { value: '', label: 'Todas' },
@@ -102,35 +114,38 @@ function LegajoKpis({ k }: { k: FolderKpis | null }) {
 export function LegajoView() {
     const { data, error } = foldersStore.use();
     const [filters, setFilters] = useState<FolderFilters>(DEFAULT_FOLDER_FILTERS);
-    const [shown, setShown] = useState(PAGE);
+    const [sort, setSort] = useState<FolderSort>('base');
     const [open, setOpen] = useState<number | null>(null);
 
     const folders = useMemo(() => data?.folders ?? [], [data]);
     const company = effectiveCompany(folders, filters.company);
     const f = useMemo(() => ({ ...filters, company }), [filters, company]);
-    const view = useMemo(() => (data ? folderList(folders, f) : null), [data, folders, f]);
+    const view = useMemo(() => {
+        if (!data) return null;
+        const v = folderList(folders, f);
+        return { ...v, list: sortFolders(v.list, sort) };
+    }, [data, folders, f, sort]);
+    const paged = usePaged(view?.list ?? [], view, PAGE);
     const buyers = useMemo(() => buyersOf(folders), [folders]);
     const companies = useMemo(() => companiesOf(folders), [folders]);
     const indexOf = useMemo(() => new Map(folders.map((x, i) => [x, i])), [folders]);
 
     // The details of every row on screen, one at a time in the background (the store queues them)
     // and kept in this tab's memory: opening one of them is then instant. A hover puts its row
-    // first; «Ver más» adds the new rows at the end. Each costs the base ~0.9 s (P-012: the base
+    // first; turning the page queues the new page's rows. Each costs the base ~0.9 s (P-012: the base
     // recomputes the company-wide crosses per folder; until that is fixed, this hides it).
+    // Keyed by the ids as text: the page's array is new on every render, the ids only change with the page.
+    const pageIds = paged.rows
+        .map((x) => x.folderId)
+        .filter(Boolean)
+        .join(',');
     useEffect(() => {
-        if (!view) return;
-        const ids = view.list
-            .slice(0, shown)
-            .map((x) => x.folderId)
-            .filter(Boolean);
-        const t = setTimeout(() => folderStore.prefetchAll(ids), 400);
+        if (!pageIds) return;
+        const t = setTimeout(() => folderStore.prefetchAll(pageIds.split(',')), 400);
         return () => clearTimeout(t);
-    }, [view, shown]);
+    }, [pageIds]);
 
-    const change = (patch: Partial<FolderFilters>) => {
-        setFilters((old) => ({ ...old, ...patch }));
-        setShown(PAGE);
-    };
+    const change = (patch: Partial<FolderFilters>) => setFilters((old) => ({ ...old, ...patch }));
     const robotRead = data && latestInstant(folders.map((x) => x.loadedAt));
     const sourcesRead = data && latestInstant(data.copies.map((c) => c.leido_en));
 
@@ -183,6 +198,7 @@ export function LegajoView() {
                     <option value={UNKNOWN_BUYER}>Comprador por identificar</option>
                 </Select>
                 <SearchBox value={filters.text} onChange={(text) => change({ text })} placeholder="OC, proveedor, proyecto o lo que falta (guía, DAM…)" />
+                <SortSelect value={sort} onChange={setSort} options={SORTS} />
             </FilterRow>
             <LegajoKpis k={view?.kpis ?? null} />
             <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -190,8 +206,7 @@ export function LegajoView() {
                     <FolderTable
                         view={view}
                         text={filters.text}
-                        shown={shown}
-                        onMore={() => setShown((s) => s + PAGE)}
+                        paged={paged}
                         indexOf={indexOf}
                         open={open}
                         onToggle={(i) => setOpen((o) => (o === i ? null : i))}

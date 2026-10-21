@@ -3,9 +3,6 @@
 // (VistaConsultaRuc.html).
 import type { Doc } from '../entities/Doc.ts';
 
-/** How many rows Buscar factura shows: the most recent ones. */
-export const SEARCH_LIMIT = 30;
-
 const plain = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
 
 /** «dd/mm/yyyy» → «yyyy-mm-dd»; '' when it is not a date. */
@@ -27,7 +24,7 @@ export function splitNumber(number: string): { series: string; num: string } {
 }
 
 export interface DocSearch {
-    /** At most SEARCH_LIMIT, newest first. */
+    /** All of them, newest first (the screen cuts them in pages: doc-list.ts). */
     found: Doc[];
     total: number;
     /** When everything found is of one RUC: its card goes on top. */
@@ -65,7 +62,7 @@ export function searchDocs(docs: Doc[], query: string): DocSearch | null {
     const rucs = new Map(list.map((d) => [d.ruc, d.name]));
     const [only] = rucs.size === 1 ? [...rucs] : [];
     return {
-        found: list.slice(0, SEARCH_LIMIT),
+        found: list,
         total: list.length,
         single: only && only[0] ? { ruc: only[0], name: only[1] } : null,
     };

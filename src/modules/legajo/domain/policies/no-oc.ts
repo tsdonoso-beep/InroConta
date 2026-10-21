@@ -52,6 +52,21 @@ export function filterNoOc(rows: NoOcInvoice[], f: NoOcFilter): NoOcInvoice[] {
     );
 }
 
+/** «priority» is the order the rows come in (ALTA first, then the biggest in soles: SupabaseLegajoAdapter). */
+export type NoOcSort = 'priority' | 'date-desc' | 'date-asc' | 'amount-desc' | 'supplier';
+
+export function sortNoOc(rows: NoOcInvoice[], sort: NoOcSort): NoOcInvoice[] {
+    if (sort === 'priority') return rows;
+    const pen = (x: NoOcInvoice) => x.total * (x.currency === 'USD' ? USD_TO_PEN : 1);
+    const by: Record<Exclude<NoOcSort, 'priority'>, (a: NoOcInvoice, b: NoOcInvoice) => number> = {
+        'date-desc': (a, b) => b.issuedOn.localeCompare(a.issuedOn),
+        'date-asc': (a, b) => a.issuedOn.localeCompare(b.issuedOn),
+        'amount-desc': (a, b) => pen(b) - pen(a),
+        supplier: (a, b) => a.name.localeCompare(b.name, 'es') || b.issuedOn.localeCompare(a.issuedOn),
+    };
+    return [...rows].sort(by[sort]);
+}
+
 /** The sum in soles, dollars at USD_TO_PEN (any other currency counts as soles, as in the old view). */
 export const roughPen = (rows: NoOcInvoice[]) => rows.reduce((a, x) => a + x.total * (x.currency === 'USD' ? USD_TO_PEN : 1), 0);
 

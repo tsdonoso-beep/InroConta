@@ -4,10 +4,11 @@
 // finds but the filter hides. Port of the table part of pintarLegajo().
 import { Fragment } from 'react';
 import { toUploadNames, type Folder, type FolderList } from '../../../modules/legajo/application/views.ts';
-import { Empty, MoreButton, T, TextButton } from '../../../shared/ui/bits.tsx';
+import { Empty, T, TextButton } from '../../../shared/ui/bits.tsx';
 import { Chip } from '../../../shared/ui/card.tsx';
 import { dayTime, dmy, driveFolder, money } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { Pager, type Paged } from '../../../shared/ui/pager.tsx';
 import { folderStore } from '../_lib/stores.ts';
 import { FolderDetailPanel } from './folder-detail.tsx';
 
@@ -99,8 +100,7 @@ function FolderRow({ x, open, onToggle }: { x: Folder; open: boolean; onToggle: 
 export function FolderTable({
     view,
     text,
-    shown,
-    onMore,
+    paged,
     indexOf,
     open,
     onToggle,
@@ -108,8 +108,8 @@ export function FolderTable({
 }: {
     view: FolderList | null;
     text: string;
-    shown: number;
-    onMore: () => void;
+    /** The page of `view.list` on screen. */
+    paged: Paged<Folder>;
     indexOf: Map<Folder, number>;
     open: number | null;
     onToggle: (i: number) => void;
@@ -135,7 +135,7 @@ export function FolderTable({
                         </thead>
                         <tbody>
                             {view
-                                ? view.list.slice(0, shown).map((x) => {
+                                ? paged.rows.map((x) => {
                                       const i = indexOf.get(x) ?? -1;
                                       return (
                                           <Fragment key={i}>
@@ -168,7 +168,7 @@ export function FolderTable({
                     {hidden.count > 5 ? '…' : ''}) · <TextButton onClick={() => onShowAll(hidden.otherCompany)}>Ver en «Todas»</TextButton>
                 </p>
             )}
-            {view && <MoreButton shown={shown} total={view.list.length} onMore={onMore} />}
+            {view && <Pager paged={paged} />}
         </>
     );
 }

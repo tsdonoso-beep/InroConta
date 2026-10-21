@@ -239,3 +239,18 @@ export function legajoDocs(d: FolderDetail): LegajoDoc[] {
 
 /** The files that are none of the 12 documents (nor a payment). */
 export const otherFiles = (d: FolderDetail) => d.archivos.filter((a) => !a.docs.length && !isPayment(a));
+
+/** «base» is the order the folders come in from the robot's table. */
+export type FolderSort = 'base' | 'oc-date-desc' | 'change-desc' | 'amount-desc' | 'supplier' | 'oc';
+
+export function sortFolders(list: Folder[], sort: FolderSort): Folder[] {
+    if (sort === 'base') return list;
+    const by: Record<Exclude<FolderSort, 'base'>, (a: Folder, b: Folder) => number> = {
+        'oc-date-desc': (a, b) => b.ocDate.localeCompare(a.ocDate),
+        'change-desc': (a, b) => b.lastChangeAt.localeCompare(a.lastChangeAt),
+        'amount-desc': (a, b) => (b.amountPen ?? -1) - (a.amountPen ?? -1),
+        supplier: (a, b) => a.supplier.localeCompare(b.supplier, 'es'),
+        oc: (a, b) => a.oc.localeCompare(b.oc, 'es', { numeric: true }),
+    };
+    return [...list].sort(by[sort]);
+}

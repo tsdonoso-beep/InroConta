@@ -2,11 +2,23 @@
 
 // Facturas sin OC: the SUNAT invoices that look like they lack an OC, with their KPIs and the
 // filters of signal, area and text. The port of the «sinoc» section (pintarSinOc) of the Apps
-// Script view. Filters, KPI labels and the table are drawn at once; only the figures wait.
-import { useState } from 'react';
-import { filterNoOc, NO_OC_DEFAULT, noOcKpis, noOcMonths, type NoOcArea, type NoOcFilter, type NoOcSignal } from '../../../modules/legajo/application/views.ts';
+// Script view. Filters, KPI labels and the table are drawn at once; only the figures wait. The
+// table goes in pages of 50, in the order asked.
+import { useMemo, useState } from 'react';
+import {
+    filterNoOc,
+    NO_OC_DEFAULT,
+    noOcKpis,
+    noOcMonths,
+    sortNoOc,
+    type NoOcArea,
+    type NoOcFilter,
+    type NoOcSignal,
+    type NoOcSort,
+} from '../../../modules/legajo/application/views.ts';
 import { Card, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
-import { FilterRow, MoreButton, Notice, SearchBox, SectionTitle } from '../../../shared/ui/bits.tsx';
+import { FilterRow, Notice, SearchBox, SectionTitle } from '../../../shared/ui/bits.tsx';
+import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
 import { limaDateTime, money, thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
@@ -15,6 +27,14 @@ import { noOcStore } from '../_lib/stores.ts';
 import { NoOcTable, NoOcTableGap } from './no-oc-table.tsx';
 
 const PAGE = 50;
+
+const SORTS: { value: NoOcSort; label: string }[] = [
+    { value: 'priority', label: 'Prioridad' },
+    { value: 'date-desc', label: 'Más recientes' },
+    { value: 'date-asc', label: 'Más antiguas' },
+    { value: 'amount-desc', label: 'Monto mayor' },
+    { value: 'supplier', label: 'Proveedor' },
+];
 
 const SIGNALS: { value: NoOcSignal; label: string }[] = [
     { value: 'ALTA', label: 'ALTA' },
@@ -31,12 +51,10 @@ const AREAS: { value: NoOcArea; label: string }[] = [
 export function SinOcView() {
     const { data, error } = noOcStore.use();
     const [f, setF] = useState<NoOcFilter>(NO_OC_DEFAULT);
-    const [shown, setShown] = useState(PAGE);
-    const set = (patch: Partial<NoOcFilter>) => {
-        setF((old) => ({ ...old, ...patch }));
-        setShown(PAGE);
-    };
-    const rows = data ? filterNoOc(data.noOc, f) : null;
+    const [sort, setSort] = useState<NoOcSort>('priority');
+    const set = (patch: Partial<NoOcFilter>) => setF((old) => ({ ...old, ...patch }));
+    const rows = useMemo(() => (data ? sortNoOc(filterNoOc(data.noOc, f), sort) : null), [data, f, sort]);
+    const paged = usePaged(rows ?? [], rows, PAGE);
     const k = data ? noOcKpis(data.noOc, f.area, f.period) : null;
     return (
         <>
@@ -56,6 +74,7 @@ export function SinOcView() {
                     allLabel="Todas las fechas"
                 />
                 <SearchBox value={f.text} onChange={(text) => set({ text })} placeholder="Proveedor, RUC, comprobante o comprador" />
+                <SortSelect value={sort} onChange={setSort} options={SORTS} />
             </FilterRow>
             {!error && (
                 <>
@@ -76,8 +95,8 @@ export function SinOcView() {
                     >
                         {rows ? (
                             <>
-                                <NoOcTable rows={rows.slice(0, shown)} />
-                                <MoreButton shown={shown} total={rows.length} onMore={() => setShown((n) => n + PAGE)} />
+                                <NoOcTable rows={paged.rows} />
+                                <Pager paged={paged} />
                             </>
                         ) : (
                             <NoOcTableGap />

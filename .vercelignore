@@ -1,0 +1,15 @@
+# What `vercel` uploads from this folder: ONLY what the web app's build needs. An allowlist, not a
+# blocklist: the repository also holds the robots (scripts/), their run logs with data
+# (scripts/out/), the service account key (secrets/), Apps Script, docs and memory, and a new folder
+# of any of those must not reach Vercel because nobody remembered to list it. The deploy of
+# 21/10/2026 uploaded secrets/sa.json and 1 214 run logs before this file existed.
+/*
+!/src
+!/public
+!/package.json
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/next.config.ts
+!/next-env.d.ts
+!/tsconfig.json
+!/postcss.config.mjs

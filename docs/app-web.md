@@ -160,7 +160,6 @@ En `.env.local` para la laptop, y en Vercel → Settings → Environment Variabl
 | Variable                                   | Para qué                                                                                |
 | ------------------------------------------ | --------------------------------------------------------------------------------------- |
 | `SUPABASE_URL_V2`, `SUPABASE_SECRET_KEY`   | La base v2 (docs/database/v2/), con la llave secreta: solo el servidor la usa           |
-| `GOOGLE_SA_PRIVATE_KEY`                    | La cuenta de servicio: el `.json` entero pegado (en local vale `GOOGLE_SA_KEY_FILE`)    |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | El cliente OAuth del login (abajo)                                                      |
 | `NEXTAUTH_SECRET`                          | Firma la sesión: `openssl rand -base64 32`                                              |
 | `NEXTAUTH_URL`                             | La URL pública de la app (en local, `http://localhost:3000`)                            |
@@ -178,6 +177,10 @@ Crear credenciales → ID de cliente de OAuth → **Aplicación web**:
 - Pantalla de consentimiento: tipo **Interno** (solo la organización inroprin.com).
 
 ## Desplegar
+
+La app no lee hojas ni Drive: en Vercel no va la cuenta de servicio de Google, ni las claves de
+SUNAT, ni la base vieja. La CLI sube SOLO lo que lista `.vercelignore` (una lista blanca: `src/`,
+`public/` y la configuración del build); `secrets/`, `scripts/out/` y lo demás no salen de la laptop.
 
 Desde la raíz del repositorio, con la CLI de Vercel enlazada al proyecto (`vercel link`, una vez):
 

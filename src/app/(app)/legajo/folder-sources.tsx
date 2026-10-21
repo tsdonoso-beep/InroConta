@@ -5,6 +5,7 @@
 // bloqueFuentes() of VistaEjecutivaPagina.html.
 import type { ReactNode } from 'react';
 import type { FolderDetail, WarehouseSlip } from '../../../modules/legajo/application/views.ts';
+import { CARD } from '../../../shared/ui/card.tsx';
 import { dayTime, dmy, money } from '../../../shared/ui/format.ts';
 import { Datum, DetailList, LINK } from './detail-bits.tsx';
 
@@ -12,7 +13,7 @@ const Note = ({ children }: { children: ReactNode }) => <span className="text-xs
 
 function Box({ title, children }: { title: string; children: ReactNode }) {
     return (
-        <div className="min-w-0 rounded-[10px] border border-line bg-surface px-3 py-2.5">
+        <div className={`min-w-0 ${CARD} px-3 py-2.5`}>
             <h4 className="mb-2 text-[11.5px] font-bold tracking-[.06em] text-ink-2 uppercase">{title}</h4>
             {children}
         </div>

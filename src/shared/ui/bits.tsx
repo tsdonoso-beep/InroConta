@@ -170,7 +170,7 @@ export function TextButton({ children, onClick, className = '' }: { children: Re
         <button
             type="button"
             onClick={onClick}
-            className={`rounded px-1 py-1.5 text-[12.5px] font-semibold text-primary hover:text-primary-strong focus-visible:outline-2 focus-visible:outline-primary ${className}`}
+            className={`rounded px-1 py-1.5 text-[12.5px] font-semibold text-primary hover:text-primary-strong active:text-primary-active focus-visible:outline-2 focus-visible:outline-primary ${className}`}
         >
             {children}
         </button>
@@ -201,7 +201,8 @@ export function Notice({ tone = 'danger', children }: { tone?: keyof typeof NOTI
 /** The title of a section that does not use the SUNAT filters, and where its data comes from. */
 export function SectionTitle({ title, note }: { title: string; note?: ReactNode }) {
     return (
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+        // pr-12: the top right corner belongs to the user's photo (UserMenu, in the layout).
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3 pr-12">
             <h1 className="text-[21px] font-extrabold">{title}</h1>
             {note && <span className="text-xs text-ink-3">{note}</span>}
         </div>

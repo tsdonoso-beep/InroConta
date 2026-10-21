@@ -38,6 +38,12 @@
     --color-primary-strong: var(--color-brand-blue-dark);
     --color-primary-soft: #e3eef7;
     --color-primary-line: color-mix(in srgb, var(--color-brand-blue) 22%, #fff);
+    /* The button states, from the base colour (GRAMA's rule): hover one step darker (92 %), pressed
+       the darkest (84 %). Changing the brand drags its states along. */
+    --color-primary-hover: color-mix(in srgb, var(--color-primary) 92%, #000);
+    --color-primary-active: color-mix(in srgb, var(--color-primary) 84%, #000);
+    --color-ink-hover: color-mix(in srgb, var(--color-ink) 88%, #fff);
+    --color-ink-active: color-mix(in srgb, var(--color-ink) 76%, #fff);
     /* Second data colour (compras next to ventas in blue). */
     --color-teal: var(--color-brand-teal);
     --color-teal-strong: #007a72;
@@ -48,6 +54,8 @@
     --color-danger-strong: #b0050f;
     --color-danger-soft: #fde8e9;
     --color-danger-line: color-mix(in srgb, var(--color-brand-red) 25%, #fff);
+    --color-danger-hover: color-mix(in srgb, var(--color-danger) 92%, #000);
+    --color-danger-active: color-mix(in srgb, var(--color-danger) 84%, #000);
     --color-warning: var(--color-brand-yellow);
     --color-warning-strong: #8a6300;
     --color-warning-soft: #fff6cc;
@@ -64,5 +72,20 @@
     }
     a {
         @apply text-primary;
+    }
+    /* Tailwind 4 no longer gives <button> the hand cursor: without it nothing looks clickable
+       (in GRAMA that was 206 cursor-pointer written by hand). Once here, for every clickable
+       thing, hand-written ones included; and the not-allowed one when it is switched off. */
+    button:not(:disabled),
+    [role='button']:not([aria-disabled='true']),
+    summary,
+    select:not(:disabled),
+    label:has(> input:not(:disabled)) {
+        cursor: pointer;
+    }
+    button:disabled,
+    select:disabled,
+    [aria-disabled='true'] {
+        cursor: not-allowed;
     }
 }

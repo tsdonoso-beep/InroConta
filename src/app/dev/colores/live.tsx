@@ -5,9 +5,11 @@
 import { useState } from 'react';
 import { BarRow, Empty, MoreButton, Notice, Ring, SearchBox, Select, TextButton, type BarColor } from '../../../shared/ui/bits.tsx';
 import { Button, BUTTON_SIZES, BUTTON_VARIANTS, LINK_CLASS } from '../../../shared/ui/button.tsx';
-import { Card, Chip, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
+import { Card, CARD, Chip, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
+import { ButtonStates } from './button-states.tsx';
+import { KpiIdeas } from './kpi-ideas.tsx';
 import { Section } from './section.tsx';
 
 const BARS: BarColor[] = ['primary', 'teal', 'success', 'warning', 'danger', 'muted'];
@@ -29,11 +31,17 @@ export function LiveComponents() {
                         Un solo juego de clases (<code>shared/ui/button.tsx</code>: <code>buttonClass()</code> para un <code>&lt;a&gt;</code> o un{' '}
                         <code>Link</code>, <code>Button</code> para un botón). Antes eran tres botones escritos a mano con tres radios, tres hovers (uno con
                         opacidad) y un solo deshabilitado. Hover un peldaño más oscuro; el foco es un anillo que solo trae el teclado (Tab); deshabilitado gris,
-                        sin opacidad. Una acción principal por pantalla.
+                        sin opacidad. Una acción principal por pantalla. Cinco estados con la misma regla para todas las variantes (la de GRAMA): encima un
+                        peldaño más oscuro y pulsado el más oscuro (tokens <code>-hover</code>/<code>-active</code> con <code>color-mix</code>, cambia la marca
+                        y arrastran solos), foco con anillo afuera sin tocar el fondo, deshabilitado gris. El cursor de mano lo pone globals.css a todo botón.
                     </>
                 }
             >
-                <div className="flex flex-col gap-3 rounded-[10px] border border-line bg-surface p-4">
+                <ButtonStates />
+                <p className="text-xs text-ink-2">
+                    Arriba, pintados a mano para compararlos. Abajo, los de verdad: pasa el mouse, haz clic sostenido y llega con Tab.
+                </p>
+                <div className={`flex flex-col gap-3 ${CARD} p-4`}>
                     {BUTTON_SIZES.map((size) => (
                         <div key={size} className="flex flex-wrap items-center gap-2.5">
                             <code className="w-8 shrink-0 text-xs text-ink-3">{size}</code>
@@ -62,7 +70,7 @@ export function LiveComponents() {
                 title="Controles ✅"
                 blurb="Buscador, select y período comparten CONTROL (bits.tsx): mismo radio, borde, foco azul y deshabilitado gris. Antes el período se apagaba con opacidad y el select no marcaba el foco."
             >
-                <div className="flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-surface p-4">
+                <div className={`flex flex-wrap items-center gap-2.5 ${CARD} p-4`}>
                     <SearchBox value={q} onChange={setQ} placeholder="Buscar RUC o razón social" />
                     <Select value={sel} onChange={setSel} label="Estado">
                         <option value="todos">Todos</option>
@@ -83,7 +91,7 @@ export function LiveComponents() {
             </Section>
 
             <Section title="Chips y avisos ✅" blurb="La pareja suave + fuerte de cada rol. «info» es el primario suave.">
-                <div className="flex flex-col gap-3 rounded-[10px] border border-line bg-surface p-4">
+                <div className={`flex flex-col gap-3 ${CARD} p-4`}>
                     <div className="flex flex-wrap gap-2">
                         <Chip tone="ok">ok</Chip>
                         <Chip tone="warn">warn</Chip>
@@ -93,14 +101,14 @@ export function LiveComponents() {
                     </div>
                     <Notice tone="danger">Aviso danger: 3 facturas de proveedores en la lista SSCO.</Notice>
                     <Notice tone="warning">Aviso warning: el robot no corrió hoy.</Notice>
-                    <Notice tone="info">Aviso info: los datos son del libro, actualizados a las 07:00.</Notice>
+                    <Notice tone="info">Aviso info: los datos son de la base, actualizados a las 07:00.</Notice>
                     <Empty>Vacío: no hay comprobantes en este período.</Empty>
                 </div>
             </Section>
 
             <Section
                 title="Tarjetas y KPI ✅"
-                blurb="Tarjeta blanca sobre el lienzo con shadow-card. El KPI de riesgo degrada a danger-soft; con el valor aún viajando, el hueco ocupa su sitio exacto."
+                blurb="Una sola tarjeta, CARD (card.tsx), con el aspecto del selector segmentado: blanca, un borde gris fino, sin sombra, esquinas de 12 px. El KPI de riesgo conserva el rojo hasta que se elija una de las alternativas de abajo; con el valor aún viajando, el hueco ocupa su sitio exacto."
             >
                 <div className="grid gap-3 sm:grid-cols-3">
                     <Kpi label="Ventas del mes" value="S/ 1,234,567.89">
@@ -116,6 +124,13 @@ export function LiveComponents() {
                         Cuerpo de la tarjeta. Hueco en línea: <Hueco className="h-3.5 w-24" />
                     </p>
                 </Card>
+            </Section>
+
+            <Section
+                title="KPI de alerta: el punto rojo ✅"
+                blurb="Elegido el B (21/10/2026): la tarjeta y el número como todas, un punto rojo junto al rótulo cuando hay algo mal (Kpi risk, arriba). Las notas de crédito ya no lo llevan: restan, no avisan. Quedan los bocetos que se compararon, para la próxima duda."
+            >
+                <KpiIdeas />
             </Section>
 
             <Section

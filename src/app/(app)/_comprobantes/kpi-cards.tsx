@@ -39,7 +39,8 @@ export const PartiesKpi = ({ k, buying, cur }: K & { buying: boolean }) => (
 );
 
 export const NotesKpi = ({ k, cur }: K) => (
-    <Kpi label="Notas de crédito" value={k && money(k.notes.total, cur)} risk={!!k && k.notes.count > 0}>
+    // Not a risk: the notes are already taken off the total (no red dot).
+    <Kpi label="Notas de crédito" value={k && money(k.notes.total, cur)}>
         {k && <KpiNote>{k.notes.count} notas · ya restadas del total</KpiNote>}
     </Kpi>
 );

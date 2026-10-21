@@ -5,6 +5,7 @@
 // below can hold state.
 import { useEffect, useState } from 'react';
 import { ALPHA, GROUPS, RADII, STATUS, TYPE, type Swatch } from './palette.ts';
+import { CARD } from '../../../shared/ui/card.tsx';
 import { LiveComponents } from './live.tsx';
 import { CODE, LIST, Section } from './section.tsx';
 
@@ -17,7 +18,7 @@ function useTokenValue(token: string) {
 function SwatchCard({ swatch }: { swatch: Swatch }) {
     const value = useTokenValue(swatch.token);
     return (
-        <li className="flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface">
+        <li className={`flex flex-col overflow-hidden ${CARD}`}>
             <div className="h-16 w-full border-b border-line" style={{ background: `var(${swatch.token})` }} />
             <div className="flex flex-col gap-0.5 p-3">
                 <code className="text-[12.5px] font-semibold select-all">{swatch.token.replace('--color-', '')}</code>

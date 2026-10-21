@@ -4,7 +4,7 @@
 // (as the PDT 621) and the detractions to review. The port of the «impuestos» section.
 import { useEffect, useState } from 'react';
 import type { Doc, SalesTaxMonth } from '../../../modules/comprobantes/application/views.ts';
-import { Card } from '../../../shared/ui/card.tsx';
+import { Card, CARD } from '../../../shared/ui/card.tsx';
 import { driveFile, money, monthLabel, thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { FilterBar } from '../_comprobantes/filters.tsx';
@@ -126,7 +126,7 @@ function DetractionsToReview({ docs }: { docs: Doc[] }) {
         return <p className="text-[13px] text-ink-3">Ninguna detracción a revisar con este filtro: todas usan el % de su código de bien o servicio.</p>;
     const parties = new Set(docs.map((d) => d.ruc)).size;
     return (
-        <details open className="rounded-[14px] border border-danger-line bg-surface px-[22px] py-3.5 shadow-card">
+        <details open className={`${CARD} px-[22px] py-3.5`}>
             <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2.5">
                 <h2 className="text-[15px] font-bold">
                     Detracciones a revisar ·{' '}

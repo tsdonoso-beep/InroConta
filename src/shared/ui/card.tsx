@@ -2,9 +2,16 @@
 import type { ReactNode } from 'react';
 import { Hueco } from './hueco.tsx';
 
+/**
+ * The one card of the app (his decision, 21/10/2026): the segmented switch's look — white, a single
+ * thin control-grey border, no shadow, moderate corners. Every boxed surface takes it from here
+ * (Card, Kpi, and any box written by hand: `className={CARD}`), so the look changes in one place.
+ */
+export const CARD = 'rounded-[12px] border border-control bg-surface';
+
 export function Card({ title, note, children, className = '' }: { title?: ReactNode; note?: ReactNode; children: ReactNode; className?: string }) {
     return (
-        <section className={`min-w-0 rounded-[14px] border border-line bg-surface px-[22px] py-5 shadow-card ${className}`}>
+        <section className={`min-w-0 ${CARD} px-[22px] py-5 ${className}`}>
             {(title || note) && (
                 <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-2.5">
                     {title && <h2 className="text-[15px] font-bold">{title}</h2>}
@@ -16,16 +23,21 @@ export function Card({ title, note, children, className = '' }: { title?: ReactN
     );
 }
 
-/** `value` null = still travelling: the card, its label and its size are drawn, the number is a gap. */
+/**
+ * `value` null = still travelling: the card, its label and its size are drawn, the number is a gap.
+ * `risk`: something is wrong (to correct, missing, old). A red dot by the label says it; the card
+ * and the number stay as every other (his pick among the sketches of /dev/colores, 21/10/2026:
+ * the red border and the red-to-pink gradient were too loud). Not for a figure that only
+ * subtracts, like credit notes: that is not an alert.
+ */
 export function Kpi({ label, value, children, risk = false }: { label: string; value: ReactNode | null; children?: ReactNode; risk?: boolean }) {
     return (
-        <div
-            className={`min-w-0 rounded-[14px] border px-[18px] pt-4 pb-3.5 shadow-card ${risk ? 'border-danger-line bg-linear-to-b from-surface to-danger-soft' : 'border-line bg-surface'}`}
-        >
-            <div className="mb-2 text-[11px] font-semibold tracking-[.06em] text-ink-3 uppercase">{label}</div>
-            <div className={`truncate text-2xl leading-tight font-extrabold tracking-tight ${risk ? 'text-danger' : ''}`}>
-                {value === null ? <Hueco className="h-[26px] w-36" /> : value}
+        <div className={`min-w-0 ${CARD} px-[18px] pt-4 pb-3.5`}>
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold tracking-[.06em] text-ink-3 uppercase">
+                {risk && <span aria-label="Hay algo que revisar" className="size-2 flex-none rounded-full bg-danger" />}
+                {label}
             </div>
+            <div className="truncate text-2xl leading-tight font-extrabold tracking-tight">{value === null ? <Hueco className="h-[26px] w-36" /> : value}</div>
             {value === null ? (
                 <div className="mt-1.5">
                     <Hueco className="h-3.5 w-28" />
@@ -71,7 +83,7 @@ export function Segmented<T extends string>({
                     type="button"
                     title={o.title}
                     onClick={() => onChange(o.value)}
-                    className={`rounded-[7px] px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap ${o.value === value ? 'bg-ink text-on-fill' : 'text-ink-2 hover:text-ink'}`}
+                    className={`rounded-[7px] px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap ${o.value === value ? 'bg-ink text-on-fill' : 'text-ink-2 hover:bg-surface-2 hover:text-ink active:bg-surface-3'} focus-visible:outline-2 focus-visible:outline-primary`}
                 >
                     {o.label}
                 </button>

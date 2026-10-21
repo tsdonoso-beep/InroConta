@@ -8,7 +8,7 @@ import { SignInButton } from './sign-in-button.tsx';
 export const dynamic = 'force-dynamic';
 
 const REASONS: Record<string, string> = {
-    denied: 'Tu cuenta no tiene acceso. Pide a Contabilidad que te agregue en la pestaña USUARIOS del libro INROCONTA.',
+    denied: 'Tu cuenta no tiene acceso. Pide a Contabilidad que te dé acceso a INROCONTA.',
     unverified: 'Google no confirmó el correo de esa cuenta.',
 };
 

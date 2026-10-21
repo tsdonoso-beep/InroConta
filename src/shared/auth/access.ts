@@ -1,15 +1,12 @@
-// Who may open the app: an @inroprin.com Google account listed in the USUARIOS tab of the
-// INROCONTA book (columns «Correo» and «Rol»), so Accounting grants or removes access by
-// editing a row. INROCONTA_ADMINS (emails, comma separated) always enter, so the first
-// person can get in before the tab exists. It is a fence: if the tab cannot be read, nobody
-// else gets in (fail closed), and the reason goes to the log.
+// Who may open the app: an @inroprin.com Google account with an active row in the v2 table
+// usuario_inroconta (013), so access is granted or removed by editing that row in Supabase. It is
+// a fence: if the table cannot be read, nobody gets in (fail closed), and the reason goes to the log.
 import 'server-only';
-import { LIBRO_ID } from '../lib/drive/libro.ts';
-import { readTab } from '../google/sheets.ts';
+import { one } from '../supabase/tables.ts';
 
 export const ALLOWED_DOMAIN = 'inroprin.com';
-export const USERS_TAB = 'USUARIOS';
-const CACHE_MS = 5 * 60 * 1000;
+// Short, so a row switched off closes the door within a minute even with a 30-day session alive.
+const CACHE_MS = 60 * 1000;
 
 export interface AppUser {
     email: string;
@@ -20,27 +17,19 @@ let cached: { at: number; users: Map<string, AppUser> } | null = null;
 
 const norm = (email: string) => email.trim().toLowerCase();
 
-function admins(): Map<string, AppUser> {
-    const m = new Map<string, AppUser>();
-    for (const e of (process.env.INROCONTA_ADMINS ?? '').split(',').map(norm).filter(Boolean)) m.set(e, { email: e, role: 'admin' });
-    return m;
-}
-
-/** The USUARIOS tab as email → user. Throws when the tab is missing or has no «Correo» column. */
-export async function usersFromSheet(): Promise<Map<string, AppUser>> {
+/** The active rows of usuario_inroconta as email → user, or null when the table cannot be read. */
+async function activeUsers(): Promise<Map<string, AppUser> | null> {
     if (cached && Date.now() - cached.at < CACHE_MS) return cached.users;
-    const rows = await readTab(LIBRO_ID, USERS_TAB);
-    if (!rows) throw new Error(`El libro INROCONTA no tiene la pestaña ${USERS_TAB}.`);
-    const head = (rows[0] ?? []).map((h) => h.toLowerCase());
-    const col = { email: head.indexOf('correo'), role: head.indexOf('rol') };
-    if (col.email < 0) throw new Error(`La pestaña ${USERS_TAB} no tiene la columna «Correo».`);
-    const users = new Map<string, AppUser>();
-    for (const r of rows.slice(1)) {
-        const email = norm(r[col.email] ?? '');
-        if (email.includes('@')) users.set(email, { email, role: (col.role >= 0 ? r[col.role] : '') || 'lector' });
-    }
+    const rows = await one<{ correo: string; rol: string }>('usuario_inroconta', (c) => c.from('usuario_inroconta').select('correo, rol').eq('activo', true));
+    if (rows.isErr()) return null;
+    const users = new Map(rows.value.map((r) => [norm(r.correo), { email: norm(r.correo), role: r.rol }]));
     cached = { at: Date.now(), users };
     return users;
+}
+
+/** After a write from the «Usuarios» screen: this server sees it at once (others within CACHE_MS). */
+export function forgetUsers(): void {
+    cached = null;
 }
 
 /** The user if this email may enter, null if not. */
@@ -48,12 +37,5 @@ export async function allowedUser(email: string | null | undefined): Promise<App
     if (!email) return null;
     const e = norm(email);
     if (!e.endsWith(`@${ALLOWED_DOMAIN}`)) return null;
-    const admin = admins().get(e);
-    if (admin) return admin;
-    try {
-        return (await usersFromSheet()).get(e) ?? null;
-    } catch (err) {
-        console.error('[access] could not read the users tab', err);
-        return null;
-    }
+    return (await activeUsers())?.get(e) ?? null;
 }

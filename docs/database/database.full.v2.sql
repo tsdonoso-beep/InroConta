@@ -1,7 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
 -- database.full.v2.sql — GENERADO, no editar a mano (pnpm db:consolidar --v2)
--- 12 migraciones: 001_nucleo.sql → 012_nada_queda_fuera.sql
--- huella: c478041fb5d7e407
+-- 13 migraciones: 001_nucleo.sql → 013_usuario_inroconta.sql
+-- huella: 6390963e8df51dbd
 --
 -- Aplicar sobre una base VACÍA (proyecto nuevo de Supabase): SQL Editor →
 -- pegar todo → Run. Para una base existente, aplicar solo las migraciones
@@ -21,8 +21,8 @@
 -- nombre del padre (comprobante → comprobante_item). Sin triggers.
 --
 -- Las personas, roles y áreas están en 006 (viáticos): INROCONTA no las
--- usa. Su app web entra con Google (@inroprin.com) y saca permisos de la
--- pestaña USUARIOS del libro (src/shared/auth/access.ts).
+-- usa. Su app web entra con Google (@inroprin.com) y saca permisos de
+-- usuario_inroconta (013, src/shared/auth/access.ts).
 --
 -- Acceso: solo servidores. La app (servidor de Vercel) y los workflows usan
 -- la llave de servicio (service_role), que pasa por encima del RLS. Toda
@@ -3599,7 +3599,6 @@ notify pgrst, 'reload schema';
 
 -- ════════════════════════════════════════════════════════════════
 -- 012 · NADA DE LA BASE VIEJA QUEDA FUERA
---done
 --
 -- Decisión del 19/10/2026 (él): «es mejor no dejar ningún dato fuera de esta
 -- migración o db nueva, para que luego no estén preguntando si eso queda o no».
@@ -3750,6 +3749,40 @@ create index if not exists dato_sin_ubicar_origen_ix on dato_sin_ubicar (origen)
 alter table dato_sin_ubicar enable row level security;
 revoke all on dato_sin_ubicar from anon, authenticated;
 grant all on dato_sin_ubicar to service_role;
+
+notify pgrst, 'reload schema';
+
+
+-- ┌──────────────────────────────────────────────────────────────
+-- │ 013_usuario_inroconta.sql
+-- └──────────────────────────────────────────────────────────────
+
+-- ════════════════════════════════════════════════════════════════
+-- 013 · QUIÉN ENTRA A LA APP WEB DE INROCONTA
+--
+-- La lista de cuentas que pueden entrar a la app (src/shared/auth/access.ts).
+-- Antes era la pestaña USUARIOS del libro; la app ya no lee hojas. Se edita
+-- en Supabase → Table Editor → usuario_inroconta: una fila por persona;
+-- `activo = false` (o borrar la fila) cierra la puerta en un minuto, aunque
+-- su sesión de 30 días siga viva. No es `usuario` (006): esas son las
+-- personas de viáticos, con su auth de Supabase; INROCONTA entra con Google.
+--
+-- Acceso como todo lo demás (009): RLS sin políticas, solo service_role.
+--
+-- Se puede correr dos veces.
+-- ════════════════════════════════════════════════════════════════
+
+create table if not exists usuario_inroconta (
+  correo     text primary key check (correo = lower(btrim(correo)) and correo like '%@inroprin.com'),
+  nombre     text,
+  rol        text not null default 'lector' check (rol in ('admin', 'lector')),
+  activo     boolean not null default true,
+  creado_en  timestamptz not null default now()
+);
+
+alter table usuario_inroconta enable row level security;
+revoke all on usuario_inroconta from anon, authenticated;
+grant  all on usuario_inroconta to service_role;
 
 notify pgrst, 'reload schema';
 

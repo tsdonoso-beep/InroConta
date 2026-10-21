@@ -6,8 +6,8 @@
 -- nombre del padre (comprobante → comprobante_item). Sin triggers.
 --
 -- Las personas, roles y áreas están en 006 (viáticos): INROCONTA no las
--- usa. Su app web entra con Google (@inroprin.com) y saca permisos de la
--- pestaña USUARIOS del libro (src/shared/auth/access.ts).
+-- usa. Su app web entra con Google (@inroprin.com) y saca permisos de
+-- usuario_inroconta (013, src/shared/auth/access.ts).
 --
 -- Acceso: solo servidores. La app (servidor de Vercel) y los workflows usan
 -- la llave de servicio (service_role), que pasa por encima del RLS. Toda

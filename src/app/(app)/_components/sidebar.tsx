@@ -39,12 +39,13 @@ function Item({ s, active, collapsed, query, badge }: { s: Section; active: bool
     );
 }
 
-export function Sidebar() {
+export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
     const pathname = usePathname();
     // The SUNAT filters travel from one section to the next (the store gives the defaults on
     // the server and in the first render, so the links match what the server drew).
     const query = filterQuery(useFilterState());
     const badges = useMenuBadges();
+    const groups = SECTION_GROUPS.map((g) => ({ ...g, sections: g.sections.filter((s) => isAdmin || !s.adminOnly) })).filter((g) => g.sections.length);
     const [collapsed, setCollapsed] = useState(false);
     useEffect(() => {
         try {
@@ -95,7 +96,7 @@ export function Sidebar() {
                 </button>
             </div>
 
-            {SECTION_GROUPS.map((g, i) => (
+            {groups.map((g, i) => (
                 <nav key={g.title} className={`flex flex-col gap-2 ${collapsed && i > 0 ? 'md:border-t md:border-line md:pt-3.5' : ''}`}>
                     <div className={`text-[11px] font-bold tracking-[.07em] text-ink-3 uppercase ${collapsed ? 'md:hidden' : ''}`}>{g.title}</div>
                     <div className="flex gap-0.5 overflow-x-auto md:flex-col">

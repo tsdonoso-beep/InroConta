@@ -6,6 +6,8 @@ export interface Section {
     label: string;
     href: string;
     icon: ReactNode;
+    /** Shown only to admins (the page checks it again on the server). */
+    adminOnly?: boolean;
 }
 
 const svg = (children: ReactNode) => (
@@ -136,6 +138,23 @@ export const SECTION_GROUPS: { title: string; sections: Section[] }[] = [
                     <>
                         <path d="M21 12a9 9 0 1 1-3-6.7" />
                         <path d="M21 3v6h-6" />
+                    </>,
+                ),
+            },
+        ],
+    },
+    {
+        title: 'Administración',
+        sections: [
+            {
+                key: 'usuarios',
+                label: 'Usuarios',
+                href: '/usuarios',
+                adminOnly: true,
+                icon: svg(
+                    <>
+                        <circle cx="9" cy="8" r="3.5" />
+                        <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5a6.5 6.5 0 0 1 3 5.5" />
                     </>,
                 ),
             },

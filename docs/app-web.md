@@ -149,9 +149,16 @@ producción no aparece.
 
 ## Quién entra
 
-Con Google, solo cuentas `@inroprin.com` que estén en la pestaña **USUARIOS** del libro
-(columnas «Correo» y «Rol»). Contabilidad da o quita acceso editando una fila; el cambio vale en
-unos minutos. Los correos de `INROCONTA_ADMINS` entran siempre (para el primer ingreso).
+Con Google, solo cuentas del Workspace `inroprin.com` (claim `hd`) con una fila activa en la tabla
+**`usuario_inroconta`** de la base v2 (`docs/database/v2/013_usuario_inroconta.sql`). Se da o quita
+acceso en Supabase → Table Editor → `usuario_inroconta` (o con SQL); apagar `activo` o borrar la
+fila cierra la puerta en un minuto. La sesión dura 30 días y se renueva sola una vez al día
+mientras se usa la app (`session-keep-alive.tsx`): solo se vuelve a entrar tras un mes sin abrirla.
+
+```sql
+insert into usuario_inroconta (correo, nombre, rol) values ('alguien@inroprin.com', 'Nombre', 'admin')
+on conflict (correo) do update set activo = true, rol = excluded.rol returning *;
+```
 
 ## Variables de entorno
 
@@ -163,7 +170,6 @@ En `.env.local` para la laptop, y en Vercel → Settings → Environment Variabl
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | El cliente OAuth del login (abajo)                                                      |
 | `NEXTAUTH_SECRET`                          | Firma la sesión: `openssl rand -base64 32`                                              |
 | `NEXTAUTH_URL`                             | La URL pública de la app (en local, `http://localhost:3000`)                            |
-| `INROCONTA_ADMINS`                         | Correos que entran siempre, separados por coma                                          |
 | `DEV_USER_EMAIL`                           | Solo en la laptop (`dev` o `start`, nunca en Vercel): entra como ese usuario sin Google |
 
 ## El cliente OAuth de Google (una vez)

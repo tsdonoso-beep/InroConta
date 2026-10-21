@@ -18,6 +18,7 @@ diseña: la migración de datos y el arreglo de los workflows van después.
 | `010_documento_relacionado.sql`       | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                                                                        |
 | `011_documento_del_contribuyente.sql` | El documento de la persona natural de la ficha («DNI 43762331»), que la app muestra                                                                                                             |
 | `012_nada_queda_fuera.sql`            | Lugar para todo lo de la base vieja: filas originales de Compras, COMEX, kardex y CG, el cuadro de aprobaciones por carpeta, lo que vio CAPTURA, lo que faltaba de viáticos y `dato_sin_ubicar` |
+| `013_usuario_inroconta.sql`           | Quién entra a la app web: una fila por cuenta @inroprin.com, con rol y `activo`                                                                                                                 |
 
 Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 (GENERADO con `pnpm db:consolidar --v2`; `pnpm check` avisa si quedó viejo).

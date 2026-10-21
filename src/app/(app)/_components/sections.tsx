@@ -57,6 +57,17 @@ export const SECTION_GROUPS: { title: string; sections: Section[] }[] = [
                 ),
             },
             {
+                key: 'retenciones',
+                label: 'Retenciones',
+                href: '/retenciones',
+                icon: svg(
+                    <>
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M15 9.5a3 3 0 0 0-3-1.5c-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4.6 0 1.3-1.3 2.2-3 2.2a3.3 3.3 0 0 1-3-1.6M12 6.5V8m0 8v1.5" />
+                    </>,
+                ),
+            },
+            {
                 key: 'factura',
                 label: 'Buscar factura',
                 href: '/factura',

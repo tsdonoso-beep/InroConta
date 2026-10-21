@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import type { DocumentLines, ProductList } from '../../../modules/comprobantes/application/views.ts';
 import type { Detractions } from '../../../modules/detracciones/application/views.ts';
+import type { Retentions } from '../../../modules/retenciones/application/views.ts';
 import type { ChangesRead, FolderDetail, FoldersRead, NoOcRead } from '../../../modules/legajo/application/views.ts';
 import type { RucLists, SscoEntry, SunatFicha, TaxpayerCard } from '../../../modules/ruc/application/views.ts';
 import { keyed, resource } from './resource.ts';
@@ -13,6 +14,7 @@ export const foldersStore = resource<FoldersRead>('/api/legajo/carpetas');
 export const noOcStore = resource<NoOcRead>('/api/legajo/sin-oc');
 export const changesStore = resource<ChangesRead>('/api/legajo/cambios');
 export const detractionsStore = resource<Detractions>('/api/detracciones');
+export const retentionsStore = resource<Retentions>('/api/retenciones');
 export const rucStore = resource<RucLists>('/api/ruc');
 export const productsStore = resource<ProductList & { readAt: string }>('/api/comprobantes/productos');
 

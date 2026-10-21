@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     if (!(await currentUser())) return NextResponse.json({ error: 'Sin sesión.' }, { status: 401 });
-    const result = await measure('/api/comprobantes', 'documentos del libro', getDocuments());
+    const result = await measure('/api/comprobantes', 'documentos de la base', getDocuments());
     if (result.isErr()) return NextResponse.json({ error: result.error.message }, { status: 502 });
 
     const etag = `"${result.value.readAt}"`;

@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { findPrices, preparePrices, priceWords, type PriceMode, type PriceOrder } from '../../../modules/comprobantes/application/views.ts';
 import { Empty, MoreButton, Notice, SearchBox, SectionTitle, Select } from '../../../shared/ui/bits.tsx';
 import { Card, Segmented } from '../../../shared/ui/card.tsx';
-import { limaDateTime, thousands } from '../../../shared/ui/format.ts';
+import { thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { productsStore } from '../_lib/stores.ts';
 import { ProductRow, ROW_GRID } from './product-row.tsx';
@@ -50,7 +50,7 @@ export function PreciosView() {
 
     return (
         <>
-            <SectionTitle title="Precios" note={data ? `leído del libro INROCONTA el ${limaDateTime(data.readAt)}` : undefined} />
+            <SectionTitle title="Precios" />
             {error && <Notice>No se pudieron leer los productos comprados: {error} El detalle está en el log del servidor.</Notice>}
             <Card title="¿Cuánto pagamos por…?" note={note}>
                 <div className="mb-2.5 flex flex-wrap items-center gap-2.5">

@@ -5,11 +5,13 @@
 // with spaces ("v2.0.1 Momo de twice" arrived to clasp as four arguments), so
 // each tool is started as `node <its entry file> args…`.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const ROOT = join(import.meta.dirname, '..', '..');
-export const APP_DIR = join(ROOT, 'apps-script', 'inroconta');
+// The real spelling: clasp 3 refuses a content folder whose path differs from its real one («is a
+// symlink»), and Windows lets the repo be opened as D:\inroconta while the folder is D:\InroConta.
+export const APP_DIR = realpathSync.native(join(ROOT, 'apps-script', 'inroconta'));
 
 export function git(...args: string[]): string {
     return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();

@@ -3,7 +3,7 @@
 import type { SourceError } from '../../../shared/errors.ts';
 import type { UpdaterManifest } from '../domain/entities/Release.ts';
 import { deviceNameOf, deviceOf, isAppCode, isVersion, manifestOf, platformOf } from '../domain/policies.ts';
-import type { DownloadSigner, ReleasePort } from './ports/ReleasePort.ts';
+import type { DownloadLinker, ReleasePort } from './ports/ReleasePort.ts';
 
 /** What the app sends: the path's code, the query string and two headers (X-Equipo, X-Nombre-Equipo). */
 export interface UpdateRequest {
@@ -24,7 +24,7 @@ export type UpdateOutcome =
 
 const failed = (e: SourceError): UpdateOutcome => (e.kind === 'not-found' ? { kind: 'not-found', message: e.message } : { kind: 'failed', message: e.message });
 
-export async function checkUpdate(port: ReleasePort, signer: DownloadSigner, req: UpdateRequest): Promise<UpdateOutcome> {
+export async function checkUpdate(port: ReleasePort, linker: DownloadLinker, req: UpdateRequest): Promise<UpdateOutcome> {
     const app = req.app.trim().toLowerCase();
     const version = (req.version ?? '').trim();
     if (!isAppCode(app)) return { kind: 'bad-request', message: 'Código de aplicación inválido.' };
@@ -42,7 +42,7 @@ export async function checkUpdate(port: ReleasePort, signer: DownloadSigner, req
         return { kind: 'none' };
     }
 
-    const url = signer.downloadUrl(release.url);
-    if (url.isErr()) return failed(url.error);
-    return { kind: 'update', manifest: manifestOf(release, url.value) };
+    const link = await linker.link(release.url);
+    if (link.isErr()) return failed(link.error);
+    return { kind: 'update', manifest: manifestOf(release, link.value) };
 }

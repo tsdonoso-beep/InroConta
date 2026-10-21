@@ -1,6 +1,6 @@
 // The pure rules of «is there an update?»: which platform a Tauri target/arch is, which inputs are
 // valid, and how a release becomes the updater's answer.
-import type { Platform, Release, UpdaterManifest } from './entities/Release.ts';
+import type { DownloadLink, Platform, Release, UpdaterManifest } from './entities/Release.ts';
 
 const OS: Record<string, string> = { windows: 'windows', darwin: 'macos', macos: 'macos', linux: 'linux' };
 const ARCH: Record<string, string> = { x86_64: 'x64', x64: 'x64', amd64: 'x64', aarch64: 'arm64', arm64: 'arm64' };
@@ -35,13 +35,14 @@ export function deviceNameOf(raw: string | null): string | null {
     return v || null;
 }
 
-/** The answer for the updater, with the download link already usable (signed when private). */
-export function manifestOf(release: Release, downloadUrl: string): UpdaterManifest {
+/** The answer for the updater, with the download link already usable (and its token when private). */
+export function manifestOf(release: Release, link: DownloadLink): UpdaterManifest {
     return {
         version: release.version,
         notes: release.notes ?? '',
         pub_date: new Date(release.publishedAt).toISOString(),
-        url: downloadUrl,
+        url: link.url,
+        descarga_headers: link.headers,
         signature: release.signature ?? '',
         sha256: release.sha256,
         tamano_bytes: release.sizeBytes,

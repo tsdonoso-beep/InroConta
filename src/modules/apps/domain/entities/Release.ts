@@ -17,7 +17,7 @@ export interface UpdateQuery {
 /** The newest version the PC may install (buscar_actualizacion with hay = true). */
 export interface Release {
     version: string;
-    /** gs://bucket/path (private, signed per request) or https://… (passed through). */
+    /** gdrive://<file id> (private folder of the company's Drive) or https://… (passed through). */
     url: string;
     sha256: string;
     sizeBytes: number | null;
@@ -41,4 +41,12 @@ export interface UpdaterManifest {
     sha256: string;
     tamano_bytes: number | null;
     obligatoria: boolean;
+    /** Headers the app sends with the download (the Drive token); empty for a public link. */
+    descarga_headers: Record<string, string>;
+}
+
+/** Where and how the app downloads one installer. */
+export interface DownloadLink {
+    url: string;
+    headers: Record<string, string>;
 }

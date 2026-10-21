@@ -3,13 +3,13 @@
 import { err, ok } from 'neverthrow';
 import { describe, expect, it } from 'vitest';
 import { checkUpdate, type UpdateRequest } from '../../../src/modules/apps/application/checkUpdate.ts';
-import type { DownloadSigner, ReleasePort } from '../../../src/modules/apps/application/ports/ReleasePort.ts';
+import type { DownloadLinker, ReleasePort } from '../../../src/modules/apps/application/ports/ReleasePort.ts';
 import type { Release, UpdateQuery } from '../../../src/modules/apps/domain/entities/Release.ts';
 import { deviceNameOf, deviceOf, isVersion, platformOf } from '../../../src/modules/apps/domain/policies.ts';
 
 const RELEASE: Release = {
     version: '0.3.0',
-    url: 'gs://inroprin-apps/carga-concar/0.3.0/Carga CONCAR_0.3.0_x64-setup.exe',
+    url: 'gdrive://1AbCdEfGhIjKlMnOp',
     sha256: 'a'.repeat(64),
     sizeBytes: 155_000_000,
     signature: 'dW50cnVzdGVk',
@@ -37,7 +37,9 @@ function fakes(answer: Release | null | 'fail' | 'unknown') {
             return ok(answer);
         },
     };
-    const signer: DownloadSigner = { downloadUrl: (url) => ok(url.replace('gs://', 'https://signed.example/')) };
+    const signer: DownloadLinker = {
+        link: async (url) => ok({ url: url.replace('gdrive://', 'https://drive.example/'), headers: { Authorization: 'Bearer t' } }),
+    };
     return { port, signer, asked };
 }
 
@@ -71,7 +73,7 @@ describe('inputs', () => {
 });
 
 describe('checkUpdate', () => {
-    it('answers the Tauri manifest with the signed link', async () => {
+    it('answers the Tauri manifest with the download link and its headers', async () => {
         const f = fakes(RELEASE);
         const out = await checkUpdate(f.port, f.signer, REQ);
         expect(out).toEqual({
@@ -80,11 +82,12 @@ describe('checkUpdate', () => {
                 version: '0.3.0',
                 notes: 'Corrige el OCR',
                 pub_date: '2026-10-21T17:00:00.000Z',
-                url: 'https://signed.example/inroprin-apps/carga-concar/0.3.0/Carga CONCAR_0.3.0_x64-setup.exe',
+                url: 'https://drive.example/1AbCdEfGhIjKlMnOp',
                 signature: 'dW50cnVzdGVk',
                 sha256: 'a'.repeat(64),
                 tamano_bytes: 155_000_000,
                 obligatoria: false,
+                descarga_headers: { Authorization: 'Bearer t' },
             },
         });
         expect(f.asked).toEqual([{ app: 'carga-concar', platform: 'windows-x64', version: '0.2.0', device: REQ.device, deviceName: null }]);
@@ -111,9 +114,9 @@ describe('checkUpdate', () => {
         expect((await checkUpdate(d.port, d.signer, REQ)).kind).toBe('failed');
     });
 
-    it('fails when the link cannot be signed', async () => {
+    it('fails when the download cannot be prepared', async () => {
         const f = fakes(RELEASE);
-        const signer: DownloadSigner = { downloadUrl: () => err({ kind: 'source-missing', message: 'Falta la cuenta' }) };
+        const signer: DownloadLinker = { link: async () => err({ kind: 'source-missing', message: 'Falta la cuenta' }) };
         expect(await checkUpdate(f.port, signer, REQ)).toEqual({ kind: 'failed', message: 'Falta la cuenta' });
     });
 });

@@ -24,8 +24,12 @@ export async function oldDb(): Promise<SupabaseClient> {
     return c;
 }
 
-/** What to read: the table, its primary key (for a stable order) and an optional filter. */
-export type Source = { table: string; key: string[]; company?: boolean; where?: (q: Query) => Query };
+/**
+ * What to read: the table, its primary key (for a stable order) and an optional filter.
+ * `optional`: a table the robot may not be able to read (a broken row rule in the old base); its
+ * failure is reported and the move goes on without it, instead of stopping everything.
+ */
+export type Source = { table: string; key: string[]; company?: boolean; where?: (q: Query) => Query; optional?: boolean };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Query = any;
 
@@ -51,13 +55,36 @@ export const SOURCES: Source[] = [
     { table: 'oc_base_cg', key: ['empresa_ruc', 'oc', 'cc_codigo', 'cc_nombre'], company: true },
     { table: 'kardex_vale', key: ['empresa_ruc', 'id'], company: true },
     { table: 'oc_carpeta', key: ['empresa_ruc', 'oc', 'carpeta_url'], company: true },
-    // CAPTURA is retired (README v2): its files are not moved.
-    { table: 'oc_archivo', key: ['empresa_ruc', 'origen', 'oc', 'url'], company: true, where: (q) => q.neq('origen', 'CAPTURA') },
+    // CAPTURA is retired, but what it saw is kept (v2 012: archivo.visto_captura_en).
+    { table: 'oc_archivo', key: ['empresa_ruc', 'origen', 'oc', 'url'], company: true },
     { table: 'lectura_archivo', key: ['archivo_id'] },
     { table: 'proyecto_centro_costo', key: ['empresa_ruc', 'procedencia', 'proyecto_carpeta'], company: true },
     { table: 'proveedor_sin_oc', key: ['empresa_ruc', 'proveedor_ruc'], company: true },
     { table: 'carpeta_cambio', key: ['id'], company: true },
     { table: 'fuente_cambio', key: ['id'], company: true },
+    // Viáticos (006): the whole pilot. Empty ones are read too, so a row that appears is not lost.
+    { table: 'areas', key: ['id'] },
+    { table: 'usuarios', key: ['id'] },
+    { table: 'roles_usuario', key: ['usuario_id', 'rol'] },
+    { table: 'datos_bancarios', key: ['usuario_id'] },
+    { table: 'parametros', key: ['clave'] },
+    { table: 'cajas_chicas', key: ['id'] },
+    { table: 'memos', key: ['id'] },
+    { table: 'memo_asignados', key: ['memo_id', 'usuario_id'] },
+    { table: 'memo_secuencias', key: ['empresa_id', 'anio', 'tipo'] },
+    { table: 'autorizaciones_memo', key: ['id'] },
+    { table: 'planillas_movilidad', key: ['id'] },
+    { table: 'gastos', key: ['id'] },
+    { table: 'liquidaciones', key: ['id'] },
+    { table: 'liquidacion_memos', key: ['liquidacion_id', 'memo_id'] },
+    { table: 'pagos', key: ['id'] },
+    { table: 'pago_lineas', key: ['id'] },
+    { table: 'devoluciones', key: ['id'] },
+    { table: 'eventos', key: ['id'] },
+    // Their row rule recurses on itself in the old base («infinite recursion detected in policy»):
+    // the robot cannot read them. They need the old project's service_role key.
+    { table: 'solicitudes_memo', key: ['id'], optional: true },
+    { table: 'solicitud_personas', key: ['solicitud_id', 'usuario_id'], optional: true },
 ];
 
 /**
@@ -140,6 +167,8 @@ export async function readOld(c: SupabaseClient, onDone: (what: string, n: numbe
     const tables = pool(6);
     const slow = pool(2); // the derived functions recalculate everything on every page (~6 s each)
     const out: OldData = {};
+    const unreadable: Row[] = [];
+    out._unreadable = unreadable;
     const jobs = SOURCES.map(async (s) => {
         const t0 = Date.now();
         const base = () => {
@@ -147,10 +176,10 @@ export async function readOld(c: SupabaseClient, onDone: (what: string, n: numbe
             if (s.company) q = q.eq('empresa_ruc', COMPANY);
             return s.where ? s.where(q) : q;
         };
-        out[s.table] =
+        const read = () =>
             s.key.length === 1
-                ? await byCursor(s.table, s.key[0], base, tables)
-                : await all(
+                ? byCursor(s.table, s.key[0], base, tables)
+                : all(
                       s.table,
                       (from, to) => {
                           let q = base();
@@ -159,6 +188,15 @@ export async function readOld(c: SupabaseClient, onDone: (what: string, n: numbe
                       },
                       tables,
                   );
+        try {
+            out[s.table] = await read();
+        } catch (e) {
+            if (!s.optional) throw e;
+            out[s.table] = [];
+            unreadable.push({ table: s.table, error: (e as Error).message });
+            console.log(`  ✗ ${s.table.padEnd(28)} no se pudo leer: ${(e as Error).message}`);
+            return;
+        }
         onDone(s.table, out[s.table].length, Date.now() - t0);
     });
     const derived = DERIVED.map(async ({ fn, key, where }) => {

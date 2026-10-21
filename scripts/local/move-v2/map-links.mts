@@ -29,11 +29,11 @@ export function folders(old: OldData, oc: Orders, cc: CostCentres, notes: Notes)
         const id = folderId(k.carpeta_url);
         const proc = origin(k.procedencia);
         if (!id || !proc) {
-            notes.add('carpeta_oc: carpeta sin enlace o procedencia');
+            notes.keep('carpeta_oc: carpeta sin enlace o procedencia', 'oc_carpeta', k);
             continue;
         }
         if (carpetas.has(id)) {
-            notes.add('carpeta_oc: la misma carpeta con dos OC (queda una)');
+            notes.keep('carpeta_oc: la misma carpeta con dos OC (queda una)', 'oc_carpeta', k);
             continue;
         }
         const o = oc.get(proc, k.oc);
@@ -55,6 +55,12 @@ export function folders(old: OldData, oc: Orders, cc: CostCentres, notes: Notes)
             le_falta: list(k.le_falta),
             estado,
             calculado_en: k.cargado_en,
+            // What the walk counted, and the folder's own cost centre (the OC's is in orden_compra).
+            comprobantes: int(k.comprobantes),
+            series: text(k.series),
+            rucs: text(k.rucs),
+            centro_costo_id: cc.see(k.cc_codigo, k.cc_nombre),
+            centro_costo_segun: text(k.cc_fuente)?.replace(/\s+/g, '_') ?? null,
         });
         if (!o) continue;
         // What the old script calculated for the OC from its folder (v2: guardar_calculos_oc).
@@ -100,7 +106,7 @@ export function folders(old: OldData, oc: Orders, cc: CostCentres, notes: Notes)
     for (const a of old.oc_archivo) {
         const id = fileId(a.url);
         if (!id) {
-            notes.add('archivo: sin enlace de Drive');
+            notes.keep('archivo: sin enlace de Drive', 'oc_archivo', a);
             continue;
         }
         const folder = folderId(a.carpeta_url);
@@ -115,15 +121,22 @@ export function folders(old: OldData, oc: Orders, cc: CostCentres, notes: Notes)
             parece: text(a.parece),
             serie_en_nombre: text(a.serie_en_nombre)?.toUpperCase() ?? null,
             rucs_en_nombre: [],
+            visto_captura_en: null,
+            origenes: [],
             ...reading(reads.get(id), a),
         };
+        // Each walk that saw it, with everything it said (oc_archivo had one row per walk).
+        const { empresa_ruc, ...seen } = a;
+        void empresa_ruc;
+        row.origenes.push(seen);
         if (a.origen === 'CARPETA') row.visto_carpeta_en = a.cargado_en;
         if (a.origen === 'LEGAJO') row.visto_legajo_en = a.cargado_en;
+        if (a.origen === 'CAPTURA') row.visto_captura_en = a.cargado_en;
         if (folder && carpetas.has(folder) && (!row.carpeta_id || a.origen === 'CARPETA')) row.carpeta_id = folder;
         archivos.set(id, row);
     }
-    const lost = old.lectura_archivo.filter((r) => !archivos.has(String(r.archivo_id))).length;
-    if (lost) notes.add('archivo: lecturas de archivos que solo vio CAPTURA (no se mudan)', lost);
+    for (const r of old.lectura_archivo)
+        if (!archivos.has(String(r.archivo_id))) notes.keep('archivo: lectura de un archivo que ningún recorrido vio', 'lectura_archivo', r);
     return { carpeta_oc: [...carpetas.values()], archivo: [...archivos.values()] };
 }
 
@@ -177,7 +190,7 @@ export function links(old: OldData, ids: Map<string, string>, oc: Orders, folder
         const proc = folderProc.get(folderId(v.carpeta_url) ?? '') ?? oc.guess(v.oc, v.proveedor_ruc);
         const o = oc.find(proc, v.oc);
         if (!comprobante_id || !o) {
-            notes.add(`comprobante_oc: vínculo sin ${comprobante_id ? 'su OC' : 'su comprobante'}`);
+            notes.keep(`comprobante_oc: vínculo sin ${comprobante_id ? 'su OC' : 'su comprobante'}`, 'vinculos_oc', v);
             continue;
         }
         const archivo = fileId(v.archivo_url);
@@ -212,7 +225,7 @@ export function withoutOc(old: OldData, docs: Row[], notes: Notes) {
         const found = byNumber.get(`${f.proveedor_ruc}|${serie(f.serie)}|${number(f.numero)}`) ?? [];
         const d = found.find((x) => x.tipo === '01') ?? found[0];
         if (!d) {
-            notes.add('comprobante: factura sin OC que no está');
+            notes.keep('comprobante: factura sin OC que no está', 'facturas_sin_oc', f);
             continue;
         }
         const gasto = text(f.gasto_tipico);
@@ -233,7 +246,7 @@ export function rules(old: OldData, cc: CostCentres, people: Taxpayers, notes: N
             .toUpperCase()
             .replace(/\s+/g, '_');
         if (!proc || !text(p.proyecto_carpeta) || !['CG', 'NOMBRE', 'ADMINISTRATIVO', 'MANUAL', 'SIN_ASIGNAR'].includes(segun)) {
-            notes.add('regla_centro_costo: sin procedencia, carpeta o fuente conocida');
+            notes.keep('regla_centro_costo: sin procedencia, carpeta o fuente conocida', 'proyecto_centro_costo', p);
             return [];
         }
         return [

@@ -28,7 +28,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
     for (const c of old.cpe_comprobante) {
         const tipo = twoDigits(c.tipo_comprobante);
         if (!tipo || !text(c.serie) || !text(c.numero) || !['RECIBIDO', 'EMITIDO'].includes(c.origen)) {
-            notes.add('comprobante: XML sin tipo, serie, número u origen');
+            notes.keep('comprobante: XML sin tipo, serie, número u origen', 'cpe_comprobante', c);
             continue;
         }
         const emisor = people.see(c.proveedor_ruc ?? '0', c.proveedor_nombre)!;
@@ -36,7 +36,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
         const key = docKey(emisor, tipo, c.serie, c.numero);
         byOldId.set(c.id, key);
         if (docs.has(key)) {
-            notes.add('comprobante: XML repetido (queda uno)');
+            notes.keep('comprobante: XML repetido (queda uno)', 'cpe_comprobante', c);
             continue;
         }
         const xml = fileId(c.xml_drive_url);
@@ -64,6 +64,8 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
             detraccion_porcentaje: num(c.detraccion_porcentaje),
             detraccion_monto: num(c.detraccion_monto),
             detraccion_cuenta: text(c.detraccion_cuenta_banco),
+            emisor_nombre: text(c.proveedor_nombre),
+            receptor_nombre: text(c.adquiriente_nombre),
             // The anticipo the XML discounts (AdditionalDocumentReference), not the note's target:
             // that one comes from the SIRE below (v2 010_documento_relacionado.sql).
             documento_relacionado: text(c.documento_relacionado),
@@ -90,7 +92,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
     for (const s of [...old.comprobantes_sunat].sort((a, z) => String(a.ultima_vez).localeCompare(String(z.ultima_vez)))) {
         const tipo = twoDigits(s.tipo_comprobante);
         if (!tipo || !text(s.serie) || !text(s.numero)) {
-            notes.add('registro_compras: línea sin tipo, serie o número');
+            notes.keep('registro_compras: línea sin tipo, serie o número', 'comprobantes_sunat', s);
             continue;
         }
         const ruc = text(s.proveedor_ruc) ?? '0';
@@ -104,6 +106,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
                 origen: 'RECIBIDO',
                 emisor_ruc: emisor,
                 receptor_ruc: COMPANY,
+                emisor_nombre: text(s.proveedor_nombre),
                 tipo,
                 serie: serie(s.serie),
                 numero: number(s.numero),
@@ -138,6 +141,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
         }
         // What the XML already set is not overwritten (coalesce(k.x, excluded.x)).
         doc.fecha_emision ??= date(s.fecha_emision);
+        doc.emisor_nombre ??= text(s.proveedor_nombre);
         doc.moneda ??= currency(s.moneda);
         doc.tipo_cambio ??= num(s.tipo_cambio);
         doc.tipo_nota ??= text(s.tipo_nota);
@@ -157,6 +161,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
             periodo,
             llave,
             car_sunat: text(s.car_sunat),
+            proveedor_nombre: text(s.proveedor_nombre),
             comprobante_id: doc.id,
             estado: text(s.estado),
             total: num(s.total),
@@ -184,11 +189,11 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
         const id = idOfOld(i.comprobante_id);
         const linea = int(i.linea);
         if (!id || linea === null) {
-            notes.add('comprobante_item: sin comprobante o sin línea');
+            notes.keep('comprobante_item: sin comprobante o sin línea', 'cpe_item', i);
             continue;
         }
         if (item.has(`${id}|${linea}`)) {
-            notes.add('comprobante_item: línea repetida (queda una)');
+            notes.keep('comprobante_item: línea repetida (queda una)', 'cpe_item', i);
             continue;
         }
         item.set(`${id}|${linea}`, {
@@ -206,7 +211,7 @@ export function documents(old: OldData, people: Taxpayers, notes: Notes): Docume
         const id = idOfOld(q.comprobante_id);
         const n = int(q.numero);
         if (!id || n === null) {
-            notes.add('comprobante_cuota: sin comprobante o sin número');
+            notes.keep('comprobante_cuota: sin comprobante o sin número', 'cpe_cuota', q);
             continue;
         }
         cuota.set(`${id}|${n}`, { comprobante_id: id, numero: n, monto: num(q.monto), fecha_vencimiento: date(q.fecha_vencimiento) });

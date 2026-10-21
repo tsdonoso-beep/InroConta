@@ -131,9 +131,9 @@ export function lookups(old: OldData, people: Taxpayers) {
     }
 }
 
-export function ssco(old: OldData): Row[] {
+export function ssco(old: OldData, notes: Notes): Row[] {
     return old.ruc_ssco
-        .filter((r) => /^\d{11}$/.test(String(r.ruc)))
+        .filter((r) => /^\d{11}$/.test(String(r.ruc)) || (notes.keep('lista_ssco: RUC que no tiene 11 dígitos', 'ruc_ssco', r), false))
         .map((r) => ({
             ruc: r.ruc,
             razon_social: text(r.business_name) ?? '',
@@ -183,7 +183,7 @@ export class CostCentres {
         for (const r of this.rows.values()) {
             if (!r.concar_codigo) continue;
             if (concar.has(r.concar_codigo)) {
-                notes.add('centro_costo: código CONCAR repetido (se deja vacío)');
+                notes.keep('centro_costo: código CONCAR repetido (se deja vacío)', 'equivalencia_centro_costo', { ...r });
                 r.concar_codigo = null;
             } else concar.add(r.concar_codigo);
         }
@@ -191,18 +191,38 @@ export class CostCentres {
     }
 }
 
-export function costCentres(old: OldData, cc: CostCentres) {
-    for (const c of old.centros_costo)
-        cc.see(c.codigo, c.nombre, { abreviatura: text(c.abreviatura), estado: c.activo === false ? 'CERRADO' : 'ACTIVO', creado_en: c.creado_en });
-    for (const e of old.equivalencia_centro_costo) cc.see(e.cc_clave, e.cc_nombre, { concar_codigo: e.estado === 'CONFIRMADO' ? text(e.concar_codigo) : null });
+/** The old cost centres and their CONCAR equivalence. Returns old id → v2 id (the memos point to them). */
+export function costCentres(old: OldData, cc: CostCentres): Map<string, string> {
+    const ids = new Map<string, string>();
+    for (const c of old.centros_costo) {
+        const id = cc.see(c.codigo, c.nombre, {
+            abreviatura: text(c.abreviatura),
+            estado: c.activo === false ? 'CERRADO' : 'ACTIVO',
+            creado_en: c.creado_en,
+            drive_folder: text(c.drive_folder),
+        });
+        if (id) ids.set(String(c.id), id);
+    }
+    // concar_codigo is only the confirmed one (it is unique); an unconfirmed code waits in concar_propuesto.
+    for (const e of old.equivalencia_centro_costo) {
+        const ok = e.estado === 'CONFIRMADO';
+        cc.see(e.cc_clave, e.cc_nombre, {
+            concar_codigo: ok ? text(e.concar_codigo) : null,
+            concar_propuesto: ok ? null : text(e.concar_codigo),
+            concar_estado: text(e.estado),
+            concar_nota: text(e.nota),
+            concar_en: e.actualizado_en,
+        });
+    }
+    return ids;
 }
 
 /** consultas_sunat and fuente_copia → corrida. `resumen.mudanza` marks where each one came from. */
 export function runs(old: OldData): Row[] {
     const sire = old.consultas_sunat.map((c) => {
-        const { id, empresa_ruc, periodo, consultado_en, segundos, comprobantes_sunat, consultado_por, ...rest } = c;
+        // consultado_por (the old user who asked) stays in resumen with the rest.
+        const { id, empresa_ruc, periodo, consultado_en, segundos, comprobantes_sunat, ...rest } = c;
         void empresa_ruc;
-        void consultado_por;
         const end = consultado_en && segundos != null ? new Date(Date.parse(consultado_en) + segundos * 1000).toISOString() : null;
         return {
             job: 'sire',
@@ -247,7 +267,7 @@ export function changes(old: OldData, sireKey: Map<string, string>, notes: Notes
     for (const c of old.cambios_comprobante_sunat) {
         const clave = sireKey.get(c.comprobante_id);
         if (!clave) {
-            notes.add('cambio: cambio del SIRE sin su línea');
+            notes.keep('cambio: cambio del SIRE sin su línea', 'cambios_comprobante_sunat', c);
             continue;
         }
         out.push({

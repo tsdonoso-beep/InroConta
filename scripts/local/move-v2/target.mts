@@ -14,8 +14,15 @@ export function newDb(): SupabaseClient {
     });
 }
 
-/** Each table the move writes, its primary key, and the tables it points to (written first). */
-export const TABLES: { table: string; key: string[]; after: string[]; principal?: boolean }[] = [
+/**
+ * Each table the move writes, its primary key, and the steps it points to (written first). `as`:
+ * a second step on the same table (area goes once without its head, who is a usuario, and again
+ * after them). `keep`: v2 seeded rows of its own there, so what this run did not write is not pruned.
+ */
+export type Step = { table: string; key: string[]; after: string[]; principal?: boolean; as?: string; keep?: boolean };
+export const stepName = (t: Step) => t.as ?? t.table;
+
+export const TABLES: Step[] = [
     { table: 'contribuyente', key: ['ruc'], after: [] },
     { table: 'lista_ssco', key: ['ruc'], after: [] },
     { table: 'centro_costo', key: ['id'], after: [] },
@@ -35,6 +42,26 @@ export const TABLES: { table: string; key: string[]; after: string[]; principal?
     { table: 'comprobante_oc', key: ['comprobante_id', 'orden_compra_id'], after: ['comprobante', 'orden_compra', 'archivo'], principal: true },
     { table: 'regla_centro_costo', key: ['empresa_ruc', 'procedencia', 'proyecto_carpeta'], after: ['centro_costo'] },
     { table: 'proveedor_sin_oc', key: ['empresa_ruc', 'proveedor_ruc'], after: ['contribuyente'] },
+    { table: 'orden_compra_legajo', key: ['orden_compra_id', 'carpeta_id'], after: ['orden_compra'] },
+    // Viáticos (006).
+    { table: 'area', as: 'area_base', key: ['id'], after: [], keep: true },
+    { table: 'usuario', key: ['id'], after: ['area_base'] },
+    { table: 'area', key: ['id'], after: ['usuario'] },
+    { table: 'usuario_rol', key: ['usuario_id', 'rol'], after: ['usuario'] },
+    { table: 'usuario_banco', key: ['usuario_id'], after: ['usuario'] },
+    { table: 'parametro', key: ['clave'], after: ['usuario'], keep: true },
+    { table: 'caja_chica', key: ['id'], after: ['usuario'] },
+    { table: 'memo', key: ['id'], after: ['usuario', 'centro_costo', 'caja_chica'] },
+    { table: 'memo_persona', key: ['memo_id', 'usuario_id'], after: ['memo'] },
+    { table: 'memo_correlativo', key: ['empresa_ruc', 'anio', 'tipo'], after: [] },
+    { table: 'memo_autorizacion', key: ['id'], after: ['memo'] },
+    { table: 'planilla_movilidad', key: ['id'], after: ['memo'] },
+    { table: 'gasto', key: ['id'], after: ['planilla_movilidad', 'contribuyente', 'comprobante'] },
+    { table: 'liquidacion', key: ['id'], after: ['usuario'] },
+    { table: 'liquidacion_memo', key: ['liquidacion_id', 'memo_id'], after: ['liquidacion', 'memo'] },
+    { table: 'pago', key: ['id'], after: ['memo'] },
+    { table: 'pago_linea', key: ['pago_id', 'usuario_id'], after: ['pago'] },
+    { table: 'devolucion', key: ['id'], after: ['memo'] },
 ];
 
 const BATCH = 500;
@@ -54,10 +81,19 @@ export async function write(db: SupabaseClient, p: Pool, table: string, key: str
     const send = async (batch: Row[]): Promise<void> => {
         const error = await retry(`${table} (${batch.length} filas)`, async () => {
             const { error } = await db.from(table).upsert(batch, { onConflict: key.join(','), defaultToNull: false });
+            // A batch past the base's statement timeout is split below, not sent again the same size
+            // (archivo, with every walk in jsonb, did not fit 500 rows in 8 s on 21/10/2026).
+            if (error?.code === '57014' && batch.length > 25) return error;
             if (error && transient(error)) throw error;
             return error;
         });
         if (!error) return;
+        if (error.code === '57014' && batch.length > 25) {
+            const half = Math.ceil(batch.length / 2);
+            await send(batch.slice(0, half));
+            await send(batch.slice(half));
+            return;
+        }
         if (batch.length === 1) {
             console.error(`  ✗ ${table}: ${raw(error)}\n    fila: ${JSON.stringify(batch[0]).slice(0, 400)}`);
             rejected.push({ row: batch[0], error: raw(error) });
@@ -130,7 +166,13 @@ export async function prune(db: SupabaseClient, p: Pool, table: string, key: str
  * and is not touched. A cambio that points to a moved corrida would block its delete: the moved
  * ones point to none.
  */
-export async function replaceMoved(db: SupabaseClient, p: Pool, table: 'corrida' | 'cambio', json: 'resumen' | 'detalle', rows: Row[]): Promise<number> {
+export async function replaceMoved(
+    db: SupabaseClient,
+    p: Pool,
+    table: 'corrida' | 'cambio' | 'dato_sin_ubicar',
+    json: 'resumen' | 'detalle',
+    rows: Row[],
+): Promise<number> {
     const { error } = await db.from(table).delete().not(`${json}->>mudanza`, 'is', null);
     if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${raw(error)}`), { code: error.code });
     // No retry here: an insert whose answer was lost may have gone in, and a second one would

@@ -4,7 +4,7 @@
 // orden_compra_dua and vale_almacen.
 
 import { uuidFor } from './pool.mts';
-import { COMPANY, currency, date, int, list, num, origin, parseOc, text, validRuc, type Notes, type Row } from './helpers.mts';
+import { COMPANY, currency, date, folderId, int, list, num, origin, parseOc, text, validRuc, type Notes, type Row } from './helpers.mts';
 import type { CostCentres, Taxpayers } from './map-core.mts';
 import type { OldData } from './source.mts';
 
@@ -63,15 +63,17 @@ function buyer(o: Row, source: string, who: string | null) {
     o.comprador_segun = source;
 }
 
-const skipped = (notes: Notes, what: string) => notes.add(`orden_compra: código de OC con otra forma en ${what}`);
+/** A source row as it came, for the *_fila columns (v2 012): every cell, without the company. */
+const raw = ({ empresa_ruc, ...rest }: Row): Row => (void empresa_ruc, rest);
+
+const skipped = (notes: Notes, what: string, table: string, row: Row) => notes.keep(`orden_compra: código de OC con otra forma en ${what}`, table, row);
 
 /** The three sources that say their procedencia: Compras, the approvals table and COMEX. */
 export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCentres, notes: Notes) {
-    const skip = (what: string) => skipped(notes, what);
     for (const f of old.fuente_compra_oc) {
         const o = oc.get(origin(f.procedencia), f.oc);
         if (!o) {
-            skip('Compras');
+            skipped(notes, 'Compras', 'fuente_compra_oc', f);
             continue;
         }
         const ruc = validRuc(f.proveedor_ruc);
@@ -92,6 +94,8 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
             tiempo_entrega: text(f.tiempo_entrega),
             items: int(f.items),
             compras_en: f.cargado_en,
+            pais: text(f.pais),
+            compras_fila: raw(f),
         });
         buyer(o, 'COMPRAS', text(f.elaborado));
         data(o, 'COMPRAS', {
@@ -105,14 +109,41 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
     }
 
     // The approvals table can list one OC in several folders: the most recently reviewed wins.
+    // Every row stays in orden_compra_legajo (one per OC and folder).
     const legajo = [...old.oc_legajo].sort((a, z) => String(a.revisado_en ?? a.cargado_en).localeCompare(String(z.revisado_en ?? z.cargado_en)));
+    const legajoRows = new Map<string, Row>();
     for (const l of legajo) {
         const o = oc.get(origin(l.procedencia), l.oc);
         if (!o) {
-            skip('el legajo');
+            skipped(notes, 'el legajo', 'oc_legajo', l);
             continue;
         }
         const ruc = validRuc(l.proveedor_ruc);
+        const carpeta = folderId(l.carpeta_url) ?? '';
+        legajoRows.set(`${o.id}|${carpeta}`, {
+            orden_compra_id: o.id,
+            carpeta_id: carpeta,
+            carpeta_url: text(l.carpeta_url),
+            unidad: text(l.unidad),
+            proyecto: text(l.proyecto),
+            proveedor: text(l.proveedor),
+            proveedor_ruc: text(l.proveedor_ruc),
+            comprador: text(l.comprador),
+            area: text(l.area),
+            situacion_pago: text(l.situacion_pago),
+            estatus: text(l.estatus),
+            estado_aprobacion: text(l.estado_aprobacion),
+            fecha_oc: date(l.fecha_oc),
+            monto_soles: num(l.monto_soles),
+            forma_pago: text(l.forma_pago),
+            cc_codigo: text(l.cc_codigo),
+            cc_nombre: text(l.cc_nombre),
+            estado_revision: text(l.estado_revision),
+            le_falta: list(l.le_falta),
+            documentos: l.documentos ?? null,
+            revisado_en: l.revisado_en,
+            cargado_en: l.cargado_en,
+        });
         people.see(ruc, l.proveedor);
         Object.assign(o, {
             area: text(l.area) ?? o.area ?? null,
@@ -134,7 +165,7 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
     for (const c of old.fuente_comex_oc) {
         const o = oc.get('IMPORTACION', c.oc);
         if (!o) {
-            skip('COMEX');
+            skipped(notes, 'COMEX', 'fuente_comex_oc', c);
             continue;
         }
         const empresa = text(c.empresa);
@@ -158,6 +189,7 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
             embarques: int(c.embarques),
             comex_observaciones: text(c.observaciones),
             comex_en: c.cargado_en,
+            comex_fila: raw(c),
         });
         buyer(o, 'COMEX', text(c.comprador));
         data(o, 'COMEX', { proveedor_nombre: text(c.proveedor), fecha_oc: date(c.fecha_oc) });
@@ -177,7 +209,7 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
             });
         }
     }
-    return { orden_compra_dua: [...duas.values()] };
+    return { orden_compra_dua: [...duas.values()], orden_compra_legajo: [...legajoRows.values()] };
 }
 
 /**
@@ -185,18 +217,19 @@ export function orders(old: OldData, oc: Orders, people: Taxpayers, cc: CostCent
  * one with most lines. It runs after the folders, so guessing its procedencia sees every OC.
  */
 export function controlBase(old: OldData, oc: Orders, people: Taxpayers, cc: CostCentres, notes: Notes) {
-    const groups = new Map<string, { o: Row; cc: string; monto: number | null; lineas: number }>();
+    const groups = new Map<string, { o: Row; cc: string; monto: number | null; lineas: number; rows: Row[] }>();
     for (const g of old.oc_base_cg) {
         const ruc = validRuc(g.proveedor_ruc);
         const o = oc.get(oc.guess(g.oc, ruc), g.oc);
         const ccId = cc.see(g.cc_codigo, g.cc_nombre);
         if (!o || !ccId) {
-            skipped(notes, 'la base de CG');
+            skipped(notes, 'la base de CG', 'oc_base_cg', g);
             continue;
         }
         people.see(ruc);
         const k = `${o.id}|${ccId}`;
-        const cur = groups.get(k) ?? { o, cc: ccId, monto: null, lineas: 0 };
+        const cur = groups.get(k) ?? { o, cc: ccId, monto: null, lineas: 0, rows: [] };
+        cur.rows.push(raw(g));
         if (num(g.monto) !== null) cur.monto = (cur.monto ?? 0) + num(g.monto)!;
         cur.lineas += int(g.lineas) ?? 1;
         groups.set(k, cur);
@@ -214,6 +247,7 @@ export function controlBase(old: OldData, oc: Orders, people: Taxpayers, cc: Cos
             monto: g.monto === null ? null : Math.round(g.monto * 100) / 100,
             lineas: g.lineas,
             principal: false,
+            lineas_cg: g.rows,
         };
         byOc.set(g.o, [...(byOc.get(g.o) ?? []), r]);
     }
@@ -229,7 +263,7 @@ export function controlBase(old: OldData, oc: Orders, people: Taxpayers, cc: Cos
 
 export function warehouse(old: OldData, oc: Orders, notes: Notes): Row[] {
     return old.kardex_vale
-        .filter((v) => text(v.id))
+        .filter((v) => text(v.id) || (notes.keep('vale_almacen: vale sin id', 'kardex_vale', v), false))
         .map((v) => {
             const o = oc.find(origin(v.procedencia), v.oc);
             if (!o && text(v.oc)) notes.add('vale_almacen: su OC no está en ninguna fuente (orden_compra_id vacío)');
@@ -258,6 +292,7 @@ export function warehouse(old: OldData, oc: Orders, notes: Notes): Row[] {
                 cantidad: num(v.cantidad),
                 visto_desde: v.visto_desde,
                 cargado_en: v.cargado_en,
+                fila: raw(v),
             };
         });
 }

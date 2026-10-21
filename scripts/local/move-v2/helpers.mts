@@ -116,11 +116,20 @@ export function list(v: unknown, sep: string | RegExp = /\s*,\s*/): string[] | n
 /** The key of a comprobante: emisor|tipo|SERIE|numero (unique per company in v2). */
 export const docKey = (emisor: string, tipo: string, s: unknown, n: unknown) => `${emisor}|${tipo}|${serie(s)}|${number(n)}`;
 
-/** Counters of what was skipped and why, printed at the end. */
+/**
+ * Counters of what was skipped and why, printed at the end; and the rows that fit nowhere, kept as
+ * they came for dato_sin_ubicar (v2 012), so no old row is lost.
+ */
 export class Notes {
     private counts = new Map<string, number>();
+    readonly unplaced: Row[] = [];
     add(what: string, n = 1) {
         this.counts.set(what, (this.counts.get(what) ?? 0) + n);
+    }
+    /** A row that cannot go to its table: counted, and kept whole. */
+    keep(what: string, origen: string, fila: Row) {
+        this.add(what);
+        this.unplaced.push({ origen, motivo: what, fila, detalle: { mudanza: `${origen}:${this.unplaced.length + 1}` } });
     }
     entries() {
         return [...this.counts.entries()].sort();

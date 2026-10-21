@@ -12,7 +12,11 @@ const twoDigits = (v: unknown) => (/^\d{2}$/.test(String(v ?? '')) ? String(v) :
 /** `ids`: docKey → comprobante id. A constancia whose invoice is not there yet keeps comprobante_id null. */
 export function detractions(old: OldData, people: Taxpayers, ids: Map<string, string>, notes: Notes): Row[] {
     return old.detraccion_constancia
-        .filter((d) => text(d.numero_constancia) && ['COMPRA', 'VENTA'].includes(d.sentido))
+        .filter(
+            (d) =>
+                (text(d.numero_constancia) && ['COMPRA', 'VENTA'].includes(d.sentido)) ||
+                (notes.keep('detraccion_constancia: sin número o sentido', 'detraccion_constancia', d), false),
+        )
         .map((d) => {
             const emisor = people.see(d.proveedor_ruc, d.proveedor_nombre);
             const tipoDoc = String(d.adquiriente_tipo_doc ?? '').replace(/^0(?=\d)/, '');
@@ -25,6 +29,10 @@ export function detractions(old: OldData, people: Taxpayers, ids: Map<string, st
             if (!comprobante_id) notes.add('detraccion_constancia: su factura aún no está (comprobante_id vacío)');
             return {
                 numero_constancia: text(d.numero_constancia),
+                numero_original: text(d.numero),
+                proveedor_nombre: text(d.proveedor_nombre),
+                adquiriente_nombre: text(d.adquiriente_nombre),
+                adquiriente_tipo_doc: text(d.adquiriente_tipo_doc),
                 empresa_ruc: COMPANY,
                 sentido: d.sentido,
                 comprobante_id,
@@ -58,7 +66,7 @@ export function withholdings(old: OldData, people: Taxpayers, ids: Map<string, s
     const cre = new Map<string, Row>();
     for (const r of old.retencion_comprobante) {
         if (!['COMPRA', 'VENTA'].includes(r.sentido) || !['EMITIDO', 'REVERTIDO'].includes(r.estado) || int(r.numero) === null) {
-            notes.add('retencion_comprobante: sin sentido, estado o número');
+            notes.keep('retencion_comprobante: sin sentido, estado o número', 'retencion_comprobante', r);
             continue;
         }
         const emisor = people.see(r.emisor_ruc)!;
@@ -92,7 +100,7 @@ export function withholdings(old: OldData, people: Taxpayers, ids: Map<string, s
         const c = cre.get(`${text(d.emisor_ruc)}|${serie(d.cre_serie)}|${int(d.cre_numero)}`);
         const tipo = twoDigits(d.tipo_comprobante);
         if (!c || !tipo || !text(d.serie) || !text(d.numero)) {
-            notes.add('retencion_documento: sin su CRE o sin tipo/serie/número');
+            notes.keep('retencion_documento: sin su CRE o sin tipo/serie/número', 'retencion_documento', d);
             continue;
         }
         const pago = text(d.numero_pago) ?? '1';
@@ -114,6 +122,10 @@ export function withholdings(old: OldData, people: Taxpayers, ids: Map<string, s
             fecha_retencion: date(d.fecha_retencion),
             monto_pagado: num(d.monto_pagado),
             tipo_cambio: num(d.tipo_cambio),
+            // The invoice as the CRE describes it (useful while its comprobante is not in the base).
+            fecha_emision: date(d.fecha_emision),
+            total: num(d.total),
+            moneda: currency(d.moneda),
         });
     }
     return { retencion_comprobante: [...cre.values()], retencion_documento: [...docs.values()] };

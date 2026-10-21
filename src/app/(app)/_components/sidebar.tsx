@@ -1,8 +1,8 @@
 'use client';
 
-// The side menu: the sections, the user and the way out. It folds to icons (the label stays
-// in the title) and remembers it in this browser. On a phone it goes on top, as tabs.
-import { signOut } from 'next-auth/react';
+// The side menu: the sections (who is in goes in the page's top right corner, UserMenu). It folds
+// to icons (the label stays in the title) and remembers it in this browser. On a phone it goes on
+// top, as tabs.
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -39,7 +39,7 @@ function Item({ s, active, collapsed, query, badge }: { s: Section; active: bool
     );
 }
 
-export function Sidebar({ email }: { email: string }) {
+export function Sidebar() {
     const pathname = usePathname();
     // The SUNAT filters travel from one section to the next (the store gives the defaults on
     // the server and in the first render, so the links match what the server drew).
@@ -105,15 +105,6 @@ export function Sidebar({ email }: { email: string }) {
                     </div>
                 </nav>
             ))}
-
-            <div className={`mt-auto hidden flex-col gap-1 border-t border-line pt-3.5 text-xs text-ink-2 md:flex ${collapsed ? 'md:hidden' : ''}`}>
-                <span className="truncate" title={email}>
-                    {email}
-                </span>
-                <button type="button" onClick={() => void signOut({ callbackUrl: '/login' })} className="text-left font-semibold text-primary">
-                    Cerrar sesión
-                </button>
-            </div>
         </aside>
     );
 }

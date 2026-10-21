@@ -42,8 +42,18 @@ const devUser = (): AppUser | null => (!process.env.VERCEL && process.env.DEV_US
 export const currentUser = cache(async (): Promise<AppUser | null> => {
     const dev = devUser();
     if (dev) return dev;
-    const session = await getServerSession(authOptions);
+    const session = await sessionOf();
     return allowedUser(session?.user?.email);
+});
+
+/** The Google session, read once per request (currentUser and currentProfile share it). */
+const sessionOf = cache(() => getServerSession(authOptions));
+
+/** What Google says of the person, for the menu: name and profile photo (null on a laptop with DEV_USER_EMAIL). */
+export const currentProfile = cache(async (): Promise<{ name: string | null; image: string | null }> => {
+    if (devUser()) return { name: null, image: null };
+    const session = await sessionOf();
+    return { name: session?.user?.name ?? null, image: session?.user?.image ?? null };
 });
 
 /** For pages and server actions: the user, or straight to /login. */

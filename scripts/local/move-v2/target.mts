@@ -68,6 +68,10 @@ const BATCH = 500;
 
 type PgError = { message: string; code?: string; details?: string | null; hint?: string | null };
 const raw = (e: PgError) => `${e.code ?? ''} ${e.message}${e.details ? ` · ${e.details}` : ''}${e.hint ? ` · ${e.hint}` : ''}`;
+// What the console gets: in Actions the log of this public repository is public, and Postgres puts
+// the refused row in `details` («Failing row contains (…)», names and amounts: 21/10/2026). The
+// whole error stays in v2's dato_sin_ubicar.
+const shown = (e: PgError) => (process.env.CI ? raw({ ...e, details: null }) : raw(e));
 
 /**
  * Upserts every row, BATCH at a time through `p`. With a «principal» flag (one per parent, a
@@ -95,10 +99,9 @@ export async function write(db: SupabaseClient, p: Pool, table: string, key: str
             return;
         }
         if (batch.length === 1) {
-            // In Actions the log of this public repository is public: the row (names, amounts) stays
-            // in v2's dato_sin_ubicar and only the error is printed.
+            // Same reason as shown(): in Actions the row stays in dato_sin_ubicar, not in the log.
             const row = process.env.CI ? '' : `\n    fila: ${JSON.stringify(batch[0]).slice(0, 400)}`;
-            console.error(`  ✗ ${table}: ${raw(error)}${row}`);
+            console.error(`  ✗ ${table}: ${shown(error)}${row}`);
             rejected.push({ row: batch[0], error: raw(error) });
             return;
         }
@@ -154,7 +157,7 @@ export async function prune(db: SupabaseClient, p: Pool, table: string, key: str
                               )
                             : q.or(batch.map((r) => `and(${key.map((k) => `${k}.eq.${quote(r[k])}`).join(',')})`).join(','));
                     const { error } = await q;
-                    if (error) throw Object.assign(new Error(`${table} (limpiar): ${raw(error)}`), { code: error.code });
+                    if (error) throw Object.assign(new Error(`${table} (limpiar): ${shown(error)}`), { code: error.code });
                 }),
             ),
         ),
@@ -177,14 +180,14 @@ export async function replaceMoved(
     rows: Row[],
 ): Promise<number> {
     const { error } = await db.from(table).delete().not(`${json}->>mudanza`, 'is', null);
-    if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${raw(error)}`), { code: error.code });
+    if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${shown(error)}`), { code: error.code });
     // No retry here: an insert whose answer was lost may have gone in, and a second one would
     // duplicate it. If a batch fails, running the move again starts this table over.
     await Promise.all(
         chunks(rows, BATCH).map((batch, i) =>
             p.run(async () => {
                 const { error } = await db.from(table).insert(batch, { defaultToNull: false });
-                if (error) throw Object.assign(new Error(`${table} lote ${i + 1}: ${raw(error)}`), { code: error.code });
+                if (error) throw Object.assign(new Error(`${table} lote ${i + 1}: ${shown(error)}`), { code: error.code });
             }),
         ),
     );

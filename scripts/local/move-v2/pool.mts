@@ -43,6 +43,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function transient(e: { message?: string; code?: string; status?: number } | null | undefined): boolean {
     if (!e) return false;
     if (e.code === '57014') return true; // statement timeout
+    if (e.code === 'PGRST303') return true; // «JWT issued at future»: see oldDb()
+    // «current transaction is aborted»: a pooled connection left broken by another request; the
+    // next try gets another one (a plain select of keys hit it in Actions, 21/10/2026).
+    if (e.code === '25P02') return true;
     if (e.status && e.status >= 500) return true;
     return /fetch failed|network|timeout|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504|520|522/i.test(e.message ?? '');
 }

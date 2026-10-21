@@ -21,6 +21,13 @@ export async function oldDb(): Promise<SupabaseClient> {
         const { error } = await c.auth.signInWithPassword({ email: pedir('ROBOT_CORREO'), password: pedir('ROBOT_CLAVE') });
         if (error) throw error;
     });
+    // In Actions the runner's clock can be seconds ahead of the base's: the token just signed in is
+    // «issued at future» (PGRST303) until the base catches up (21/10/2026). One small read waits
+    // for it, so the parallel pages below do not each spend their two tries on it.
+    await retry('esperar a que la base acepte la sesión', async () => {
+        const { error } = await c.from('centros_costo').select('id').limit(1);
+        if (error) throw error;
+    });
     return c;
 }
 

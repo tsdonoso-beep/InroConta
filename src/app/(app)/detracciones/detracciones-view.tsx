@@ -20,7 +20,7 @@ import {
 import { FilterRow, Notice, SearchBox, SectionTitle, Select, TextButton } from '../../../shared/ui/bits.tsx';
 import { Card, Segmented } from '../../../shared/ui/card.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
-import { limaDateTime, monthLabel, thousands } from '../../../shared/ui/format.ts';
+import { monthLabel, thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { MonthBarsGap } from '../_comprobantes/charts.tsx';
@@ -99,10 +99,7 @@ export function DetraccionesView() {
 
     return (
         <>
-            <SectionTitle
-                title="Detracciones"
-                note={data ? `Constancias del SPOT · leído de la base el ${limaDateTime(data.readAt)}` : !error && <Hueco className="h-3 w-72" />}
-            />
+            <SectionTitle title="Detracciones" />
             {error ? (
                 <Notice>No se pudieron leer las detracciones de la base: {error} El detalle está en el log del servidor.</Notice>
             ) : (

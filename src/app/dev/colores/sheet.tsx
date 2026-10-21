@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ALPHA, GROUPS, RADII, STATUS, TYPE, type Swatch } from './palette.ts';
 import { CARD } from '../../../shared/ui/card.tsx';
 import { LiveComponents } from './live.tsx';
+import { ToastSamples } from './toast-samples.tsx';
 import { CODE, LIST, Section } from './section.tsx';
 
 function useTokenValue(token: string) {
@@ -119,6 +120,7 @@ export function ColorSheet() {
             </Section>
 
             <LiveComponents />
+            <ToastSamples />
         </main>
     );
 }

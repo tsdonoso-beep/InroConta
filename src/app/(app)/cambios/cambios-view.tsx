@@ -18,7 +18,7 @@ import { Card, Chip, Segmented } from '../../../shared/ui/card.tsx';
 import { Empty, FilterRow, Notice, SearchBox, SectionTitle, T } from '../../../shared/ui/bits.tsx';
 import { LINK_CLASS } from '../../../shared/ui/button.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
-import { driveFolder, limaDateTime } from '../../../shared/ui/format.ts';
+import { driveFolder } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { changesStore } from '../_lib/stores.ts';
 
@@ -92,10 +92,7 @@ export function CambiosView() {
     const days = data ? changesByDay(filterChanges(data.changes, f)) : null;
     return (
         <>
-            <SectionTitle
-                title="Cambios del robot"
-                note={data ? `De la base · leída el ${limaDateTime(data.readAt)}` : !error && <Hueco className="h-3 w-56" />}
-            />
+            <SectionTitle title="Cambios del robot" />
             {error && <Notice>No se pudieron leer los cambios de la base: {error} El detalle está en el log del servidor.</Notice>}
             <FilterRow>
                 <Segmented options={KINDS} value={f.kind} onChange={(kind) => set({ kind })} />

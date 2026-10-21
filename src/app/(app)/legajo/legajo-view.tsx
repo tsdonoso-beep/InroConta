@@ -11,7 +11,6 @@ import {
     companiesOf,
     effectiveCompany,
     folderList,
-    latestInstant,
     sortFolders,
     type FolderArea,
     type FolderFilters,
@@ -21,7 +20,7 @@ import {
 } from '../../../modules/legajo/application/views.ts';
 import { BarRow, FilterRow, Notice, Ring, SearchBox, SectionTitle, Select } from '../../../shared/ui/bits.tsx';
 import { Card, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
-import { dayTime, thousands } from '../../../shared/ui/format.ts';
+import { thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { KpiGrid } from '../_comprobantes/kpi-cards.tsx';
@@ -146,24 +145,10 @@ export function LegajoView() {
     }, [pageIds]);
 
     const change = (patch: Partial<FolderFilters>) => setFilters((old) => ({ ...old, ...patch }));
-    const robotRead = data && latestInstant(folders.map((x) => x.loadedAt));
-    const sourcesRead = data && latestInstant(data.copies.map((c) => c.leido_en));
 
     return (
         <>
-            <SectionTitle
-                title="Legajo por OC"
-                note={
-                    data ? (
-                        <>
-                            Lectura del robot: {dayTime(robotRead)}
-                            {sourcesRead ? ` · Compras, COMEX y Almacén: ${dayTime(sourcesRead)}` : ''}
-                        </>
-                    ) : (
-                        !error && <Hueco className="h-3.5 w-56" />
-                    )
-                }
-            />
+            <SectionTitle title="Legajo por OC" />
             {error && <Notice>No se pudieron leer las carpetas de OC de la base: {error} El detalle está en el log del servidor.</Notice>}
             <FilterRow>
                 <Segmented options={AREAS} value={filters.area} onChange={(area) => change({ area })} />

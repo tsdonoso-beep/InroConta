@@ -20,8 +20,7 @@ import { Card, Kpi, KpiNote, Segmented } from '../../../shared/ui/card.tsx';
 import { FilterRow, Notice, SearchBox, SectionTitle } from '../../../shared/ui/bits.tsx';
 import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
-import { limaDateTime, money, thousands } from '../../../shared/ui/format.ts';
-import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { money, thousands } from '../../../shared/ui/format.ts';
 import { KpiGrid } from '../_comprobantes/kpi-cards.tsx';
 import { noOcStore } from '../_lib/stores.ts';
 import { NoOcTable, NoOcTableGap } from './no-oc-table.tsx';
@@ -58,10 +57,7 @@ export function SinOcView() {
     const k = data ? noOcKpis(data.noOc, f.area, f.period) : null;
     return (
         <>
-            <SectionTitle
-                title="Facturas sin OC"
-                note={data ? `De la base · leída el ${limaDateTime(data.readAt)}` : !error && <Hueco className="h-3 w-56" />}
-            />
+            <SectionTitle title="Facturas sin OC" />
             {error && <Notice>No se pudieron leer las facturas sin OC de la base: {error} El detalle está en el log del servidor.</Notice>}
             <FilterRow>
                 <Segmented options={SIGNALS} value={f.signal} onChange={(signal) => set({ signal })} />

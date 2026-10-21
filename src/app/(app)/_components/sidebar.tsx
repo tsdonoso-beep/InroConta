@@ -67,9 +67,9 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
 
     return (
         <aside
-            className={`flex flex-col gap-3 overflow-hidden border-b border-line bg-surface px-4 py-3.5 transition-[width] duration-200 md:sticky md:top-0 md:h-screen md:gap-[18px] md:overflow-y-auto md:border-r md:border-b-0 md:pt-[22px] md:pb-[18px] ${collapsed ? 'md:w-[68px] md:px-2.5' : 'md:w-[252px]'}`}
+            className={`flex flex-col gap-3 overflow-hidden border-b border-line bg-surface px-4 py-3.5 transition-[width] duration-200 md:sticky md:top-0 no-scrollbar md:h-screen md:gap-[18px] md:overflow-y-auto md:border-r md:border-b-0 md:pt-[22px] md:pb-[18px] ${collapsed ? 'md:w-[68px] md:px-2.5' : 'md:w-[252px]'}`}
         >
-            <div className={`flex items-center gap-2.5 ${collapsed ? 'md:flex-col md:gap-3.5' : ''}`}>
+            <div className={`flex items-center gap-2.5 ${collapsed ? 'md:justify-center' : ''}`}>
                 <Image src="/images/IconRoland.png" alt="Roland Print" width={36} height={36} className="flex-none" priority />
                 <div className={`min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
                     <div className="text-[15px] font-bold">
@@ -77,35 +77,40 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
                     </div>
                     <div className="text-xs text-ink-3">Contabilidad · SUNAT, compras y legajo</div>
                 </div>
-                <button
-                    type="button"
-                    onClick={toggle}
-                    title={collapsed ? 'Expandir el menú' : 'Colapsar el menú'}
-                    aria-label={collapsed ? 'Expandir el menú' : 'Colapsar el menú'}
-                    className={`hidden size-7 flex-none items-center justify-center rounded-lg border border-line text-ink-3 hover:bg-surface-2 hover:text-ink md:flex ${collapsed ? '' : 'ml-auto'}`}
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className={`size-[15px] transition-transform ${collapsed ? 'rotate-180' : ''}`}
-                    >
-                        <path d="m15 18-6-6 6-6" />
-                    </svg>
-                </button>
             </div>
 
             {groups.map((g, i) => (
                 <nav key={g.title} className={`flex flex-col gap-2 ${collapsed && i > 0 ? 'md:border-t md:border-line md:pt-3.5' : ''}`}>
                     <div className={`text-[11px] font-bold tracking-[.07em] text-ink-3 uppercase ${collapsed ? 'md:hidden' : ''}`}>{g.title}</div>
-                    <div className="flex gap-0.5 overflow-x-auto md:flex-col">
+                    <div className="no-scrollbar flex gap-0.5 overflow-x-auto md:flex-col">
                         {g.sections.map((s) => (
                             <Item key={s.key} s={s} active={pathname === s.href} collapsed={collapsed} query={query} badge={badges[s.key]} />
                         ))}
                     </div>
                 </nav>
             ))}
+
+            {/* At the very bottom, as the last item of the menu: folding it is the least used action. */}
+            <button
+                type="button"
+                onClick={toggle}
+                title={collapsed ? 'Expandir el menú' : 'Contraer el menú'}
+                aria-label={collapsed ? 'Expandir el menú' : 'Contraer el menú'}
+                className={`mt-auto hidden cursor-pointer items-center gap-2.5 border-t border-line px-2.5 pt-3.5 pb-1 text-[13px] font-semibold text-ink-3 transition-colors duration-100 hover:text-ink active:text-primary-strong focus-visible:outline-2 focus-visible:outline-primary md:flex ${collapsed ? 'md:justify-center md:px-0' : ''}`}
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`size-[17px] flex-none transition-transform ${collapsed ? 'rotate-180' : ''}`}
+                >
+                    <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+                </svg>
+                <span className={collapsed ? 'md:hidden' : ''}>Contraer</span>
+            </button>
         </aside>
     );
 }

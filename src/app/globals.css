@@ -89,3 +89,11 @@
         cursor: not-allowed;
     }
 }
+
+/* Scrolls without showing the bar (the side menu: a bar there takes width and looks rough). */
+@utility no-scrollbar {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}

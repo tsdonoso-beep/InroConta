@@ -198,13 +198,8 @@ export function Notice({ tone = 'danger', children }: { tone?: keyof typeof NOTI
     return <div className={`mb-4 rounded-xl px-4 py-3 text-[13px] ${NOTICE[tone]}`}>{children}</div>;
 }
 
-/** The title of a section that does not use the SUNAT filters, and where its data comes from. */
-export function SectionTitle({ title, note }: { title: string; note?: ReactNode }) {
-    return (
-        // pr-12: the top right corner belongs to the user's photo (UserMenu, in the layout).
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3 pr-12">
-            <h1 className="text-[21px] font-extrabold">{title}</h1>
-            {note && <span className="text-xs text-ink-3">{note}</span>}
-        </div>
-    );
+/** The title of a section that does not use the SUNAT filters. */
+export function SectionTitle({ title }: { title: string }) {
+    // pr-12: the top right corner belongs to the user's photo (UserMenu, in the layout).
+    return <h1 className="mb-4 pr-12 text-[21px] font-extrabold">{title}</h1>;
 }

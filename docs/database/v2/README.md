@@ -4,19 +4,20 @@ Base nueva de **INROCONTA**, en un **proyecto Supabase nuevo**, para la app
 web Next.js (Vercel) y los jobs (GitHub Actions y laptop). Por ahora solo se
 diseña: la migración de datos y el arreglo de los workflows van después.
 
-| Archivo                               | Qué contiene                                                                                                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001_nucleo.sql`                      | Empresa (con INROPRIN), centros de costo, corridas de los jobs, historial                                                                           |
-| `002_comprobantes.sql`                | Contribuyentes, lista SSCO, comprobantes, registro de compras, ítems, cuotas, detracciones                                                          |
-| `003_ordenes_de_compra.sql`           | OC, centros de costo y DUA de cada OC, vales de almacén, carpetas y archivos de Drive, vínculo con facturas, reglas a mano                          |
-| `004_escrituras_comprobantes.sql`     | `guardar_comprobantes_sunat`, `guardar_cpe`, `marcar_descargas_cpe`, `guardar_detracciones`, `guardar_retenciones`, `load_ssco`                     |
-| `005_escrituras_oc.sql`               | `guardar_fuente_oc`, `guardar_carpetas_oc`, `cerrar_recorrido_oc`, `guardar_lecturas_archivo`, `guardar_calculos_oc`                                |
-| `006_viaticos.sql`                    | Viáticos: personas, roles, áreas, memos (con su solicitud), anexo, gastos, caja chica, movilidad, liquidación, pagos, devoluciones, parámetros      |
-| `007_escrituras_viaticos.sql`         | Solicitud, emisión, anexo, estados, presentación, visto bueno, gastos, caja chica, firma de movilidad, liquidación y pagos                          |
-| `008_aplicaciones.sql`                | Apps de escritorio: versiones publicadas por plataforma y canal, equipos instalados, y `buscar_actualizacion` (la llamada de «¿hay actualización?») |
-| `009_acceso.sql`                      | Permisos de todo: solo `service_role`                                                                                                               |
-| `010_documento_relacionado.sql`       | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                            |
-| `011_documento_del_contribuyente.sql` | El documento de la persona natural de la ficha («DNI 43762331»), que la app muestra                                                                 |
+| Archivo                               | Qué contiene                                                                                                                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_nucleo.sql`                      | Empresa (con INROPRIN), centros de costo, corridas de los jobs, historial                                                                                                                       |
+| `002_comprobantes.sql`                | Contribuyentes, lista SSCO, comprobantes, registro de compras, ítems, cuotas, detracciones                                                                                                      |
+| `003_ordenes_de_compra.sql`           | OC, centros de costo y DUA de cada OC, vales de almacén, carpetas y archivos de Drive, vínculo con facturas, reglas a mano                                                                      |
+| `004_escrituras_comprobantes.sql`     | `guardar_comprobantes_sunat`, `guardar_cpe`, `marcar_descargas_cpe`, `guardar_detracciones`, `guardar_retenciones`, `load_ssco`                                                                 |
+| `005_escrituras_oc.sql`               | `guardar_fuente_oc`, `guardar_carpetas_oc`, `cerrar_recorrido_oc`, `guardar_lecturas_archivo`, `guardar_calculos_oc`                                                                            |
+| `006_viaticos.sql`                    | Viáticos: personas, roles, áreas, memos (con su solicitud), anexo, gastos, caja chica, movilidad, liquidación, pagos, devoluciones, parámetros                                                  |
+| `007_escrituras_viaticos.sql`         | Solicitud, emisión, anexo, estados, presentación, visto bueno, gastos, caja chica, firma de movilidad, liquidación y pagos                                                                      |
+| `008_aplicaciones.sql`                | Apps de escritorio: versiones publicadas por plataforma y canal, equipos instalados, y `buscar_actualizacion` (la llamada de «¿hay actualización?»)                                             |
+| `009_acceso.sql`                      | Permisos de todo: solo `service_role`                                                                                                                                                           |
+| `010_documento_relacionado.sql`       | El documento relacionado del XML (anticipo) en sus columnas; `guardar_cpe` ya no lo mete en `modifica_*`                                                                                        |
+| `011_documento_del_contribuyente.sql` | El documento de la persona natural de la ficha («DNI 43762331»), que la app muestra                                                                                                             |
+| `012_nada_queda_fuera.sql`            | Lugar para todo lo de la base vieja: filas originales de Compras, COMEX, kardex y CG, el cuadro de aprobaciones por carpeta, lo que vio CAPTURA, lo que faltaba de viáticos y `dato_sin_ubicar` |
 
 Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 (GENERADO con `pnpm db:consolidar --v2`; `pnpm check` avisa si quedó viejo).
@@ -38,8 +39,10 @@ Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
    `scripts/out/move-v2/seco/` lo que escribiría) y `pnpm db:mudanza` (copia; se
    puede repetir: actualiza las mismas filas y quita lo que la vieja ya no tiene).
    Lee con `SUPABASE_URL` + `SUPABASE_ANON_KEY` + `ROBOT_*` y escribe con
-   `SUPABASE_URL_V2` + `SUPABASE_SECRET_KEY`. No muda viáticos (va con su app)
-   ni CAPTURA (retirada). Código: `scripts/local/move-v2/`.
+   `SUPABASE_URL_V2` + `SUPABASE_SECRET_KEY`. Muda todo, viáticos y lo que vio
+   CAPTURA incluidos (012); una fila que no calza va a `dato_sin_ubicar` y una
+   tabla que la base vieja no deja leer se avisa y la corrida termina en ⚠.
+   Código: `scripts/local/move-v2/`.
 6. El cambio de la app y los workflows a la base nueva va después (ver «Qué
    cambia para cada consumidor»).
 

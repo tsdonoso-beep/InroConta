@@ -95,7 +95,10 @@ export async function write(db: SupabaseClient, p: Pool, table: string, key: str
             return;
         }
         if (batch.length === 1) {
-            console.error(`  ✗ ${table}: ${raw(error)}\n    fila: ${JSON.stringify(batch[0]).slice(0, 400)}`);
+            // In Actions the log of this public repository is public: the row (names, amounts) stays
+            // in v2's dato_sin_ubicar and only the error is printed.
+            const row = process.env.CI ? '' : `\n    fila: ${JSON.stringify(batch[0]).slice(0, 400)}`;
+            console.error(`  ✗ ${table}: ${raw(error)}${row}`);
             rejected.push({ row: batch[0], error: raw(error) });
             return;
         }

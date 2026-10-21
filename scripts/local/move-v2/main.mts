@@ -6,6 +6,8 @@
 //   pnpm db:mudanza --seco         reads and transforms, writes nothing (JSON in scripts/out/move-v2/)
 //   pnpm db:mudanza                copies
 //   pnpm db:mudanza --sin-limpiar  copies without deleting what is left over in v2
+//   pnpm db:mudanza --tolerar      rejected rows and unreadable tables end in a warning, not in
+//                                  exit 1 (the nightly bridge, .github/workflows/mudanza-v2.yml)
 //
 // Everything moves, viáticos and what CAPTURA saw included (v2 012): a table the old base does not
 // let the robot read is reported as missing and the run ends in ⚠. Run it with no workflow
@@ -26,6 +28,7 @@ import { viaticos } from './map-viaticos.mts';
 
 const dry = process.argv.includes('--seco');
 const keep = process.argv.includes('--sin-limpiar');
+const tolerate = process.argv.includes('--tolerar');
 const OUT = join(process.cwd(), 'scripts', 'out', 'move-v2');
 const t0 = Date.now();
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
@@ -165,4 +168,5 @@ console.log(
 );
 // Not «done» while a table could not be read: that is data left out.
 for (const u of unread) console.log(`  ✗ FALTA ${u.table}: la base vieja no la deja leer (${u.error}). Hace falta su llave service_role.`);
-process.exit(fine ? 0 : 1);
+if (!fine && tolerate && process.env.CI) console.log(`::warning::Mudanza con ${nBad} filas rechazadas y ${unread.length} tablas sin leer (ver el registro)`);
+process.exit(fine || tolerate ? 0 : 1);

@@ -13,6 +13,17 @@ import { COMPANY, type Row } from './helpers.mts';
 const PAGE = 1000;
 const WAVE = 3; // pages of one table in flight at once
 
+/**
+ * The old project's service_role key (SUPABASE_SERVICE_ROLE_KEY_V1, 21/10/2026), for the `optional`
+ * tables only: no row rule applies to it, so the two whose rule recurses can be read. Everything
+ * else stays with the robot: the derived functions answer a signed-in user, and with this key
+ * vinculos_oc() came back empty (1 699 → 0 links in a dry run).
+ */
+export function serviceDb(): SupabaseClient | null {
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY_V1?.trim();
+    return key ? createClient(pedir('SUPABASE_URL'), key, { auth: { autoRefreshToken: false, persistSession: false } }) : null;
+}
+
 export async function oldDb(): Promise<SupabaseClient> {
     const c = createClient(pedir('SUPABASE_URL'), pedir('SUPABASE_ANON_KEY'), {
         auth: { autoRefreshToken: true, persistSession: false },
@@ -170,7 +181,8 @@ async function byCursor(label: string, key: string, base: () => Query, p: Pool):
 export type OldData = Record<string, Row[]>;
 
 /** Reads every source and the two derived functions, in parallel. */
-export async function readOld(c: SupabaseClient, onDone: (what: string, n: number, ms: number) => void): Promise<OldData> {
+export async function readOld(robot: SupabaseClient, onDone: (what: string, n: number, ms: number) => void): Promise<OldData> {
+    const service = serviceDb();
     const tables = pool(6);
     const slow = pool(2); // the derived functions recalculate everything on every page (~6 s each)
     const out: OldData = {};
@@ -178,6 +190,7 @@ export async function readOld(c: SupabaseClient, onDone: (what: string, n: numbe
     out._unreadable = unreadable;
     const jobs = SOURCES.map(async (s) => {
         const t0 = Date.now();
+        const c = s.optional && service ? service : robot;
         const base = () => {
             let q = c.from(s.table).select('*');
             if (s.company) q = q.eq('empresa_ruc', COMPANY);
@@ -211,7 +224,7 @@ export async function readOld(c: SupabaseClient, onDone: (what: string, n: numbe
         out[fn] = await all(
             fn,
             (from, to) => {
-                let q = c.rpc(fn, { p_empresa_ruc: COMPANY });
+                let q = robot.rpc(fn, { p_empresa_ruc: COMPANY });
                 if (where) q = where(q);
                 for (const k of key) q = q.order(k, { ascending: true });
                 return q.range(from, to);

@@ -38,9 +38,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # --tolerar: the rows v2 rejects stay in dato_sin_ubicar and the two tables the robot cannot
-      # read (solicitudes_memo, solicitud_personas) are known; they end in a warning, not in red.
-      # No artifact: the repository is public and the reports carry whole rows.
+      # --tolerar: the rows v2 rejects stay in dato_sin_ubicar; they end in a warning, not in red.
+      # SUPABASE_SERVICE_ROLE_KEY_V1 reads only the two tables whose row rule the robot cannot pass
+      # (solicitudes_memo, solicitud_personas). No artifact: the repository is public and the
+      # reports carry whole rows.
       - name: Copiar la base vieja a la v2
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -49,4 +50,5 @@ jobs:
           ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
           SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY_V1: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_V1 }}
         run: pnpm db:mudanza --tolerar

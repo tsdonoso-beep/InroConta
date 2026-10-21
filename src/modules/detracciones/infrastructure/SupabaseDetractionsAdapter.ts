@@ -1,7 +1,9 @@
 // The proofs and the invoices with detraction that have none, from the v2 tables. The proof points
 // to its invoice (detraccion_constancia.comprobante_id, resolved when it is saved), so «is the
 // invoice in the SIRE / the XML» is a join, not the text match detracciones_hoja and
-// detracciones_sin_constancia redid on every read.
+// detracciones_sin_constancia redid on every read. The issued CRE are read too: an invoice with a
+// detraction must not have a retention (R.S. 037-2002/SUNAT, art. 5), and that is the case
+// «Con retención».
 import 'server-only';
 import { err, ok, type Result } from 'neverthrow';
 import type { SourceError } from '../../../shared/errors.ts';
@@ -41,7 +43,10 @@ const limaDateTime = (at: unknown) => {
 
 const DOC = 'id,total,moneda,detraccion_monto,detraccion_cuenta,pdf_drive_id,xml_estado,registro_compras(total,detraccion,ultima_vez)';
 
-function proof(d: Row, since: string): Proof {
+/** comprobante_id → the issued CRE that covers it («E001-2845»). */
+type CreOf = Map<string, string>;
+
+function proof(d: Row, since: string, creOf: CreOf): Proof {
     const k = d.comprobante as Row | null;
     const line = d.sentido === 'COMPRA' ? latest(k?.registro_compras) : undefined;
     const inXml = k?.xml_estado === 'OK';
@@ -50,8 +55,19 @@ function proof(d: Row, since: string): Proof {
     const period = s(d.periodo);
     const paidOn = s(d.fecha_pago);
     const monthsToPay = monthsFrom(period, paidOn);
+    const retentionCre = creOf.get(s(d.comprobante_id)) ?? '';
     return {
-        case: proofCase({ period, since, deposited: n(d.monto), invoiceDetraction, inSire: !!line, inXml, xmlDetraction: xmlDet, monthsToPay }),
+        case: proofCase({
+            period,
+            since,
+            deposited: n(d.monto),
+            invoiceDetraction,
+            inSire: !!line,
+            inXml,
+            xmlDetraction: xmlDet,
+            monthsToPay,
+            retained: !!retentionCre,
+        }),
         period,
         direction: d.sentido === 'VENTA' ? 'venta' : 'compra',
         paidOn,
@@ -77,6 +93,7 @@ function proof(d: Row, since: string): Proof {
         proofHtml: s(d.html_drive_id),
         invoicePdf: inXml ? s(k!.pdf_drive_id) : '',
         paidAt: limaDateTime(d.fecha_hora_pago),
+        retentionCre,
     };
 }
 
@@ -85,7 +102,7 @@ const thisMonth = () => {
     return Number(t.slice(0, 4)) * 12 + Number(t.slice(5, 7));
 };
 
-function missing(k: Row, source: 'XML' | 'SIRE', line: Row | undefined, now: number): MissingProof {
+function missing(k: Row, source: 'XML' | 'SIRE', line: Row | undefined, now: number, creOf: CreOf): MissingProof {
     const issued = s(line?.fecha_emision ?? k.fecha_emision);
     const sale = k.origen === 'EMITIDO';
     return {
@@ -103,13 +120,14 @@ function missing(k: Row, source: 'XML' | 'SIRE', line: Row | undefined, now: num
         detraction: source === 'XML' ? n(k.detraccion_monto) : n(line?.detraccion),
         source,
         invoicePdf: source === 'XML' ? s(k.pdf_drive_id) : '',
+        retentionCre: creOf.get(s(k.id)) ?? '',
     };
 }
 
 export class SupabaseDetractionsAdapter implements DetractionsPort {
     async read(companyRuc: string, since: string): Promise<Result<Detractions, SourceError>> {
         const from = Number(since);
-        const [proofs, xml, sire] = await Promise.all([
+        const [proofs, xml, sire, cres] = await Promise.all([
             all<Row>('detraccion_constancia', (c) =>
                 c
                     .from('detraccion_constancia')
@@ -142,14 +160,35 @@ export class SupabaseDetractionsAdapter implements DetractionsPort {
                     .gte('periodo', from)
                     .order('id'),
             ),
+            // The invoices an issued CRE covers (for «Con retención»).
+            all<Row>('retencion_documento (CRE emitidos)', (c) =>
+                c
+                    .from('retencion_documento')
+                    .select('comprobante_id,retencion_comprobante!inner(serie,numero,estado,empresa_ruc)')
+                    .not('comprobante_id', 'is', null)
+                    .eq('retencion_comprobante.estado', 'EMITIDO')
+                    .eq('retencion_comprobante.empresa_ruc', companyRuc)
+                    .order('retencion_id')
+                    .order('tipo')
+                    .order('serie')
+                    .order('numero')
+                    .order('numero_pago'),
+            ),
         ]);
         if (proofs.isErr()) return err(proofs.error);
         if (xml.isErr()) return err(xml.error);
         if (sire.isErr()) return err(sire.error);
+        if (cres.isErr()) return err(cres.error);
+        const creOf: CreOf = new Map(
+            cres.value.map((d) => {
+                const r = d.retencion_comprobante as Row;
+                return [s(d.comprobante_id), `${s(r.serie)}-${s(r.numero)}`];
+            }),
+        );
 
         const withProof = new Set(proofs.value.map((d) => d.comprobante_id).filter(Boolean));
         const now = thisMonth();
-        const out: MissingProof[] = xml.value.filter((k) => !withProof.has(k.id)).map((k) => missing(k, 'XML', undefined, now));
+        const out: MissingProof[] = xml.value.filter((k) => !withProof.has(k.id)).map((k) => missing(k, 'XML', undefined, now, creOf));
         // One per invoice, its latest reading; only the ones without XML (those are above).
         const byDoc = new Map<string, Row>();
         for (const l of sire.value) {
@@ -158,7 +197,8 @@ export class SupabaseDetractionsAdapter implements DetractionsPort {
             const cur = byDoc.get(s(k.id));
             if (!cur || s(l.ultima_vez) > s(cur.ultima_vez)) byDoc.set(s(k.id), l);
         }
-        for (const l of byDoc.values()) out.push(missing(l.comprobante as Row, 'SIRE', { ...l, fecha_emision: (l.comprobante as Row).fecha_emision }, now));
+        for (const l of byDoc.values())
+            out.push(missing(l.comprobante as Row, 'SIRE', { ...l, fecha_emision: (l.comprobante as Row).fecha_emision }, now, creOf));
         out.sort(
             (a, z) =>
                 a.period.localeCompare(z.period) ||
@@ -168,7 +208,7 @@ export class SupabaseDetractionsAdapter implements DetractionsPort {
         );
 
         const list = proofs.value
-            .map((d) => proof(d, since))
+            .map((d) => proof(d, since, creOf))
             .sort((a, z) => z.period.localeCompare(a.period) || z.paidOn.localeCompare(a.paidOn) || a.constancia.localeCompare(z.constancia));
         return ok({ proofs: list, missing: out, since, readAt: new Date().toISOString() });
     }

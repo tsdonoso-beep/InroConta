@@ -13,9 +13,12 @@ export interface CaseInput {
     inXml: boolean;
     xmlDetraction: number | null;
     monthsToPay: number | null;
+    /** An issued CRE covers the invoice too: an operation subject to the SPOT is not retained. */
+    retained: boolean;
 }
 
 export function proofCase(c: CaseInput): string {
+    if (c.retained) return 'Con retención';
     if ((c.invoiceDetraction ?? 0) > 0 && Math.abs((c.deposited ?? 0) - (c.invoiceDetraction ?? 0)) > 1) return 'Revisar monto';
     if (c.period < c.since) return `Factura de ${c.period.slice(0, 4)}`;
     if (!c.inSire && !c.inXml) return 'Sin factura';

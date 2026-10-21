@@ -2,6 +2,7 @@
 // against what pintarDetr() and its helpers did in the Apps Script view.
 import { describe, expect, it } from 'vitest';
 import type { Detractions, MissingProof, Proof } from '../../../src/modules/detracciones/domain/entities/Proof.ts';
+import { proofCase } from '../../../src/modules/detracciones/domain/policies/cases.ts';
 import {
     byCase,
     caseOf,
@@ -12,6 +13,7 @@ import {
     latestFirst,
     paymentDelay,
     paymentMonths,
+    toCorrect,
     topCounterparts,
 } from '../../../src/modules/detracciones/domain/policies/proofs.ts';
 
@@ -42,6 +44,7 @@ const proof = (p: Partial<Proof>): Proof => ({
     proofHtml: '',
     invoicePdf: '',
     paidAt: '',
+    retentionCre: '',
     ...p,
 });
 const missing = (m: Partial<MissingProof>): MissingProof => ({
@@ -59,6 +62,7 @@ const missing = (m: Partial<MissingProof>): MissingProof => ({
     detraction: 50,
     source: 'XML',
     invoicePdf: '',
+    retentionCre: '',
     ...m,
 });
 
@@ -83,8 +87,24 @@ const data: Detractions = {
 };
 
 describe('cases and labels', () => {
+    it('puts «Con retención» before every other case, as an error to correct', () => {
+        const base = {
+            period: '202602',
+            since: '202601',
+            deposited: 90,
+            invoiceDetraction: 100,
+            inSire: true,
+            inXml: true,
+            xmlDetraction: 100,
+            monthsToPay: 1,
+        };
+        expect(proofCase({ ...base, retained: true })).toBe('Con retención');
+        expect(proofCase({ ...base, retained: false })).toBe('Revisar monto');
+        expect(caseOf('Con retención')).toMatchObject({ color: 'danger', order: 0 });
+        expect(toCorrect('Con retención')).toBe(true);
+    });
     it('finds the case by prefix, in the base order', () => {
-        expect(caseOf('Factura de 2025')).toMatchObject({ name: 'Factura de', color: 'primary', order: 1 });
+        expect(caseOf('Factura de 2025')).toMatchObject({ name: 'Factura de', color: 'primary', order: 2 });
         expect(caseOf('Algo nuevo')).toMatchObject({ name: 'Algo nuevo', color: 'muted', order: 99 });
     });
     it('names goods codes and documents like the old view', () => {

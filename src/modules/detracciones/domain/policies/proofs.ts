@@ -17,6 +17,11 @@ export interface CaseInfo {
 
 /** The cases, in the base's order (the first that fits), with their colour and what they mean. */
 export const CASES: readonly Omit<CaseInfo, 'order'>[] = [
+    {
+        name: 'Con retención',
+        color: 'danger',
+        description: 'La factura también tiene retención (CRE): una operación con detracción no lleva retención (R.S. 037-2002/SUNAT, art. 5)',
+    },
     { name: 'Revisar monto', color: 'danger', description: 'Lo depositado difiere en más de S/ 1 de la detracción de la factura' },
     { name: 'Factura de', color: 'primary', description: 'Depósito de una factura de un año anterior' },
     { name: 'Sin factura', color: 'danger', description: 'La factura no está ni en el SIRE ni en los XML' },
@@ -33,8 +38,8 @@ export function caseOf(c: string): CaseInfo {
 
 const byCaseOrder = (a: string, b: string) => caseOf(a).order - caseOf(b).order || a.localeCompare(b);
 
-/** The proofs that ask for a correction: the deposit does not match its invoice, or there is no invoice. */
-export const toCorrect = (c: string) => c === 'Revisar monto' || c === 'Sin factura';
+/** The proofs that ask for a correction: the invoice has a retention too, the deposit does not match it, or there is no invoice. */
+export const toCorrect = (c: string) => c === 'Con retención' || c === 'Revisar monto' || c === 'Sin factura';
 
 /** Goods and services subject to the SPOT (annexes of R.S. 183-2004/SUNAT, as in migration 053). */
 export const GOODS: Record<string, string> = {

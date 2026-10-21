@@ -16,6 +16,8 @@ import { Pager, type Paged } from '../../../shared/ui/pager.tsx';
 import { CaseChip, inCurrency, partyLabel, soles } from './labels.tsx';
 
 type Dir = DetractionFilters['direction'];
+const RETAINED_HELP =
+    'Error: la factura tiene detracción y además se le retuvo. Una operación con detracción no lleva retención (R.S. 037-2002/SUNAT, art. 5).';
 /** Rows per page (the old view's 25 per «Ver más»). */
 export const STEP = 25;
 
@@ -38,6 +40,7 @@ function ProofRow({ p }: { p: Proof }) {
             <td className={T.td}>
                 <CaseChip name={p.case} />
                 <div className={T.sub}>{p.direction === 'venta' ? 'Venta' : 'Compra'}</div>
+                {p.retentionCre && <div className={`${T.sub} text-danger`}>retenida en el CRE {p.retentionCre}</div>}
             </td>
             <td className={`${T.td} whitespace-nowrap`}>
                 {dmy(p.paidOn)}
@@ -170,6 +173,13 @@ export function MissingTable({ paged, direction }: { paged: Paged<MissingProof>;
                                 </td>
                                 <td className={`${T.td} whitespace-nowrap`}>
                                     <DocLink pdf={m.invoicePdf}>{docNumber(m.series, m.number)}</DocLink>
+                                    {m.retentionCre && (
+                                        <div className="mt-1">
+                                            <Chip tone="danger" title={RETAINED_HELP}>
+                                                Con retención · CRE {m.retentionCre}
+                                            </Chip>
+                                        </div>
+                                    )}
                                 </td>
                                 <td className={T.tdNum}>{inCurrency(m.total ?? 0, m.currency)}</td>
                                 <td className={T.tdNum}>

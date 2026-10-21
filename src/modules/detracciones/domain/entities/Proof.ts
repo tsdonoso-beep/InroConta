@@ -37,6 +37,8 @@ export interface Proof {
     proofHtml: string;
     invoicePdf: string;
     paidAt: string;
+    /** The issued CRE that also covers the invoice («E001-2845»): an ERROR, '' when none. */
+    retentionCre: string;
 }
 
 export interface MissingProof {
@@ -56,6 +58,8 @@ export interface MissingProof {
     /** XML or SIRE. */
     source: string;
     invoicePdf: string;
+    /** The issued CRE that covers the invoice («E001-2845»): an ERROR, '' when none. */
+    retentionCre: string;
 }
 
 export interface Detractions {

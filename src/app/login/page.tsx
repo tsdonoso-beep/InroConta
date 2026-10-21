@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { currentUser } from '../../shared/auth/session.ts';
+import { CARD } from '../../shared/ui/card.tsx';
 import { SignInButton } from './sign-in-button.tsx';
 
 // It reads the session (to send a signed-in person on) and ?error=: per request.
@@ -18,7 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
     return (
         <main className="flex min-h-screen items-center justify-center p-4">
-            <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
+            <div className={`flex w-full max-w-sm flex-col items-center gap-5 ${CARD} p-8 text-center`}>
                 <Image src="/images/IconRoland.png" alt="Roland Print" width={56} height={56} priority />
                 <div>
                     <h1 className="text-xl font-extrabold">

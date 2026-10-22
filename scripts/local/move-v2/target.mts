@@ -179,15 +179,22 @@ export async function replaceMoved(
     json: 'resumen' | 'detalle',
     rows: Row[],
 ): Promise<number> {
-    const { error } = await db.from(table).delete().not(`${json}->>mudanza`, 'is', null);
-    if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${shown(error)}`), { code: error.code });
-    // No retry here: an insert whose answer was lost may have gone in, and a second one would
-    // duplicate it. If a batch fails, running the move again starts this table over.
+    await retry(`${table} borrar lo mudado antes`, async () => {
+        const { error } = await db.from(table).delete().not(`${json}->>mudanza`, 'is', null);
+        if (error) throw Object.assign(new Error(`${table} (borrar lo mudado antes): ${shown(error)}`), { code: error.code });
+    });
+    // An insert whose answer was lost may have gone in, and a second one would duplicate it: only
+    // 25P02 is tried again, the one answer that says the statement never ran (a pooled connection
+    // left aborted, 22/10/2026). Any other failure: running the move again starts this table over.
     await Promise.all(
         chunks(rows, BATCH).map((batch, i) =>
             p.run(async () => {
-                const { error } = await db.from(table).insert(batch, { defaultToNull: false });
-                if (error) throw Object.assign(new Error(`${table} lote ${i + 1}: ${shown(error)}`), { code: error.code });
+                for (let attempt = 1; ; attempt++) {
+                    const { error } = await db.from(table).insert(batch, { defaultToNull: false });
+                    if (!error) return;
+                    if (error.code === '25P02' && attempt < 5) continue;
+                    throw Object.assign(new Error(`${table} lote ${i + 1}: ${shown(error)}`), { code: error.code });
+                }
             }),
         ),
     );

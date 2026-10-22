@@ -7,6 +7,7 @@
 import { COMPANY, date, docKey, fileId, int, num, text, type Notes, type Row } from './helpers.mts';
 import type { Taxpayers } from './map-core.mts';
 import type { OldData } from './source.mts';
+import { withoutRefusedMemos } from './refused-memos.mts';
 
 const REQUEST: Record<string, string> = { PENDIENTE: 'SOLICITADO', APROBADA: 'POR_EMITIR', RECHAZADA: 'RECHAZADO', RETIRADA: 'RETIRADO' };
 const positive = (v: unknown) => (num(v) !== null && num(v)! > 0 ? num(v) : null);
@@ -282,25 +283,28 @@ export function viaticos(old: OldData, people: Taxpayers, ccIds: Map<string, str
         ocurrido_en: e.ocurrido_en,
     }));
 
-    return {
-        area_base: area.map((a) => ({ ...a, responsable_id: null })),
-        area,
-        usuario,
-        usuario_rol,
-        usuario_banco,
-        parametro,
-        caja_chica,
-        memo: [...memos.values()],
-        memo_persona: [...persona.values()],
-        memo_correlativo,
-        memo_autorizacion,
-        planilla_movilidad,
-        gasto,
-        liquidacion,
-        liquidacion_memo,
-        pago,
-        pago_linea,
-        devolucion,
-        cambio,
-    };
+    return withoutRefusedMemos(
+        {
+            area_base: area.map((a) => ({ ...a, responsable_id: null })),
+            area,
+            usuario,
+            usuario_rol,
+            usuario_banco,
+            parametro,
+            caja_chica,
+            memo: [...memos.values()],
+            memo_persona: [...persona.values()],
+            memo_correlativo,
+            memo_autorizacion,
+            planilla_movilidad,
+            gasto,
+            liquidacion,
+            liquidacion_memo,
+            pago,
+            pago_linea,
+            devolucion,
+            cambio,
+        },
+        notes,
+    );
 }

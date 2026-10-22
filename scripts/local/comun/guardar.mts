@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { RUC } from './config.mts';
 import { dormir, type Bitacora } from './bitacora.mts';
 import { base } from './base.mts';
-import { alsoInV2 } from './v2.mts';
+import { alsoInV2, detailFromV2 } from './v2.mts';
 import { prepararLote, identidad } from '../../../src/shared/lib/sunat/cpe-importacion.ts';
 import type { ComprobanteCpe } from '../../../src/shared/lib/sunat/cpe-xml.ts';
 import { publicarHojaPorAnio } from '../../../src/shared/lib/drive/servidor.ts';
@@ -50,7 +50,7 @@ export async function publicarDetalle(b: Bitacora): Promise<void> {
     }
     const t0 = Date.now();
     try {
-        const filas = (await detalleCpeCompleto(await base(), null)).map(filaDetalleDesdeRpc);
+        const filas = (await detailFromV2()) ?? (await detalleCpeCompleto(await base(), null)).map(filaDetalleDesdeRpc);
         const r = await publicarHojaPorAnio({
             filas: filasItemsSunat(filas),
             nombre: 'COMPROBANTES SUNAT - DETALLE',

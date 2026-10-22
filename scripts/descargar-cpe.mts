@@ -47,7 +47,7 @@ import {
 } from '../src/shared/lib/sunat/cpe-consulta.ts';
 import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { alsoInV2 } from './local/comun/v2.mts';
+import { alsoInV2, detailFromV2 } from './local/comun/v2.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
@@ -1150,15 +1150,15 @@ async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
         return;
     }
 
-    let datos: Record<string, unknown>[];
-    try {
-        datos = await detalleCpeCompleto(sb, null);
-    } catch (e) {
-        console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
-        return;
-    }
+    let filas = await detailFromV2();
+    if (!filas)
+        try {
+            filas = (await detalleCpeCompleto(sb, null)).map(filaDetalleDesdeRpc);
+        } catch (e) {
+            console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
+            return;
+        }
 
-    const filas = datos.map(filaDetalleDesdeRpc);
     const r = await publicarHojaPorAnio({
         filas: filasItemsSunat(filas),
         nombre: 'COMPROBANTES SUNAT - DETALLE',

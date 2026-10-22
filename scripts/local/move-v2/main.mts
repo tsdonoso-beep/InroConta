@@ -25,6 +25,7 @@ import { controlBase, orders, Orders, warehouse } from './map-orders.mts';
 import { folders, links, rules, withoutOc } from './map-links.mts';
 import { newDb, prune, replaceMoved, stepName, TABLES, write } from './target.mts';
 import { viaticos } from './map-viaticos.mts';
+import { adoptIds } from './adopt.mts';
 
 const dry = process.argv.includes('--seco');
 const keep = process.argv.includes('--sin-limpiar');
@@ -91,6 +92,13 @@ if (notes.entries().length) {
     for (const [what, n] of notes.entries()) console.log(`   · ${what}: ${n}`);
 }
 
+// The robots write to v2 too (dual write): what they created keeps its id (adopt.mts).
+const db = newDb();
+const adopted = await adoptIds(db, data);
+console.log('\n  Ya en la v2 (filas encontradas por su llave natural · ids adoptados del robot):');
+for (const [t, n] of Object.entries(adopted))
+    console.log(`   · ${t.padEnd(24)} ${String(n.found).padStart(6)} de ${String(data[t].length).padStart(6)} · ${n.adopted}`);
+
 mkdirSync(OUT, { recursive: true });
 const report: Row = {
     inicio: new Date(t0).toISOString(),
@@ -98,6 +106,7 @@ const report: Row = {
     filas: Object.fromEntries(TABLES.map((t) => [stepName(t), data[stepName(t)].length])),
     notas: Object.fromEntries(notes.entries()),
     sin_leer: old._unreadable,
+    ids_adoptados: adopted,
 };
 
 if (dry) {
@@ -110,7 +119,6 @@ if (dry) {
 }
 
 console.log('\n3. Escribiendo en la base v2 (cada tabla en cuanto están las que la necesitan)…');
-const db = newDb();
 const writers = pool(8);
 const rejected: Record<string, { row: Row; error: string }[]> = {};
 const done = new Map<string, Promise<void>>();

@@ -1,7 +1,7 @@
 'use client';
 
 // Buscar factura: any document of the year (compras and ventas, no filters) by series-number,
-// RUC, number, amount or words; the supplier's card on top when all are of one. The port of the
+// RUC, number, amount or words, and all of them while nothing is typed; the supplier's card on top when all are of one. The port of the
 // «factura» section and buscarFacturas (VistaEjecutivaPagina.html). Every match, with the filters of
 // Consulta RUC (date, kind, amount, order) over them and in pages: all in memory, one page drawn.
 import Link from 'next/link';
@@ -22,7 +22,7 @@ const keyOf = (d: Doc) => `${d.ruc}|${d.kind}|${d.number}|${d.origin}`;
 
 function Examples({ onPick }: { onPick: (q: string) => void }) {
     return (
-        <div className="mt-1 flex flex-wrap gap-2">
+        <div className="mt-1 mb-3 flex flex-wrap gap-2">
             <span className="self-center text-xs text-ink-3">Prueba:</span>
             {EXAMPLES.map((e) => (
                 <button
@@ -41,10 +41,8 @@ function Examples({ onPick }: { onPick: (q: string) => void }) {
 function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucIndex }) {
     const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
     const r = useMemo(() => searchDocs(docs, query), [docs, query]);
-    const found = useMemo(() => r?.found ?? [], [r]);
-    const state = useDocList(found);
+    const state = useDocList(r.found);
     const paged = usePaged(state.list, state.filter);
-    if (!r) return null;
     const { title, sums } = listTitle(state, r.total, r.total === 1 ? 'comprobante' : 'comprobantes');
     const toggle = (k: string) =>
         setOpen((s) => {
@@ -61,7 +59,7 @@ function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucInd
                         {title}
                         {sums && ` · ${sums}`}
                     </p>
-                    {r.total > 1 && <DocFilters docs={found} state={state} />}
+                    {r.total > 1 && <DocFilters docs={r.found} state={state} />}
                     <div className="mt-1 flex flex-col">
                         {paged.rows.map((d) => (
                             <InvoiceRow key={keyOf(d)} d={d} idx={idx} open={open.has(keyOf(d))} onToggle={() => toggle(keyOf(d))} />
@@ -70,6 +68,8 @@ function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucInd
                     </div>
                     <Pager paged={paged} />
                 </>
+            ) : !query.trim() ? (
+                <p className="px-1 py-2.5 text-[13px] text-ink-3">Todavía no hay comprobantes del año.</p>
             ) : (
                 <p className="px-1 py-2.5 text-[13px] text-ink-3">
                     No hay comprobantes con «{query.trim()}». Prueba solo con el número o con el RUC. Para buscar por producto (lo que dice dentro de la
@@ -100,9 +100,8 @@ export function FacturaView() {
                     className="mb-3 w-full"
                     placeholder="F001-123, número, RUC, proveedor o monto (ej.: 43.64)"
                 />
-                {!query.trim() ? (
-                    <Examples onPick={setQuery} />
-                ) : snapshot ? (
+                {!query.trim() && <Examples onPick={setQuery} />}
+                {snapshot ? (
                     // Keyed by the search: a new search closes the open invoices, as the old one did.
                     <Results key={query} docs={snapshot.docs} query={query} idx={idx} />
                 ) : (

@@ -2,13 +2,17 @@
 
 // Consulta RUC: type a RUC and see at once its state and condition, whether it is a good
 // taxpayer, a withholding or perception agent and whether SUNAT lists it as SSCO; or part of a
-// name to pick one. From Resumen's warning (?ssco=1) it lists the received invoices from SSCO
+// name to pick one, and while nothing is typed every RUC with us, the one we dealt with last first.
+// From Resumen's warning (?ssco=1) it lists the received invoices from SSCO
 // suppliers. The port of VistaConsultaRuc.html (paintRuc, nameMatches, showSscoHits).
 import { useMemo } from 'react';
+import { partiesByLastDoc } from '../../../modules/comprobantes/application/views.ts';
 import { isRuc, rucsByName } from '../../../modules/ruc/application/views.ts';
 import { Empty, SearchBox } from '../../../shared/ui/bits.tsx';
 import { Card } from '../../../shared/ui/card.tsx';
+import { thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
+import { Pager, usePaged } from '../../../shared/ui/pager.tsx';
 import { useDocs } from '../_comprobantes/docs-store.ts';
 import { PageHeader } from '../_comprobantes/page-header.tsx';
 import { useRucIndex, type RucIndex } from '../_lib/stores.ts';
@@ -20,7 +24,8 @@ import { RucResult } from './ruc-result.tsx';
 
 function NameMatches({ q, idx }: { q: string; idx: RucIndex }) {
     const { snapshot, error } = useDocs();
-    const found = useMemo(() => rucsByName(q, snapshot?.docs ?? [], idx.lists?.ssco ?? null), [q, snapshot, idx.lists]);
+    const parties = useMemo(() => partiesByLastDoc(snapshot?.docs ?? []), [snapshot]);
+    const found = useMemo(() => rucsByName(q, parties, idx.lists?.ssco ?? null), [q, parties, idx.lists]);
     // Wait for both lists: «ningún RUC» must not be said while one is still travelling.
     if ((!snapshot && !error) || (!idx.ready && !idx.error))
         return (
@@ -48,6 +53,48 @@ function NameMatches({ q, idx }: { q: string; idx: RucIndex }) {
                 </button>
             ))}
         </div>
+    );
+}
+
+function AllRucs() {
+    const { snapshot, error } = useDocs();
+    const parties = useMemo(() => partiesByLastDoc(snapshot?.docs ?? []), [snapshot]);
+    const paged = usePaged(parties, null);
+    if (!snapshot)
+        return error ? null : (
+            <div className="flex flex-col gap-2">
+                {[0, 1, 2, 3].map((i) => (
+                    <Hueco key={i} className="h-8 w-full" />
+                ))}
+            </div>
+        );
+    return (
+        <Card title={`${thousands(parties.length)} RUC con nosotros`} note="El último con el que tuvimos un comprobante, primero">
+            {parties.length ? (
+                <div className="flex flex-col">
+                    {paged.rows.map((p) => (
+                        <button
+                            key={p.ruc}
+                            type="button"
+                            onClick={() => setRucQuery(p.ruc)}
+                            className="flex items-baseline justify-between gap-3 border-b border-line px-1.5 py-2 text-left last:border-b-0 hover:bg-surface-2"
+                        >
+                            <span className="min-w-0">
+                                <b>{p.name || p.ruc}</b>
+                                <span className="block text-xs text-ink-3">RUC {p.ruc}</span>
+                            </span>
+                            <span className="shrink-0 text-right text-xs text-ink-3 tabular-nums">
+                                {p.lastOn && <span className="block">Último: {p.lastOn}</span>}
+                                {thousands(p.docs)} {p.docs === 1 ? 'comprobante' : 'comprobantes'}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            ) : (
+                <Empty>Todavía no hay comprobantes con nosotros.</Empty>
+            )}
+            <Pager paged={paged} />
+        </Card>
     );
 }
 
@@ -79,7 +126,7 @@ function SscoDocs() {
 function Result({ q, ssco, idx }: { q: string; ssco: boolean; idx: RucIndex }) {
     const { snapshot } = useDocs();
     const text = q.trim();
-    if (!text) return ssco ? <SscoDocs /> : <p className="px-1.5 py-3.5 text-[13px] text-ink-3">Escribe un RUC (11 dígitos) o parte de una razón social.</p>;
+    if (!text) return ssco ? <SscoDocs /> : <AllRucs />;
     if (isRuc(text)) return <RucResult ruc={text} all={snapshot?.docs ?? null} idx={idx} />;
     if (text.replace(/\s/g, '').length < 3) return null;
     return <NameMatches q={text} idx={idx} />;

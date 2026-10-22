@@ -50,15 +50,17 @@ function matches(docs: Doc[], q: string): Doc[] {
     });
 }
 
-/** null for an empty search (the screen shows the examples then). */
-export function searchDocs(docs: Doc[], query: string): DocSearch | null {
+const newestFirst = (a: Doc, b: Doc) => {
+    const ka = dateKey(a),
+        kb = dateKey(b);
+    return ka < kb ? 1 : ka > kb ? -1 : 0;
+};
+
+/** An empty search gives every document, so the screen opens with the whole year to filter. */
+export function searchDocs(docs: Doc[], query: string): DocSearch {
     const q = query.trim();
-    if (!q) return null;
-    const list = matches(docs, q).sort((a, b) => {
-        const ka = dateKey(a),
-            kb = dateKey(b);
-        return ka < kb ? 1 : ka > kb ? -1 : 0;
-    });
+    if (!q) return { found: [...docs].sort(newestFirst), total: docs.length, single: null };
+    const list = matches(docs, q).sort(newestFirst);
     const rucs = new Map(list.map((d) => [d.ruc, d.name]));
     const [only] = rucs.size === 1 ? [...rucs] : [];
     return {
@@ -77,4 +79,27 @@ export function docsOfRuc(docs: Doc[], ruc: string): Doc[] {
                 ib = isoOf(b.issuedOn);
             return ia < ib ? 1 : ia > ib ? -1 : 0;
         });
+}
+
+export interface Party {
+    ruc: string;
+    name: string;
+    /** Issue date (dd/mm/yyyy) of its newest document; '' when that one has none. */
+    lastOn: string;
+    docs: number;
+}
+
+/** Every RUC with documents with us, the one we dealt with last first (Consulta RUC). */
+export function partiesByLastDoc(docs: Doc[]): Party[] {
+    const by = new Map<string, { party: Party; key: string }>();
+    for (const d of docs) {
+        const key = dateKey(d);
+        const seen = by.get(d.ruc);
+        if (!seen) by.set(d.ruc, { party: { ruc: d.ruc, name: d.name, lastOn: d.issuedOn, docs: 1 }, key });
+        else {
+            seen.party.docs++;
+            if (key > seen.key) Object.assign(seen, { key, party: { ...seen.party, name: d.name || seen.party.name, lastOn: d.issuedOn } });
+        }
+    }
+    return [...by.values()].sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0)).map((p) => p.party);
 }

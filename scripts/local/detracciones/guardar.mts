@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { RUC } from '../comun/config.mts';
 import { dormir, type Bitacora } from '../comun/bitacora.mts';
 import { base } from '../comun/base.mts';
+import { alsoInV2 } from '../comun/v2.mts';
 import type { Registro } from './registro.mts';
 
 /** ¿Falta la migración 066? (la función no existe en la base). */
@@ -36,6 +37,7 @@ export async function guardarLote(b: Bitacora, lote: Registro[]): Promise<void> 
             statsBase.nuevos += r?.nuevos ?? 0;
             statsBase.actualizados += r?.actualizados ?? 0;
             b.log('info', 'base', `guardadas ${lote.length}: ${r?.nuevos ?? '?'} nuevas, ${r?.actualizados ?? '?'} actualizadas`);
+            await alsoInV2('guardar_detracciones', { p_empresa_ruc: RUC, p_filas: lote });
             return;
         }
         b.log('error', 'base', `guardar_detracciones falló (intento ${i}/3): ${error.message}`, { error });

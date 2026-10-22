@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { RUC } from '../comun/config.mts';
 import { dormir, type Bitacora } from '../comun/bitacora.mts';
 import { base } from '../comun/base.mts';
+import { alsoInV2 } from '../comun/v2.mts';
 import { claveCre, type Registro } from './registro.mts';
 
 const sinMigracion = (e: { code?: string; message: string }) => e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message);
@@ -36,6 +37,7 @@ export async function guardarLote(b: Bitacora, lote: Registro[]): Promise<void> 
             statsBase.nuevos += r?.nuevos ?? 0;
             statsBase.actualizados += r?.actualizados ?? 0;
             b.log('info', 'base', `guardados ${lote.length}: ${r?.nuevos ?? '?'} nuevos, ${r?.actualizados ?? '?'} actualizados`);
+            await alsoInV2('guardar_retenciones', { p_empresa_ruc: RUC, p_filas: lote });
             return;
         }
         b.log('error', 'base', `guardar_retenciones falló (intento ${i}/3): ${error.message}`, { error });

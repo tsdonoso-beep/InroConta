@@ -41,6 +41,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { normalizarClavePrivada, correoDeServicio, carpeta, publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
 import { leerZip } from '../src/shared/lib/sunat/zip.ts';
 import { crearSubidor } from './local/comun/cache-drive.mts';
+import { alsoInV2 } from './local/comun/v2.mts';
 import { documentoPrincipal, leerComprobanteXml, type ComprobanteCpe } from '../src/shared/lib/sunat/cpe-xml.ts';
 import { prepararLote, origenDe, periodoDe, identidad } from '../src/shared/lib/sunat/cpe-importacion.ts';
 import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
@@ -921,6 +922,7 @@ async function guardarLote(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: stri
     }
     const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
     console.log(`Guardado en cpe_comprobante: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
+    await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
     return sb;
 }
 

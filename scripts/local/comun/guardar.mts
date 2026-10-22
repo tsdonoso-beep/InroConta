@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { RUC } from './config.mts';
 import { dormir, type Bitacora } from './bitacora.mts';
 import { base } from './base.mts';
+import { alsoInV2 } from './v2.mts';
 import { prepararLote, identidad } from '../../../src/shared/lib/sunat/cpe-importacion.ts';
 import type { ComprobanteCpe } from '../../../src/shared/lib/sunat/cpe-xml.ts';
 import { publicarHojaPorAnio } from '../../../src/shared/lib/drive/servidor.ts';
@@ -29,6 +30,7 @@ export async function guardarLote(b: Bitacora, comprobantes: Confirmado[]): Prom
         if (!error) {
             const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
             b.log('info', 'base', `guardados ${docs.length}: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems`);
+            await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: docs });
             return { guardados: (r?.nuevos ?? 0) + (r?.actualizados ?? 0), items: r?.items ?? 0 };
         }
         b.log('error', 'base', `guardar_cpe falló (intento ${i}/3): ${error.message}`, { error });

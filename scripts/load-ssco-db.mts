@@ -9,6 +9,7 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { base } from './local/comun/base.mts';
+import { alsoInV2 } from './local/comun/v2.mts';
 import { parseSsco } from '../src/shared/lib/sunat/ssco.ts';
 import { readFirstSheet } from '../src/shared/lib/xlsx/read-sheet.ts';
 
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
         if (error.code === 'PGRST202') console.error('  The function does not exist yet: apply migration 069_sujetos_sin_capacidad_operativa.sql.');
         process.exit(1);
     }
+    await alsoInV2('load_ssco', { p_rows: rows });
     const r = data as { loaded: number; removed: number };
     const { count } = await sb.from('ruc_ssco').select('ruc', { count: 'exact', head: true });
     console.log(`✓ ${r.loaded} RUC loaded, ${r.removed} removed; ruc_ssco now has ${count} (list as of ${latest}).`);

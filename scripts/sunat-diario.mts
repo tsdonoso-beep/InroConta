@@ -19,6 +19,7 @@ import { leerZip } from '../src/shared/lib/sunat/zip.ts';
 import { leerPropuestaRce, revisarIdentidad } from '../src/shared/lib/sunat/rce.ts';
 import { filasComprobantesSunat, mapaPadronPorRuc, TIPOS_SUNAT, type ComprobanteHistorico } from '../src/shared/lib/export/comprobantes-sunat.ts';
 import { publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
+import { alsoInV2 } from './local/comun/v2.mts';
 
 const EMPRESA = process.env.SUNAT_EMPRESA ?? 'INROPRIN';
 const RUC = process.env.SUNAT_RUC ?? '20512201611';
@@ -145,6 +146,7 @@ async function consultar(periodo: string): Promise<boolean> {
     if (eG) throw new Error(`No se pudieron guardar: ${eG.message}`);
     const guardado = (Array.isArray(g) ? g[0] : g) ?? { nuevos: 0, cambiados: 0 };
     console.log(`  ${guardado.nuevos} nuevos · ${guardado.cambiados} distintos de la última vez`);
+    await alsoInV2('guardar_comprobantes_sunat', { p_empresa_ruc: cred.ruc, p_periodo: periodo, p_filas: filas });
 
     const { error: eB } = await sb.rpc('registrar_consulta_sunat', {
         p_empresa_ruc: cred.ruc,

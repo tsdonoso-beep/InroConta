@@ -47,6 +47,7 @@ import {
 } from '../src/shared/lib/sunat/cpe-consulta.ts';
 import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { alsoInV2 } from './local/comun/v2.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
@@ -1128,6 +1129,7 @@ async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: s
     }
     const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
     console.log(`Detalle guardado: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
+    await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
     return sb;
 }
 

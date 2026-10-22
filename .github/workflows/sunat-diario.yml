@@ -68,6 +68,9 @@ jobs:
           # desde ahí llega con PROJECT_URL y ANON_KEY. El que esté puesto gana.
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # Dual write: the same save also goes to the v2 base (scripts/local/comun/v2.mts).
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           PROJECT_URL: ${{ secrets.PROJECT_URL }}
           ANON_KEY: ${{ secrets.ANON_KEY }}
           ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}

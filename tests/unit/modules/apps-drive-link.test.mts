@@ -1,8 +1,8 @@
 // The Drive download of the desktop apps' installers (src/modules/apps/infrastructure): gdrive:// ids,
 // the drive.file token (never a wider scope: the route is public), its cache, and the errors.
-import { createVerify, generateKeyPairSync } from 'node:crypto';
+import { createPrivateKey, createVerify, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { DRIVE_FILE_SCOPE, DriveDownloadLinker, driveFileId, privateKeyOf } from '../../../src/modules/apps/infrastructure/DriveDownloadLinker.ts';
+import { DRIVE_FILE_SCOPE, DriveDownloadLinker, driveFileId, keyShape, privateKeyOf } from '../../../src/modules/apps/infrastructure/DriveDownloadLinker.ts';
 import { GoogleTokens, assertion } from '../../../src/modules/apps/infrastructure/googleToken.ts';
 
 vi.mock('server-only', () => ({}));
@@ -30,7 +30,7 @@ describe('driveFileId', () => {
 
 describe('privateKeyOf', () => {
     it('reads the key however it was pasted in Vercel', () => {
-        const clean = PEM.trim();
+        const clean = PEM; // rebuilt as standard PEM: 64-character lines and the final newline
         const escaped = PEM.replace(/\n/g, '\\n');
         expect(privateKeyOf(PEM)).toBe(clean);
         expect(privateKeyOf(escaped)).toBe(clean);
@@ -39,6 +39,16 @@ describe('privateKeyOf', () => {
         expect(privateKeyOf(PEM.replace(/\n/g, '\r\n'))).toBe(clean);
         expect(privateKeyOf(JSON.stringify({ type: 'service_account', private_key: PEM }))).toBe(clean);
         expect(privateKeyOf(undefined)).toBe('');
+        // Vercel's one-line field: the breaks became spaces
+        const spaces = PEM.replace(/\n/g, ' ');
+        expect(createPrivateKey(privateKeyOf(spaces)).export({ type: 'pkcs8', format: 'pem' })).toBe(PEM);
+        expect(createPrivateKey(privateKeyOf(escaped)).export({ type: 'pkcs8', format: 'pem' })).toBe(PEM);
+    });
+
+    it('describes the key shape without showing it', () => {
+        const shape = keyShape(privateKeyOf(PEM));
+        expect(shape).toMatch(/^largo \d+, BEGIN true, END true, base64 \d+ car\.$/);
+        expect(shape).not.toContain(PEM.split('\n')[1]);
     });
 });
 

@@ -35,7 +35,18 @@ export function privateKeyOf(raw: string | undefined): string {
         }
     }
     v = v.replace(/^"|"$/g, '').replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '');
-    return v.trim();
+    // Rebuilt from its base64 body: a paste that turned the line breaks into spaces (Vercel's single-line
+    // field) still decodes. Only a cut key cannot be saved.
+    const m = /-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/.exec(v);
+    if (!m) return v.trim();
+    const body = m[2].replace(/[^A-Za-z0-9+/=]/g, '');
+    return `-----BEGIN ${m[1]}-----\n${body.replace(/.{1,64}/g, '$&\n')}-----END ${m[1]}-----\n`;
+}
+
+/** What the key looks like, never its content: for the log when it does not decode. */
+export function keyShape(key: string): string {
+    const body = /-----BEGIN [A-Z ]+-----([\s\S]*?)-----END/.exec(key)?.[1].replace(/\s/g, '') ?? '';
+    return `largo ${key.length}, BEGIN ${key.includes('-----BEGIN')}, END ${key.includes('-----END')}, base64 ${body.length} car.`;
 }
 
 export const driveDownloadUrl = (id: string) => `https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`;
@@ -66,7 +77,8 @@ export class DriveDownloadLinker implements DownloadLinker {
             const token = await this.tokens.get(DRIVE_FILE_SCOPE);
             return ok({ url: driveDownloadUrl(id), headers: { Authorization: `Bearer ${token.value}` } });
         } catch (e) {
-            console.error('[apps] drive token failed', e instanceof Error ? e.message : e);
+            // a healthy service-account key has ~1620 base64 characters; much less means the paste was cut
+            console.error('[apps] drive token failed', e instanceof Error ? e.message : e, '| llave:', keyShape(privateKey));
             return err({ kind: 'source-failed', message: 'No se pudo preparar la descarga desde Drive.' });
         }
     }

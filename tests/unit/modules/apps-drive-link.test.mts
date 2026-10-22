@@ -2,7 +2,7 @@
 // the drive.file token (never a wider scope: the route is public), its cache, and the errors.
 import { createVerify, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { DRIVE_FILE_SCOPE, DriveDownloadLinker, driveFileId } from '../../../src/modules/apps/infrastructure/DriveDownloadLinker.ts';
+import { DRIVE_FILE_SCOPE, DriveDownloadLinker, driveFileId, privateKeyOf } from '../../../src/modules/apps/infrastructure/DriveDownloadLinker.ts';
 import { GoogleTokens, assertion } from '../../../src/modules/apps/infrastructure/googleToken.ts';
 
 vi.mock('server-only', () => ({}));
@@ -25,6 +25,20 @@ describe('driveFileId', () => {
         expect(driveFileId('gdrive://1AbCdEfGhIjKlMnOp')).toBe('1AbCdEfGhIjKlMnOp');
         expect(driveFileId('gdrive://corto')).toBeNull();
         expect(driveFileId('gs://bucket/x.exe')).toBeNull();
+    });
+});
+
+describe('privateKeyOf', () => {
+    it('reads the key however it was pasted in Vercel', () => {
+        const clean = PEM.trim();
+        const escaped = PEM.replace(/\n/g, '\\n');
+        expect(privateKeyOf(PEM)).toBe(clean);
+        expect(privateKeyOf(escaped)).toBe(clean);
+        expect(privateKeyOf(`"${escaped}"`)).toBe(clean);
+        expect(privateKeyOf(PEM.replace(/\n/g, '\\\\n'))).toBe(clean);
+        expect(privateKeyOf(PEM.replace(/\n/g, '\r\n'))).toBe(clean);
+        expect(privateKeyOf(JSON.stringify({ type: 'service_account', private_key: PEM }))).toBe(clean);
+        expect(privateKeyOf(undefined)).toBe('');
     });
 });
 

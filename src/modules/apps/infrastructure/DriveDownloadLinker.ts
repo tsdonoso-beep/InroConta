@@ -20,6 +20,24 @@ export function driveFileId(url: string): string | null {
     return RX_GDRIVE.exec(url.trim())?.[1] ?? null;
 }
 
+/**
+ * The PEM key however it was pasted in Vercel: as is, with the JSON's quotes, with \n escaped once or
+ * twice, or the whole service-account JSON. A key pasted «the wrong way» failed every download with no
+ * hint (502 on 22/10/2026), so the shapes a person actually pastes are accepted here.
+ */
+export function privateKeyOf(raw: string | undefined): string {
+    let v = (raw ?? '').trim();
+    if (v.startsWith('{')) {
+        try {
+            v = String((JSON.parse(v) as { private_key?: string }).private_key ?? '');
+        } catch {
+            /* not JSON after all: treated as the key itself */
+        }
+    }
+    v = v.replace(/^"|"$/g, '').replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '');
+    return v.trim();
+}
+
 export const driveDownloadUrl = (id: string) => `https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`;
 
 export class DriveDownloadLinker implements DownloadLinker {
@@ -37,8 +55,8 @@ export class DriveDownloadLinker implements DownloadLinker {
             console.error('[apps] unsupported installer url', url);
             return err({ kind: 'source-shape', message: 'El enlace del instalador no es gdrive:// ni https://.' });
         }
-        const email = this.env.GDRIVE_SA_EMAIL?.trim();
-        const privateKey = this.env.GDRIVE_SA_PRIVATE_KEY?.replace(/\\n/g, '\n').trim();
+        const email = this.env.GDRIVE_SA_EMAIL?.trim().replace(/^"|"$/g, '');
+        const privateKey = privateKeyOf(this.env.GDRIVE_SA_PRIVATE_KEY);
         if (!email || !privateKey) {
             console.error('[apps] GDRIVE_SA_EMAIL / GDRIVE_SA_PRIVATE_KEY missing');
             return err({ kind: 'source-missing', message: 'Falta la cuenta de las descargas (GDRIVE_SA_EMAIL, GDRIVE_SA_PRIVATE_KEY).' });

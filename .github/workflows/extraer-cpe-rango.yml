@@ -134,15 +134,9 @@ jobs:
           # Hace falta para dejar las hojas publicadas. Si falta, lo bajado
           # igual queda archivado y guardado, y solo se saltan las hojas.
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          # Dual write: the same save also goes to the v2 base (scripts/local/comun/v2.mts).
+          # The v2 base with the service key: the only base the robots use since 22/10/2026.
           SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
           DEBUG: ${{ inputs.debug && '1' || '0' }}
           FECHA_INICIO: ${{ inputs.fecha_inicio }}
           FECHA_FIN: ${{ inputs.fecha_fin }}

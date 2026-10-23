@@ -10,13 +10,13 @@
 # en el mismo rango). La pantalla «Consultar Factura, Boletas y Notas» sí ve
 # otras series, pero al revés: pide UN comprobante a la vez (RUC del emisor,
 # tipo, serie y número), no un rango. Por eso este workflow no le pregunta a
-# SUNAT qué existe: la lista de pendientes sale del SIRE (`comprobantes_sunat`,
-# que ya trae RUC+serie+número de cada compra) y esto solo confirma cada uno.
+# SUNAT qué existe: la lista de pendientes sale de la base v2 (lo que el SIRE
+# anotó y aún no tiene XML: `comprobante.xml_estado`) y esto solo confirma cada uno.
 #
 # Encuentra el comprobante en «Nueva Consulta de comprobantes de pago», baja
 # el XML y el PDF de verdad (el modal «Resultado» trae botones para eso,
 # identificados por 29/09/2026), los archiva en la misma carpeta de Drive de
-# descargar-cpe.mts y guarda el detalle en `cpe_comprobante` con la misma
+# descargar-cpe.mts y guarda el detalle en la base v2 con la misma
 # `guardar_cpe`. Con debug=true (por omisión) no baja ni guarda nada: solo
 # entra, llena el formulario y sube capturas + HTML, para fijar selectores
 # sin arriesgar una corrida larga.
@@ -39,8 +39,8 @@
 #     tocar este archivo al cambiar de mes.
 #   • la corrida manual: el período que se le escriba (202609 por omisión),
 #     LO MÁS VIEJO PRIMERO, que es como se viene limpiando el backlog de noche.
-# Nunca se procesa dos veces lo mismo: cada corrida excluye lo que ya está en
-# `cpe_comprobante`, y `concurrency` impide que corran a la vez.
+# Nunca se procesa dos veces lo mismo: cada corrida excluye lo que ya tiene su
+# XML en la base, y `concurrency` impide que corran a la vez.
 #
 # Ojo con dejar `periodo` vacío a mano: son TODOS los períodos, y de enero a
 # agosto de 2026 las series no-E001 siguen al 0% (miles de pendientes).
@@ -132,15 +132,9 @@ jobs:
           # terminar, igual que hace descargar-cpe.mts. Si falta, el detalle
           # igual se guarda y solo se salta la hoja.
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          # Dual write: the same save also goes to the v2 base (scripts/local/comun/v2.mts).
+          # The v2 base with the service key: the only base the robots use since 22/10/2026.
           SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
           # inputs.* viene vacío en una corrida por cron (no hay formulario
           # que los llene): debug queda en falso solo (nunca hay que abrir un
           # dropdown de "Sin definir"), y el límite cae al de un cron, no al

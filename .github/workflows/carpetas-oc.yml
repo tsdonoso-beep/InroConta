@@ -4,9 +4,10 @@
 # Recorre las carpetas de OC con la cuenta de servicio de Drive y anota de
 # cada OC su carpeta y los comprobantes que tiene (factura, XML, RH…, con la
 # serie si el nombre la trae). Lo que el nombre no explica se abre y se lee
-# por dentro (XML, ZIP, texto del PDF u OCR), una sola vez por archivo. Con eso la base une cada factura de SUNAT con su OC nacional, y las
-# hojas COMPROBANTES SUNAT y DETALLE lo muestran en la publicación de la
-# mañana. Ver scripts/carpetas-oc.mts.
+# por dentro (XML, ZIP, texto del PDF u OCR), una sola vez por archivo. Con eso el
+# script une cada factura de SUNAT con su OC y lo guarda en la base v2
+# (SUPABASE_URL_V2 + SUPABASE_SECRET_KEY), y las hojas COMPROBANTES SUNAT y
+# DETALLE lo muestran en la publicación de la mañana. Ver scripts/carpetas-oc.mts.
 #
 # Las dos carpetas tienen que estar compartidas como Lector con el correo de
 # la cuenta de servicio (GOOGLE_SA_EMAIL). Dos veces al día (01:17 y 11:47)
@@ -104,12 +105,8 @@ jobs:
           GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
           GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/fuentes-compras.mts
 
       - name: Leer la carpeta de compras nacionales
@@ -119,12 +116,8 @@ jobs:
           GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
           GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           # La corrida de cada noche (sin inputs) va completa y de verdad.
           DEBUG: ${{ inputs.debug && '1' || '0' }}
           PROCEDENCIA: nacional
@@ -140,12 +133,8 @@ jobs:
           GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
           GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           # La corrida de cada noche (sin inputs) va completa y de verdad.
           DEBUG: ${{ inputs.debug && '1' || '0' }}
           PROCEDENCIA: importacion
@@ -164,12 +153,8 @@ jobs:
           GOOGLE_SA_EMAIL: ${{ secrets.GOOGLE_SA_EMAIL }}
           GOOGLE_SA_PRIVATE_KEY: ${{ secrets.GOOGLE_SA_PRIVATE_KEY }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/local/publicar-detalle.mts
 
       - name: Subir el resultado

@@ -77,12 +77,9 @@ jobs:
 
       - name: Consultar el padrón de RUC
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          # The v2 base with the service key: the only base the robots use since 22/10/2026.
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           DEBUG: ${{ inputs.debug && '1' || '0' }}
           RUCS: ${{ inputs.rucs }}
           DIAS_VIGENCIA: ${{ inputs.dias_vigencia }}

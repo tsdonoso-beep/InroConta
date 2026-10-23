@@ -1,7 +1,7 @@
 # El domicilio fiscal de proveedores y clientes, desde el padrón reducido de SUNAT
 #
 # SUNAT publica cada día un archivo con todos los RUC del país (~400 MB). Esto
-# lo baja, lo lee sin descomprimirlo a disco y guarda en la base (ruc_domicilio)
+# lo baja, lo lee sin descomprimirlo a disco y guarda en la base v2 (columnas de domicilio de contribuyente)
 # la dirección, el distrito, la provincia y el departamento de los RUC que nos
 # importan. La vista lo muestra en «Buscar factura» junto con la condición de
 # Buen Contribuyente (que trae «SUNAT padrón de RUC»).
@@ -48,12 +48,9 @@ jobs:
 
       - name: Bajar el padrón y guardar los domicilios
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PROJECT_URL: ${{ secrets.PROJECT_URL }}
-          ANON_KEY: ${{ secrets.ANON_KEY }}
-          ROBOT_CORREO: ${{ secrets.ROBOT_CORREO }}
-          ROBOT_CLAVE: ${{ secrets.ROBOT_CLAVE }}
+          # The v2 base with the service key: the only base the robots use since 22/10/2026.
+          SUPABASE_URL_V2: ${{ secrets.SUPABASE_URL_V2 }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           DEBUG: ${{ inputs.debug && '1' || '0' }}
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/padron-domicilios.mts
 

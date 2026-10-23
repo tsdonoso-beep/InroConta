@@ -2,7 +2,7 @@
  * La carpeta madre de compras, en la hoja GENERAL
  * --------------------------------------------------------------------------
  *
- * Trae de la base (carpetas_madre_fuentes_json) lo que el robot de cada noche
+ * Trae de la base v2 (sus tablas, con CarpetaMadreV2.gs) lo que el robot de cada noche
  * (`scripts/carpetas-oc.mts`, 02:00) leyó de las dos carpetas madre de
  * compras: «5. Ordenes de Compra» (nacionales) e importaciones. Una fila por
  * carpeta de OC:
@@ -23,7 +23,7 @@
  *     vio el robot (archivo nuevo, eliminado, completó, ahora le falta…).
  *
  * Y las facturas de SUNAT que no están unidas a ninguna OC pero aparentan
- * que deberían (facturas_sin_oc_json): ALTA si el proveedor trabaja con
+ * que deberían (FacturasSinOcV2.gs): ALTA si el proveedor trabaja con
  * OC; MEDIA si el monto es alto y no es un gasto típico sin OC (bancos,
  * seguros, combustible, pasajes, comida…).
  *
@@ -39,10 +39,9 @@
  * 1. Abre la hoja GENERAL → Extensiones → Apps Script.
  * 2. + → Script → nómbralo «CarpetaMadre» → borra lo que trae, pega esto y
  *    guarda (ícono del disquete).
- * 3. Engranaje (Configuración del proyecto) → Propiedades del script. Si ya
- *    están SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO y ROBOT_CLAVE (las
- *    usa SubirLegajo.gs), no hagas nada; si no, agrégalas con los mismos
- *    valores de SubirCapturaOC.gs / OrdenarCPE.gs.
+ * 3. Engranaje (Configuración del proyecto) → Propiedades del script:
+ *    SUPABASE_URL_V2 y SUPABASE_SECRET_KEY (la base v2; ver BaseV2.gs). Van
+ *    en el mismo proyecto BaseV2.gs, CarpetaMadreV2.gs y FacturasSinOcV2.gs.
  * 4. Arriba, en la lista de funciones, elige «instalarCarpetaMadre» → Ejecutar
  *    → acepta los permisos. Trae los datos en ese momento, agrega el menú
  *    «Carpeta madre» a la hoja y la deja revisando cada hora: apenas el
@@ -182,30 +181,19 @@ function traerCarpetaMadreSola() {
  * devuelve { sinCambios: true }.
  */
 function traerCarpetaMadre_(siNoEs) {
-    var cfg = configuracionCarpetaMadre_();
-    var faltan = ['supabaseUrl', 'anonKey', 'robotCorreo', 'robotClave'].filter(function (k) {
-        return !cfg[k];
-    });
-    if (faltan.length) {
-        return {
-            error:
-                'Faltan las Propiedades del script: ' +
-                faltan.join(', ') +
-                '. En Apps Script → engranaje → Propiedades del script (las mismas de SubirLegajo.gs).',
-        };
-    }
     try {
-        var token = sesionCarpetaMadre_(cfg);
-        // Las carpetas con lo que dicen Compras, COMEX y Almacén (la hoja privada de Contabilidad), todas en
-        // una sola consulta (la base las entrega en una fila: así no se calcula todo de nuevo por cada página).
-        var filas = rpcCarpetaMadre_(cfg, token, 'carpetas_madre_fuentes_json', { p_empresa_ruc: CM_RUC }) || [];
+        // Una consulta de una fila primero: si el robot no leyó nada nuevo, no se trae lo demás.
+        if (siNoEs && cmUltimaLecturaV2_(CM_RUC) === siNoEs) return { sinCambios: true };
+        // Las tablas de la base v2 (BaseV2.gs), en dos rondas de consultas en paralelo,
+        // y las filas armadas con los mismos campos que antes (CarpetaMadreV2.gs, FacturasSinOcV2.gs).
+        var datos = v2Leer_(cmConsultasV2_(CM_RUC));
+        var filas = cmFilasV2_(datos);
         if (!filas.length) return { error: 'La base no devolvió carpetas: ¿ya corrió el robot de las carpetas?' };
         var ultimaLectura = filas.reduce(function (m, f) {
             return f.cargado_en && f.cargado_en > m ? f.cargado_en : m;
         }, '');
-        if (siNoEs && ultimaLectura === siNoEs) return { sinCambios: true };
         // Solo las que aparentan que les falta la OC (ALTA y MEDIA).
-        var sinOc = rpcCarpetaMadre_(cfg, token, 'facturas_sin_oc_json', { p_empresa_ruc: CM_RUC }) || [];
+        var sinOc = cmSinOcV2_(datos);
         var libro = SpreadsheetApp.getActiveSpreadsheet();
         escribirDetalleCarpetaMadre_(libro, filas);
         escribirFacturasSinOc_(libro, sinOc);
@@ -660,51 +648,4 @@ function escribirFacturasSinOc_(libro, filas) {
     hoja.setColumnWidth(col('razon'), 320);
     hoja.setColumnWidth(col('proveedor_nombre'), 260);
     hoja.setColumnWidth(col('ocs_del_proveedor'), 220);
-}
-
-// ── La base ──
-
-function configuracionCarpetaMadre_() {
-    var p = PropertiesService.getScriptProperties();
-    var limpio = function (k) {
-        return String(p.getProperty(k) || '')
-            .trim()
-            .replace(/^["'«“]+|["'»”]+$/g, '')
-            .trim();
-    };
-    return {
-        supabaseUrl: limpio('SUPABASE_URL').replace(/\/+$/, ''),
-        anonKey: limpio('SUPABASE_ANON_KEY'),
-        robotCorreo: limpio('ROBOT_CORREO'),
-        robotClave: limpio('ROBOT_CLAVE'),
-    };
-}
-
-function sesionCarpetaMadre_(cfg) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/auth/v1/token?grant_type=password', {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { apikey: cfg.anonKey },
-        payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
-        muteHttpExceptions: true,
-    });
-    var codigo = resp.getResponseCode();
-    if (codigo === 401 || codigo === 403) {
-        throw new Error('La base rechazó SUPABASE_ANON_KEY (error ' + codigo + '). Cópiala exacta, sin espacios ni comillas.');
-    }
-    if (codigo === 400) throw new Error('La base rechazó ROBOT_CORREO o ROBOT_CLAVE.');
-    if (codigo >= 300) throw new Error('No se pudo iniciar sesión con la cuenta ROBOT (error ' + codigo + ').');
-    return JSON.parse(resp.getContentText()).access_token;
-}
-
-function rpcCarpetaMadre_(cfg, token, funcion, args, consulta) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/rest/v1/rpc/' + funcion + (consulta || ''), {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + token },
-        payload: JSON.stringify(args),
-        muteHttpExceptions: true,
-    });
-    if (resp.getResponseCode() >= 300) throw new Error(funcion + ' falló: ' + resp.getContentText().slice(0, 300));
-    return JSON.parse(resp.getContentText());
 }

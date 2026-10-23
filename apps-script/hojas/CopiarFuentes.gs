@@ -11,7 +11,10 @@
  *     KARDEX (una fila por producto) y KARDEX - VALES (una por vale, con el
  *     enlace a la guía o factura que Almacén escaneó al recibir). Solo
  *     ingresos por compra, servicio o devolución y anulados: lo que se cruza
- *     con la OC; las salidas no.
+ *     con la OC; las salidas no;
+ *   · la base de Control de Gestión («Bd ventas, costo y gastos», pestaña
+ *     3. Registro Compras Grupo): el centro de costo y el monto de cada línea
+ *     de OC, solo de INROPRIN (CG - REGISTRO COMPRAS).
  * Deja los VALORES (no fórmulas, no IMPORTRANGE) en pestañas propias, y en
  * COPIA - ESTADO cuándo se copió cada una, cuántas filas y si faltó alguna
  * columna. Quedan fuera contactos, teléfonos, correos, direcciones y bancos.
@@ -236,6 +239,21 @@ var CF_FUENTES = [
             ['DOCUMENTO', 'ENLACE DOCUMENTO'],
             ['DOC VALE', 'ENLACE VALE'],
         ],
+    },
+    {
+        // La base de Control de Gestión («Bd ventas, costo y gastos»): una fila por línea de OC con su centro de
+        // costo. El robot fuentes-compras la agrupa por OC × centro de costo (src/shared/lib/oc/base-cg.ts) y la
+        // guarda en la base v2; antes la subía SubirCapturaOC.gs a mano. Solo las líneas de INROPRIN.
+        destino: 'CG - REGISTRO COMPRAS',
+        id: '1tsu4HEA_o_yWdvvJCF5zhlrW_ffzMXiqtzMiRzMlxCY',
+        hoja: '3. Registro Compras Grupo',
+        clave: ['N° OC/OS', 'CENTRO DE COSTO'],
+        columnas: ['EMPRESA', 'N° OC/OS', 'RUC / DNI / RUT', 'FECHA OC', 'CODIGO CENTRO DE COSTO', 'CENTRO DE COSTO', 'MONEDA', 'MONTO TOTAL'],
+        texto: ['N° OC/OS', 'RUC / DNI / RUT', 'CODIGO CENTRO DE COSTO'],
+        conDato: 'N° OC/OS',
+        filtro: function (v) {
+            return normalizar_(v('EMPRESA')) === 'INROPRIN';
+        },
     },
 ];
 

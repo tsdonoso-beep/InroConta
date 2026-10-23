@@ -1,20 +1,21 @@
 /**
- * Subir el legajo por OC a la base
+ * Subir el legajo por OC a la base v2
  * --------------------------------------------------------------------------
  *
  * Va en el MISMO proyecto que LegajoPorOC.gs (usa sus constantes y
- * funciones). Manda a la base de la aplicación, para la empresa del
- * legajo (Inroprin, la que tiene comprobantes de SUNAT):
- *   · una fila por OC (tabla oc_legajo): situación del pago, comprador,
- *     área, centro de costo, qué documento le falta, la carpeta;
- *   · los archivos que sirven para unir la OC con su factura de SUNAT
- *     (tabla oc_archivo, origen LEGAJO): los que cuentan como factura o
- *     traen una serie-número, del nombre o leída por dentro.
+ * funciones). Manda a la base v2, para la empresa del legajo (Inroprin, la
+ * que tiene comprobantes de SUNAT), con las funciones de
+ * docs/database/v2/005_escrituras_oc.sql (y la 014):
+ *   · guardar_fuente_oc('LEGAJO'): una fila por OC con lo que dice el cuadro
+ *     de aprobaciones (situación del pago, comprador, área, centro de costo,
+ *     qué le falta) y cada carpeta que el cuadro le da (orden_compra_legajo);
+ *   · guardar_carpetas_oc('LEGAJO') y cerrar_recorrido_oc: las carpetas que
+ *     enlaza el cuadro y los archivos que sirven para unir la OC con su factura
+ *     de SUNAT (los que cuentan como factura o traen una serie-número, del
+ *     nombre o leída por dentro). Lo que el cuadro ya no enlaza deja de ser
+ *     del legajo.
  *
- * La base los cruza con SUNAT (vinculos_oc) y la aplicación publica en
- * COMPROBANTES SUNAT y en el DETALLE, al final: situación del pago (OC),
- * comprador, área que completa el legajo, legajo de la OC y su carpeta.
- * No toca lo que subió la captura de carpetas: cada una reemplaza lo suyo.
+ * El cruce con SUNAT lo calcula cada noche el robot de carpetas (carpetas-oc).
  *
  * Se sube solo cada noche, cuando los revisores terminan. También a mano:
  * menú «Legajo por OC» → «Subir el legajo a la base (hojas de SUNAT)».
@@ -23,8 +24,10 @@
  * 1. En el proyecto de Apps Script de la hoja: + → Script → «SubirLegajo» →
  *    pega esto → guarda.
  * 2. Engranaje (Configuración del proyecto) → Propiedades del script:
- *    SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO y ROBOT_CLAVE, los mismos
- *    de SubirCapturaOC.gs / OrdenarCPE.gs.
+ *    SUPABASE_URL_V2 (https://….supabase.co) y SUPABASE_SECRET_KEY (la llave
+ *    secreta de la base v2), las mismas de CarpetaMadre.gs. Nunca en el código:
+ *    el repositorio es público. Las viejas (SUPABASE_URL, SUPABASE_ANON_KEY,
+ *    ROBOT_CORREO, ROBOT_CLAVE) ya no se usan: se pueden borrar.
  */
 
 var LEGAJO_RUC_POR_UNIDAD = { INROPRIN: '20512201611' };
@@ -37,7 +40,7 @@ function subirLegajoALaBase() {
         ui.alert('No se pudo subir', r.error, ui.ButtonSet.OK);
         return;
     }
-    ui.alert('Legajo subido', r.texto + '\n\nLas columnas aparecen en COMPROBANTES SUNAT y en el DETALLE con la próxima publicación diaria.', ui.ButtonSet.OK);
+    ui.alert('Legajo subido', r.texto + '\n\nLas columnas aparecen en las hojas con la próxima corrida del robot de carpetas.', ui.ButtonSet.OK);
 }
 
 /**
@@ -45,47 +48,64 @@ function subirLegajoALaBase() {
  * subida automática de la noche no tumbe la tanda que la llama.
  */
 function subirLegajo_() {
-    var libro = SpreadsheetApp.getActiveSpreadsheet();
-    var cfg = configuracionLegajo_();
-    var faltan = ['supabaseUrl', 'anonKey', 'robotCorreo', 'robotClave'].filter(function (k) {
-        return !cfg[k];
-    });
-    if (faltan.length) {
+    if (!hayCredencialesDeLaBase_()) {
         return {
             error:
-                'Faltan las Propiedades del script: ' +
-                faltan.join(', ') +
-                '. En Apps Script → engranaje → Propiedades del script (las mismas de SubirCapturaOC.gs).',
+                'Faltan las Propiedades del script SUPABASE_URL_V2 y SUPABASE_SECRET_KEY. ' +
+                'En Apps Script → engranaje → Propiedades del script (las mismas de CarpetaMadre.gs).',
         };
     }
     try {
-        var datos = filasDelLegajo_(libro);
-        var token = sesionRobotLegajo_(cfg);
+        var cfg = configuracionLegajo_();
+        var datos = filasDelLegajo_(SpreadsheetApp.getActiveSpreadsheet());
+        // Lo que este recorrido no vuelva a ver desde aquí deja de ser del legajo al cerrarlo
+        // (con margen por si el reloj de Google y el de la base no coinciden).
+        var inicio = new Date(Date.now() - 5 * 60000).toISOString();
         var textos = [];
         Object.keys(datos).forEach(function (ruc) {
             var d = datos[ruc];
-            var nL = subirLotesLegajo_(cfg, token, ruc, 'LEGAJO', d.ocs);
-            var nA = subirLotesLegajo_(cfg, token, ruc, 'ARCHIVOS', d.archivos);
-            textos.push(nL + ' OC y ' + nA + ' archivos de factura');
+            var f = rpcLegajo_(cfg, 'guardar_fuente_oc', { p_empresa_ruc: ruc, p_fuente: 'LEGAJO', p_filas: d.ocs, p_completa: true });
+            var carpetas = 0,
+                archivos = 0;
+            // Todas las carpetas antes que cualquier archivo: la base une un archivo a su carpeta solo si ya está.
+            for (var i = 0; i < d.carpetas.length; i += LEGAJO_LOTE)
+                carpetas += rpcLegajo_(cfg, 'guardar_carpetas_oc', {
+                    p_empresa_ruc: ruc,
+                    p_recorrido: 'LEGAJO',
+                    p_carpetas: d.carpetas.slice(i, i + LEGAJO_LOTE),
+                }).carpetas;
+            for (var j = 0; j < d.archivos.length; j += LEGAJO_LOTE)
+                archivos += rpcLegajo_(cfg, 'guardar_carpetas_oc', {
+                    p_empresa_ruc: ruc,
+                    p_recorrido: 'LEGAJO',
+                    p_archivos: d.archivos.slice(j, j + LEGAJO_LOTE),
+                }).archivos;
+            var c = rpcLegajo_(cfg, 'cerrar_recorrido_oc', { p_empresa_ruc: ruc, p_recorrido: 'LEGAJO', p_procedencia: null, p_inicio: inicio });
+            textos.push(
+                f.filas +
+                    ' OC (' +
+                    f.quitadas +
+                    ' ya no están en el cuadro), ' +
+                    carpetas +
+                    ' carpetas y ' +
+                    archivos +
+                    ' archivos de factura' +
+                    (c.carpetas_quitadas || c.archivos_quitados
+                        ? '; quitados ' + c.carpetas_quitadas + ' carpetas y ' + c.archivos_quitados + ' archivos que el cuadro ya no enlaza'
+                        : '') +
+                    (d.saltadas.length
+                        ? '; sin subir ' + d.saltadas.length + ' filas con una OC que no se entiende (' + d.saltadas.slice(0, 5).join(', ') + ')'
+                        : ''),
+            );
         });
-        var vinculos = todosLosVinculos_(cfg, token);
-        var conLegajo = vinculos.filter(function (v) {
-            return v.legajo;
-        }).length;
-        var texto =
-            'Subido a la base: ' +
-            textos.join('; ') +
-            '. ' +
-            vinculos.length +
-            ' facturas de SUNAT unidas con su OC, ' +
-            conLegajo +
-            ' con el legajo de la OC.';
+        var texto = 'Subido a la base v2: ' + textos.join('; ') + '.';
         PropertiesService.getDocumentProperties().setProperty(
             'LEGAJO_ULTIMA_SUBIDA',
             Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') + ' — ' + texto,
         );
         return { texto: texto };
     } catch (e) {
+        Logger.log(e && e.stack ? e.stack : e);
         return { error: String(e.message || e) };
     }
 }
@@ -93,14 +113,33 @@ function subirLegajo_() {
 /** ¿Están las credenciales? Para que la subida automática no avise de más. */
 function hayCredencialesDeLaBase_() {
     var c = configuracionLegajo_();
-    return !!(c.supabaseUrl && c.anonKey && c.robotCorreo && c.robotClave);
+    return !!(c.url && c.key);
 }
 
 // ── Qué se sube ──
 
+/** «0172-2026» o «172-2026»: lo demás («2603-0028») no es una OC y no se sube. */
+var LEGAJO_OC = /^\d{3,4}-20\d\d$/;
+
+/** «Importación» → IMPORTACION; sin procedencia, la OC de 3 dígitos es de importación (como CG). */
+function procedenciaLegajo_(texto, oc) {
+    var t = normalizar_(texto);
+    if (/IMPO/.test(t)) return 'IMPORTACION';
+    if (/NAC/.test(t)) return 'NACIONAL';
+    return /^\d{3}-/.test(oc) ? 'IMPORTACION' : 'NACIONAL';
+}
+
+/** Una fecha de la TABLA como «aaaa-mm-dd» (un Date o «dd/mm/aaaa»); null si no es fecha. */
+function isoLegajo_(v, zona) {
+    if (v instanceof Date) return Utilities.formatDate(v, zona, 'yyyy-MM-dd');
+    var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v || '').trim());
+    return m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : null;
+}
+
 /**
- * Por empresa (RUC): las OC de la TABLA y sus archivos útiles de ARCHIVOS.
- * Se lee por el NOMBRE de las columnas, no por su posición.
+ * Por empresa (RUC): una fila por OC de la TABLA (si el cuadro la lista en varias carpetas, manda
+ * la revisada más hace poco, como hizo db:mudanza, y cada carpeta va en `carpetas`), las carpetas
+ * que enlaza y sus archivos útiles de ARCHIVOS. Se lee por el NOMBRE de las columnas, no por su posición.
  */
 function filasDelLegajo_(libro) {
     var hojaT = libro.getSheetByName('TABLA');
@@ -115,44 +154,75 @@ function filasDelLegajo_(libro) {
         if (v instanceof Date) return Utilities.formatDate(v, zona, 'dd/MM/yyyy');
         return v == null ? '' : String(v).trim();
     };
+    var nulo = function (v) {
+        var s = txt(v);
+        return s === '' ? null : s;
+    };
+    var lista = function (v) {
+        return txt(v)
+            .split(/\s*,\s*/)
+            .filter(Boolean);
+    };
 
     var porRuc = {},
-        deQuien = {}; // «OC|id de carpeta» → { ruc, proveedor, rucProveedor }
+        deQuien = {}; // «OC|id de carpeta» → { ruc, proc }
     t.slice(1).forEach(function (f) {
         var ruc = LEGAJO_RUC_POR_UNIDAD[normalizar_(f[c('Unidad de negocio')])];
         var oc = txt(f[c('OC')]);
         if (!ruc || !oc) return;
-        var carpeta = txt(f[c('Enlace de la carpeta')]);
+        var d = porRuc[ruc] || (porRuc[ruc] = { porOc: {}, carpetas: {}, archivos: [], saltadas: [] });
+        if (!LEGAJO_OC.test(oc)) {
+            d.saltadas.push(oc);
+            return;
+        }
+        var proc = procedenciaLegajo_(f[c('Procedencia')], oc);
+        var url = txt(f[c('Enlace de la carpeta')]);
+        var carpetaId = idDeDrive_(url);
         var documentos = {};
-        DOCS.forEach(function (d) {
-            documentos[d.col] = txt(f[c(d.col)]);
+        DOCS.forEach(function (doc) {
+            documentos[doc.col] = txt(f[c(doc.col)]);
         });
         var revisado = f[c('Revisado en')];
-        var d = porRuc[ruc] || (porRuc[ruc] = { ocs: [], archivos: [] });
-        d.ocs.push({
-            oc: oc,
-            carpetaUrl: carpeta,
-            unidad: txt(f[c('Unidad de negocio')]),
-            proyecto: txt(f[c('Proyecto')]),
-            proveedor: txt(f[c('Proveedor')]),
-            proveedorRuc: txt(f[c('RUC (CG)')]),
-            comprador: txt(f[c('Comprador')]),
-            area: txt(f[c('Área que la completa')]),
-            procedencia: txt(f[c('Procedencia')]),
-            situacionPago: txt(f[c('Situación del pago')]),
-            estatus: txt(f[c('Estatus (aprobaciones)')]),
-            estadoAprobacion: txt(f[c('Estado de aprobación')]),
-            fechaOc: txt(f[c('Fecha OC')]),
-            montoSoles: typeof f[c('Monto en soles')] === 'number' ? f[c('Monto en soles')] : '',
-            formaPago: txt(f[c('Forma de pago')]),
-            ccCodigo: txt(f[c('Centro de costo (CG)')]),
-            ccNombre: txt(f[c('Nombre del centro de costo (CG)')]),
-            estadoRevision: txt(f[c('Estado de la revisión')]).split(' — ')[0],
-            leFalta: txt(f[c('Le falta')]),
+        var monto = typeof f[c('Monto en soles')] === 'number' ? f[c('Monto en soles')] : null;
+        var fila = {
+            carpeta_id: carpetaId,
+            carpeta_url: url || null,
+            unidad: nulo(f[c('Unidad de negocio')]),
+            proyecto: nulo(f[c('Proyecto')]),
+            proveedor: nulo(f[c('Proveedor')]),
+            proveedor_ruc: nulo(f[c('RUC (CG)')]),
+            comprador: nulo(f[c('Comprador')]),
+            area: nulo(f[c('Área que la completa')]),
+            situacion_pago: nulo(f[c('Situación del pago')]),
+            estatus: nulo(f[c('Estatus (aprobaciones)')]),
+            estado_aprobacion: nulo(f[c('Estado de aprobación')]),
+            fecha_oc: isoLegajo_(f[c('Fecha OC')], zona),
+            monto_soles: monto,
+            forma_pago: nulo(f[c('Forma de pago')]),
+            cc_codigo: nulo(f[c('Centro de costo (CG)')]),
+            cc_nombre: nulo(f[c('Nombre del centro de costo (CG)')]),
+            estado_revision: nulo(txt(f[c('Estado de la revisión')]).split(' — ')[0]),
+            le_falta: lista(f[c('Le falta')]),
             documentos: documentos,
-            revisadoEn: revisado instanceof Date ? revisado.toISOString() : '',
-        });
-        deQuien[oc + '|' + idDeDrive_(carpeta)] = { ruc: ruc, proveedor: txt(f[c('Proveedor')]), rucProveedor: txt(f[c('RUC (CG)')]) };
+            revisado_en: revisado instanceof Date ? revisado.toISOString() : null,
+        };
+        var k = proc + '|' + oc;
+        var o = d.porOc[k];
+        if (!o) o = d.porOc[k] = { procedencia: proc, oc: oc, carpetas: [], ultima: null };
+        o.carpetas.push(fila);
+        if (!o.ultima || String(fila.revisado_en || '') >= String(o.ultima.revisado_en || '')) o.ultima = fila;
+        if (carpetaId) {
+            d.carpetas[carpetaId] = d.carpetas[carpetaId] || {
+                drive_id: carpetaId,
+                procedencia: proc,
+                oc: oc,
+                // El nombre de verdad lo pone el robot de carpetas; la base no pisa uno que ya tenga.
+                nombre: 'Legajo ' + oc,
+                proveedor: fila.proveedor,
+                proyecto: fila.proyecto,
+            };
+            deQuien[oc + '|' + carpetaId] = { ruc: ruc };
+        }
     });
 
     var hojaA = libro.getSheetByName('ARCHIVOS');
@@ -164,33 +234,81 @@ function filasDelLegajo_(libro) {
         };
         a.slice(1).forEach(function (f) {
             var oc = txt(f[ia('OC')]),
-                carpeta = txt(f[ia('Enlace carpeta OC')]);
-            var q = deQuien[oc + '|' + idDeDrive_(carpeta)];
-            if (!q) return;
+                carpetaId = idDeDrive_(txt(f[ia('Enlace carpeta OC')]));
+            var q = deQuien[oc + '|' + carpetaId];
+            var id = idDeDrive_(txt(f[ia('Enlace del archivo')]));
+            if (!q || !id) return;
             var nombre = txt(f[ia('Nombre del archivo')]),
                 cuenta = txt(f[ia('Cuenta como')]);
             var esFactura = /(^|, )1\. Factura/.test(cuenta);
-            // La serie leída por dentro va en «Cuenta como»; si no, la del nombre.
+            // La serie leída por dentro va en «Cuenta como»; si no, la del nombre (la base vieja guardaba las dos así).
             var leida = /leído por dentro: [^)]*?\b([FBE][A-Z0-9]{3}-\d{1,8})\b/.exec(cuenta);
             var serie = leida ? leida[1] : serieEnNombre_(nombre);
             if (!esFactura && !serie) return; // solo lo que sirve para unir con SUNAT
             porRuc[q.ruc].archivos.push({
-                oc: oc,
-                url: txt(f[ia('Enlace del archivo')]),
-                carpetaUrl: carpeta,
-                nombre: nombre,
-                tipoArchivo: txt(f[ia('Tipo de archivo')]),
-                parece: esFactura ? 'FACTURA' : txt(f[ia('Parece ser')]),
-                serie: serie,
-                proveedor: q.proveedor,
-                proveedorRuc: q.rucProveedor,
+                drive_id: id,
+                carpeta_id: carpetaId,
+                nombre: nombre || id,
+                mime: nulo(f[ia('Tipo de archivo')]),
+                parece: esFactura ? 'FACTURA' : nulo(f[ia('Parece ser')]),
+                serie_en_nombre: serie || null,
+                rucs_en_nombre: [],
             });
         });
     }
-    return porRuc;
+
+    var salida = {};
+    Object.keys(porRuc).forEach(function (ruc) {
+        var d = porRuc[ruc];
+        salida[ruc] = {
+            ocs: Object.keys(d.porOc).map(function (k) {
+                var o = d.porOc[k],
+                    u = o.ultima;
+                // Lo que la fila más reciente deja vacío, de la más reciente que lo diga (como db:mudanza).
+                var porFecha = o.carpetas.slice().sort(function (a, b) {
+                    return String(b.revisado_en || '').localeCompare(String(a.revisado_en || ''));
+                });
+                var dato = function (campo) {
+                    if (u[campo] != null) return u[campo];
+                    for (var i = 0; i < porFecha.length; i++) if (porFecha[i][campo] != null) return porFecha[i][campo];
+                    return null;
+                };
+                var cc = u.cc_codigo
+                    ? u
+                    : porFecha.filter(function (x) {
+                          return x.cc_codigo;
+                      })[0] || u;
+                return {
+                    procedencia: o.procedencia,
+                    oc: o.oc,
+                    area: dato('area'),
+                    situacion_pago: u.situacion_pago,
+                    estatus: u.estatus,
+                    estado_aprobacion: u.estado_aprobacion,
+                    forma_pago: dato('forma_pago'),
+                    legajo_revision: u.estado_revision,
+                    legajo_le_falta: u.le_falta,
+                    comprador: dato('comprador'),
+                    proveedor_ruc: dato('proveedor_ruc'),
+                    proveedor_nombre: dato('proveedor'),
+                    fecha_oc: dato('fecha_oc'),
+                    monto_pen: dato('monto_soles'),
+                    cc_codigo: cc.cc_codigo,
+                    cc_nombre: cc.cc_codigo ? cc.cc_nombre : null,
+                    carpetas: o.carpetas,
+                };
+            }),
+            carpetas: Object.keys(d.carpetas).map(function (id) {
+                return d.carpetas[id];
+            }),
+            archivos: d.archivos,
+            saltadas: d.saltadas,
+        };
+    });
+    return salida;
 }
 
-// ── La base ──
+// ── La base v2 ──
 
 function configuracionLegajo_() {
     var p = PropertiesService.getScriptProperties();
@@ -200,79 +318,24 @@ function configuracionLegajo_() {
             .replace(/^["'«“]+|["'»”]+$/g, '')
             .trim();
     };
-    return {
-        supabaseUrl: limpio('SUPABASE_URL').replace(/\/+$/, ''),
-        anonKey: limpio('SUPABASE_ANON_KEY'),
-        robotCorreo: limpio('ROBOT_CORREO'),
-        robotClave: limpio('ROBOT_CLAVE'),
-    };
+    return { url: limpio('SUPABASE_URL_V2').replace(/\/+$/, ''), key: limpio('SUPABASE_SECRET_KEY') };
 }
 
-function sesionRobotLegajo_(cfg) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/auth/v1/token?grant_type=password', {
+/** Una función de escritura de la v2; su error, crudo al registro y con el nombre de la función. */
+function rpcLegajo_(cfg, funcion, args) {
+    var resp = UrlFetchApp.fetch(cfg.url + '/rest/v1/rpc/' + funcion, {
         method: 'post',
         contentType: 'application/json',
-        headers: { apikey: cfg.anonKey },
-        payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
-        muteHttpExceptions: true,
-    });
-    var codigo = resp.getResponseCode();
-    if (codigo === 401 || codigo === 403) {
-        throw new Error('La base rechazó SUPABASE_ANON_KEY (error ' + codigo + '). Cópiala exacta, sin espacios ni comillas.');
-    }
-    if (codigo === 400) throw new Error('La base rechazó ROBOT_CORREO o ROBOT_CLAVE.');
-    if (codigo >= 300) throw new Error('No se pudo iniciar sesión con la cuenta ROBOT (error ' + codigo + ').');
-    return JSON.parse(resp.getContentText()).access_token;
-}
-
-/**
- * La base entrega como mucho 1000 filas por consulta: se piden por páginas
- * para que la cuenta del mensaje sea la real (y no se quede en 1000).
- */
-function todosLosVinculos_(cfg, token) {
-    var todos = [],
-        pagina = 1000;
-    for (var desde = 0; ; desde += pagina) {
-        var parte = rpcLegajo_(
-            cfg,
-            token,
-            'vinculos_oc',
-            { p_empresa_ruc: LEGAJO_RUC_POR_UNIDAD.INROPRIN },
-            '?select=legajo&order=proveedor_ruc,serie,numero,oc&limit=' + pagina + '&offset=' + desde,
-        );
-        todos = todos.concat(parte);
-        if (parte.length < pagina) return todos;
-    }
-}
-
-function rpcLegajo_(cfg, token, funcion, args, consulta) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/rest/v1/rpc/' + funcion + (consulta || ''), {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + token },
+        headers: { apikey: cfg.key, Authorization: 'Bearer ' + cfg.key },
         payload: JSON.stringify(args),
         muteHttpExceptions: true,
     });
-    if (resp.getResponseCode() >= 300) throw new Error(funcion + ' falló: ' + resp.getContentText().slice(0, 300));
+    var codigo = resp.getResponseCode();
+    if (codigo === 401 || codigo === 403)
+        throw new Error('La base v2 rechazó SUPABASE_SECRET_KEY (error ' + codigo + '). Cópiala exacta, sin espacios ni comillas.');
+    if (codigo >= 300) {
+        Logger.log(funcion + ' → ' + codigo + ': ' + resp.getContentText());
+        throw new Error(funcion + ' falló (error ' + codigo + '): ' + resp.getContentText().slice(0, 300));
+    }
     return JSON.parse(resp.getContentText());
-}
-
-/** El primer lote borra lo anterior de esa parte; los siguientes agregan. */
-function subirLotesLegajo_(cfg, token, ruc, parte, filas) {
-    var total = 0;
-    if (!filas.length) {
-        return Number(rpcLegajo_(cfg, token, 'cargar_legajo_oc', { p_empresa_ruc: ruc, p_parte: parte, p_filas: [], p_desde_cero: true })) || 0;
-    }
-    for (var i = 0; i < filas.length; i += LEGAJO_LOTE) {
-        total +=
-            Number(
-                rpcLegajo_(cfg, token, 'cargar_legajo_oc', {
-                    p_empresa_ruc: ruc,
-                    p_parte: parte,
-                    p_filas: filas.slice(i, i + LEGAJO_LOTE),
-                    p_desde_cero: i === 0,
-                }),
-            ) || 0;
-    }
-    return total;
 }

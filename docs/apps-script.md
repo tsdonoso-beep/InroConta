@@ -151,28 +151,30 @@ formato, es la barrera que SUNAT puso a propósito.
 Por eso la consulta la hace un scraper de Playwright
 (`scripts/consultar-padron-ruc.mts`), corriendo en GitHub Actions igual que
 `descargar-cpe.mts` —un navegador real resuelve el captcha en silencio,
-como lo haría una persona—, y guarda cada resultado en la tabla `padron_ruc`
-de la base (migración `038_padron_de_ruc.sql`).
+como lo haría una persona—, y guarda cada resultado en la tabla
+`contribuyente` de la base v2 (antes `padron_ruc` y `ruc_domicilio` de la
+base vieja).
 
 `PadronRuc.gs` hace la otra mitad, la que si le toca a Apps Script: **trae
 esa tabla a una pestaña PADRÓN RUC** de esta misma hoja, para que
-Contabilidad la vea ahí mismo sin entrar a la aplicación.
+Contabilidad la vea ahí mismo sin entrar a la aplicación. Una fila por RUC
+que consultó la Consulta RUC o el padrón reducido (los que solo tienen
+domicilio salen «Sin consultar»), con las mismas columnas de siempre.
 
 ### Cómo se usa
 
 1. En Apps Script, el **+** · **Script**, llámalo `PadronRuc` y pega el
-   contenido de `PadronRuc.gs`. Guarda.
-2. **Extensiones → Propiedades del proyecto → Propiedades del script**:
-   agrega `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ROBOT_CORREO` y
-   `ROBOT_CLAVE` —los mismos valores que ya usa `OrdenarCPE.gs`—. Recarga la
-   hoja.
+   contenido de `PadronRuc.gs`; también `BaseV2.gs` (la lectura de la base
+   v2, la comparte con `CarpetaMadre.gs`). Guarda.
+2. **Propiedades del script** `SUPABASE_URL_V2` y `SUPABASE_SECRET_KEY`
+   (ver «Las Propiedades del script de la base v2», abajo). Recarga la hoja.
 3. **Menú → «Traer el padrón de RUC desde la base»** para probarlo: reemplaza
-   la pestaña PADRÓN RUC con lo que haya en `padron_ruc` en ese momento.
+   la pestaña PADRÓN RUC con lo que haya en `contribuyente` en ese momento.
 4. **Menú → «Activar sincronización automática diaria»** para que se ponga
    al día sola todas las mañanas, después de que corra el scraper.
 
 Del lado de SUNAT, el workflow **«SUNAT padrón de RUC»** de GitHub Actions
-—el que de verdad consulta a SUNAT y llena `padron_ruc`— corre **solo,
+—el que de verdad consulta a SUNAT y llena `contribuyente`— corre **solo,
 todos los días a las 9 de la mañana** (media hora después de «SUNAT
 diario», para alcanzar a ver los proveedores que trajo esa madrugada). Cada
 corrida consulta hasta 80 RUC —los nuevos o los que llevan más de 30 días
@@ -293,7 +295,8 @@ que se registra, así que un mes puede diferir un poco del SIRE.
 ### Si se edita el código después
 
 Desde el 09/10/2026 la vista, `CarpetaMadre.gs` y `PadronRuc.gs` viven en
-`apps-script/inroconta/` y se despliegan con `pnpm deploy:app "qué cambió"`
+`apps-script/inroconta/` (desde el 22/10/2026 con `BaseV2.gs`,
+`CarpetaMadreV2.gs` y `FacturasSinOcV2.gs`, que leen la base v2) y se despliegan con `pnpm deploy:app "qué cambió"`
 (README, «Desplegar la app»): sube el código con clasp y pone una versión
 nueva en la misma implementación, así que la URL no cambia. Las pruebas
 (`pnpm deploy:check`) son opcionales desde el 13/10/2026.
@@ -309,87 +312,18 @@ vez. Deja la vista armada y guardada cada hora (CacheService); quien la
 abre recibe lo último ya listo. El botón **↻ Actualizar** del menú lateral
 la arma en el momento. Si no hay nada guardado, se arma como antes.
 
-## Captura de archivos en las carpetas de OC
+## Captura de archivos en las carpetas de OC (retirada)
 
-`CapturaCarpetasOC.gs` recorre el **LINK DE CARPETA** de cada OC de la base
-de Control de Gestión («Bd ventas, costo y gastos», pestaña **3. Registro
-Compras Grupo**) y anota cada archivo que encuentra: dónde está, cómo se
-llama, su enlace y qué parece ser (factura, guía, pago, OC…). Es el primer
-paso para unir cada factura de SUNAT con su OC y, por la OC, con su centro de
-costo. **No abre los archivos**: solo mira nombres.
-
-La base original **solo se lee**. El script va en una hoja aparte, de tu
-unidad, y escribe ahí tres pestañas: **CARPETAS** (una fila por OC),
-**ARCHIVOS** (una fila por archivo) y **RESUMEN**.
-
-Busca a fondo:
-
-- **Todas las subcarpetas**, a cualquier profundidad.
-- **Palabras parecidas**: FACTURA, FACT, FT, `F001-…`, `E001-…`, y errores de
-  tipeo (FATURA, FACTRUA, FACUTAS).
-- **Por la carpeta**: un `scan001.pdf` dentro de una subcarpeta «Facturas»
-  (o «Facutas») cuenta como factura.
-- **Fuera de la carpeta** (apagado por omisión, `BUSCAR_FUERA`): si una OC
-  no tiene nada que parezca factura adentro, busca archivos con su número de
-  OC en la carpeta superior y en todo el Drive. Esos quedan marcados
-  «(confirmar)», porque el número de OC puede repetirse entre empresas. En la
-  primera corrida aportó poco y hace la revisión más lenta.
-
-### Cómo se usa
-
-1. Crea una hoja nueva en tu unidad → **Extensiones · Apps Script** → pega
-   `CapturaCarpetasOC.gs` → guarda.
-2. Revisa la **Configuración** al inicio: `EMPRESAS` (por omisión INROPRIN)
-   y `ANIOS` (por omisión 2026).
-3. Recarga la hoja → menú **Carpetas OC** → **1. Armar lista de carpetas**.
-4. **2. Revisar siguiente tanda**, o **Revisar solo cada 10 minutos** para que
-   avance solo por tandas de ~5 minutos (Apps Script corta a los 6). Se
-   detiene al terminar.
-
-## Lectura de facturas (segundo paso de la captura)
-
-`LecturaFacturas.gs` va **en el mismo proyecto** que `CapturaCarpetasOC.gs`
-(usa sus funciones y su pestaña ARCHIVOS). Abre los archivos que parecen
-factura pero no traen el número en el nombre («FACTURA OC 0115-2026.pdf») y,
-en las carpetas sin factura, hasta 5 archivos «OTRO» por si alguno lo es.
-Anota en una pestaña nueva, **LECTURA**, lo que dice el documento: RUC del
-emisor, tipo, serie-número, fecha, total y la OC si aparece escrita.
-
-Lee con la conversión de Drive (la misma lectura OCR que hace Drive con PDF e
-imágenes): hace una copia temporal como documento de Google en la carpeta
-`_lectura_facturas_temporal`, saca el texto y la borra. El original no se
-toca.
-
-### Cómo se usa
-
-1. En el proyecto de la captura: **+ · Script** → `LecturaFacturas` → pega
-   el archivo → guarda.
-2. **Servicios (+) · Drive API · Agregar.**
-3. Recarga la hoja → menú **Leer facturas** → **1. Preparar lista de
-   facturas a leer** → **Leer solo cada 10 minutos**.
-
-## Subir la captura a la base (tercer paso)
-
-`SubirCapturaOC.gs` va en el mismo proyecto que los dos anteriores. Manda a
-la base de la aplicación la pestaña ARCHIVOS (con lo leído en LECTURA) y el
-centro de costo de cada OC según Control de Gestión (tablas `oc_archivo` y
-`oc_base_cg`, migración `039_la_oc_de_cada_comprobante.sql`). Cada subida
-reemplaza a la anterior.
-
-El cruce con SUNAT lo hace la base, en vivo, con `vinculos_oc()`: una factura
-que SUNAT reporta después de capturada se une sola. Las hojas COMPROBANTES
-SUNAT y DETALLE suman al final **OC (carpeta)**, **Centro de costo (CG)** y
-**Código CONCAR** (y COMPROBANTES SUNAT, **Revisar vínculo OC**). El código
-CONCAR sale **solo si la equivalencia está confirmada** en
-`equivalencia_centro_costo`; si hay duda, queda en blanco.
-
-### Cómo se usa
-
-1. **+ · Script** → `SubirCapturaOC` → pega el archivo → guarda.
-2. **Engranaje · Propiedades del script**: `SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `ROBOT_CORREO`, `ROBOT_CLAVE` (los mismos de
-   `OrdenarCPE.gs`).
-3. Recarga la hoja → menú **Base de datos** → **Subir captura a la base**.
+`CapturaCarpetasOC.gs`, `LecturaFacturas.gs` y `SubirCapturaOC.gs` seguían los
+enlaces de carpeta de la base de Control de Gestión, leían las facturas y
+subían todo a la base vieja (`cargar_captura_oc`). Los reemplazó el robot de
+las carpetas madre (`carpetas-oc`) y se quitaron del repositorio el
+22/10/2026, con el corte a la base v2. Lo que la captura vio quedó guardado
+(`archivo.visto_captura_en`). La base de CG, que también subía
+`SubirCapturaOC.gs`, la copia ahora `CopiarFuentes.gs` («Las fuentes de
+Compras, COMEX y Almacén») y la guarda el robot `fuentes-compras`. Si alguno
+de esos tres scripts sigue pegado en un proyecto de Apps Script, se borra de
+ahí.
 
 ## Legajo por OC (la tabla objetivo de un proyecto)
 
@@ -541,37 +475,35 @@ sigue solo al día siguiente.
 ## El legajo en las hojas de SUNAT
 
 `SubirLegajo.gs` va en el **mismo proyecto** que `LegajoPorOC.gs` y manda el
-legajo de Inroprin (la empresa con comprobantes de SUNAT) a la base: una
-fila por OC (tabla `oc_legajo`) y los archivos que traen la factura o una
-serie-número (tabla `oc_archivo`, origen `LEGAJO`). No toca lo que subió la
-captura de carpetas: cada una reemplaza solo lo suyo (migración 042).
+legajo de Inroprin (la empresa con comprobantes de SUNAT) a la **base v2**,
+con las funciones de `docs/database/v2/005_escrituras_oc.sql` (y la 014):
 
-La base cruza esos archivos con SUNAT y COMPROBANTES SUNAT y el DETALLE
-suman al final cinco columnas:
+- `guardar_fuente_oc('LEGAJO')`: una fila por OC con lo que dice el cuadro de
+  aprobaciones (situación del pago, comprador, área, centro de costo, qué le
+  falta). Si el cuadro lista la OC en varias carpetas, manda la revisada más
+  hace poco, y cada carpeta queda en `orden_compra_legajo`. Una OC que sale
+  del cuadro se vacía. Las filas con una OC que no se entiende («2603-0028»)
+  no se suben y el mensaje dice cuáles.
+- `guardar_carpetas_oc('LEGAJO')` y `cerrar_recorrido_oc`: las carpetas que
+  enlaza el cuadro y los archivos que traen la factura o una serie-número. Lo
+  que el cuadro deja de enlazar deja de ser del legajo. No pisa el nombre ni
+  lo que el robot de carpetas dijo de una carpeta o de sus archivos.
 
-| Columna                     | De dónde sale                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------- |
-| Situación del pago (OC)     | la misma del legajo: PAGADA, APROBADA PAGO PENDIENTE, FALTA APROBACIÓN, ANULADA…      |
-| Comprador (OC)              | el cuadro de aprobaciones                                                             |
-| Área que completa el legajo | Compras nacionales o COMEX (importaciones)                                            |
-| Legajo de la OC             | «Completo», «Falta: Guía de remisión, DAM», «Sin acceso a la carpeta» o «Por revisar» |
-| Carpeta de la OC            | el enlace de la carpeta en Drive                                                      |
-
-Además, el centro de costo sale del legajo (que distingue nacional de
-importación) y «Alertas» avisa si la OC está anulada en el cuadro.
+El cruce con SUNAT, el centro de costo de cada carpeta y lo que le falta lo
+calcula cada noche el robot de carpetas (`carpetas-oc`) y lo muestran la
+pestaña CARPETA MADRE, las hojas de SUNAT y la app.
 
 ### Cómo se usa
 
 1. En el proyecto de Apps Script de la hoja: **+ → Script** «SubirLegajo» y
    pega el archivo.
-2. Engranaje → **Propiedades del script**: `SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `ROBOT_CORREO`, `ROBOT_CLAVE` (las mismas de
-   `SubirCapturaOC.gs`).
+2. Engranaje → **Propiedades del script**: `SUPABASE_URL_V2` y
+   `SUPABASE_SECRET_KEY` (ver «Las Propiedades del script de la base v2»).
+   Las viejas (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ROBOT_CORREO`,
+   `ROBOT_CLAVE`) se pueden borrar.
 3. Menú **Legajo por OC → Subir el legajo a la base (hojas de SUNAT)**. Al
-   terminar dice cuántas OC y archivos subió y cuántas facturas quedaron
-   unidas con su OC.
-4. Desde ahí se sube solo cada noche, cuando los revisores terminan. Las
-   columnas aparecen con la siguiente publicación diaria de las hojas.
+   terminar dice cuántas OC, carpetas y archivos subió.
+4. Desde ahí se sube solo cada noche, cuando los revisores terminan.
 
 ## IGV, todo en soles y detracciones en la vista ejecutiva
 
@@ -600,7 +532,7 @@ requerimiento, contrato, cotización, proforma, correos, acta—, los datos de l
 OC (comprador, fecha, monto, pago, estatus), las facturas de SUNAT unidas, los
 otros archivos, los últimos cambios y las otras carpetas con el mismo número. Necesitan
 en el proyecto de la vista las Propiedades del script `SUPABASE_URL`,
-`SUPABASE_ANON_KEY`, `ROBOT_CORREO` y `ROBOT_CLAVE` (las de `CarpetaMadre.gs`);
+`SUPABASE_ANON_KEY`, `ROBOT_CORREO` y `ROBOT_CLAVE` (las de la base vieja);
 sin ellas avisan qué falta y el resto de la vista funciona igual.
 
 Usa las columnas nuevas así:
@@ -617,10 +549,10 @@ estas partes.
 
 ## La carpeta madre en GENERAL
 
-`CarpetaMadre.gs` va en el proyecto de Apps Script de la hoja **GENERAL**.
-Trae de la base (`carpetas_madre_fuentes()`, migraciones 051, 052 y 057) lo que el robot de
-las 01:17 y 11:47 (`carpetas-oc`) leyó de las dos carpetas madre de compras, y deja
-dos pestañas que reemplaza cada vez:
+`CarpetaMadre.gs` va en el proyecto de Apps Script del libro **INROCONTA**
+(antes, la hoja GENERAL; ver «El libro único»).
+Trae de la base v2 lo que el robot de las 01:17 y 11:47 (`carpetas-oc`) leyó
+de las dos carpetas madre de compras, y deja tres pestañas que reemplaza cada vez:
 
 - **CARPETA MADRE**: una fila por carpeta de OC (nacionales e importaciones)
   con su legajo (documentos, qué le falta, estado), centro de costo y de
@@ -639,17 +571,40 @@ dos pestañas que reemplaza cada vez:
 
 Cada carpeta lleva su **área responsable** (nacionales → Compras nacionales;
 importaciones → COMEX) y, si el legajo por OC lo sabe, el comprador, la
-situación del pago y la forma de pago (`carpetas_madre()`, migración 052).
-Para actualizar desde una versión anterior: borrar el contenido de
-`CarpetaMadre.gs` en Apps Script, pegar la nueva y guardar.
+situación del pago y la forma de pago.
+
+### De dónde lee (desde el 22/10/2026: base v2)
+
+La base vieja armaba las filas con `carpetas_madre_fuentes_json()` y
+`facturas_sin_oc_json()`, recalculando todo en cada lectura. La v2 no tiene
+funciones de lectura y solo la llave de servicio la lee (README de la v2,
+«Reglas del diseño» 6 y 7), así que el script lee las tablas por REST y junta
+las filas él mismo, con los mismos campos y textos de antes:
+
+| Archivo              | Qué hace                                                                                                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BaseV2.gs`          | Lee tablas de la v2 de a 1000 filas, en dos rondas de consultas en paralelo (la primera página de cada tabla con su total; luego el resto). La usa también `PadronRuc.gs`. |
+| `CarpetaMadreV2.gs`  | CARPETA MADRE: `carpeta_oc` + `orden_compra` (legajo, Compras, COMEX, CG) + `vale_almacen` + `orden_compra_dua` + `comprobante_oc` + `cambio`.                             |
+| `FacturasSinOcV2.gs` | FACTURAS SIN OC: `comprobante` con `sin_oc_senal` ALTA/MEDIA (la señal, la razón y el área probable las guarda el robot) y, por proveedor, sus facturas y sus OC.          |
+| `CarpetaMadre.gs`    | Lo de siempre: escribir las pestañas, formato, menú y activadores.                                                                                                         |
+
+Cada hora pide primero una sola fila (la última lectura del robot): si no
+hay lectura nueva, no trae lo demás. Una corrida completa son ~34 consultas
+(~7 s). La app web arma lo mismo en `src/modules/legajo/infrastructure/`.
+
+Diferencias con la base vieja, a propósito: la importación 172-2026 y la
+nacional 0172-2026 ya no se mezclan (la base vieja rellenaba siempre a 4
+dígitos y le pegaba a una carpeta nacional las facturas de la importación
+del mismo número), y fecha y monto de la OC salen también del cuadro de
+aprobaciones cuando Compras no los tiene.
 
 ### Cómo se instala
 
-1. Hoja GENERAL → **Extensiones → Apps Script → + → Script** «CarpetaMadre» y
-   pega el archivo.
-2. Engranaje → **Propiedades del script**: `SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `ROBOT_CORREO`, `ROBOT_CLAVE` (si ya están por
-   `SubirLegajo.gs`, no hay que hacer nada).
+1. Libro INROCONTA → **Extensiones → Apps Script**: `CarpetaMadre.gs`,
+   `CarpetaMadreV2.gs`, `FacturasSinOcV2.gs` y `BaseV2.gs` (o
+   `pnpm deploy:app`, que sube todo `apps-script/inroconta/`).
+2. **Propiedades del script** `SUPABASE_URL_V2` y `SUPABASE_SECRET_KEY` (ver
+   abajo).
 3. En la lista de funciones elige **instalarCarpetaMadre → Ejecutar** y
    acepta los permisos. Trae los datos en ese momento, agrega el menú
    **Carpeta madre** y la deja revisando cada hora: apenas el robot lee las
@@ -664,13 +619,31 @@ El DETALLE de SUNAT suma, al final, «Proyecto de la OC», «Centro de costo
 según» y «Documentos de la OC», de la misma carpeta madre
 (`detalle_cpe_carpeta()`, migración 051).
 
-Desde la migración 057 trae `carpetas_madre_fuentes()`: además, de lo que
-le falta a cada carpeta, qué **ya existe en otro lado** y solo falta subir
-(columna «Existe, falta subirla»: la guía que registró Almacén, la DAM o el
-costeo de COMEX, la factura que ya está en SUNAT; en ámbar) y qué falta sin
-rastro en ningún lado (en rojo); fecha y monto de la OC según la base de
-Compras, comprador si el legajo no lo sabe, ingreso a Almacén y llegada a
-planta según COMEX. Sale de la hoja privada de Contabilidad (abajo).
+Además, de lo que le falta a cada carpeta, dice qué **ya existe en otro
+lado** y solo falta subir (columna «Existe, falta subirla»: la guía que
+registró Almacén, la DAM o el costeo de COMEX, la factura que ya está en
+SUNAT; en ámbar) y qué falta sin rastro en ningún lado (en rojo); fecha y
+monto de la OC según la base de Compras, comprador si el legajo no lo sabe,
+ingreso a Almacén y llegada a planta según COMEX. Sale de la hoja privada de
+Contabilidad (abajo), que el robot guarda en `orden_compra` y `vale_almacen`.
+
+### Las Propiedades del script de la base v2
+
+`CarpetaMadre.gs`, `PadronRuc.gs` (y `AlertasLegajo.gs`, que va en su mismo
+proyecto) leen la base v2 con la llave de servicio (la v2 no deja leer a nadie
+más); `SubirLegajo.gs`, `VerificarComprobantes.gs` y `OrdenarCPE.gs`, cada uno
+en su proyecto, también. En Apps Script → engranaje (Configuración del
+proyecto) → **Propiedades del script** de cada proyecto:
+
+| Propiedad             | Valor                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `SUPABASE_URL_V2`     | La URL del proyecto v2, `https://<proyecto>.supabase.co` (la misma de `.env.local`) |
+| `SUPABASE_SECRET_KEY` | La llave secreta de la v2 (`sb_secret_…`; Supabase → Project Settings → API Keys)   |
+
+Nunca en el código: el repositorio es público. Si falta alguna, el script
+avisa cuál. Las de la base vieja (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`ROBOT_CORREO`, `ROBOT_CLAVE`) ya no las usa ningún script del repositorio: se
+pueden borrar de cada proyecto.
 
 ## Las fuentes de Compras, COMEX y Almacén (hoja privada)
 
@@ -685,7 +658,13 @@ robot lea a las 01:17 y 11:47) solo las columnas que se usan de:
 - la base **original** del kardex de Almacén (BASE DE DATOS INROPRIN, no una
   copia con IMPORTRANGE): KARDEX y DOCUMENTO (una fila por vale, con la guía
   o factura que Almacén escaneó al recibir). Solo ingresos por compra,
-  servicio o devolución y anulados; las salidas no.
+  servicio o devolución y anulados; las salidas no;
+- la base de **Control de Gestión** («Bd ventas, costo y gastos», pestaña 3.
+  Registro Compras Grupo), solo las líneas de INROPRIN, en la pestaña **CG -
+  REGISTRO COMPRAS**: el centro de costo, el RUC, la fecha, la moneda y el
+  monto de cada línea de OC. El robot las agrupa por OC y centro de costo
+  (antes la subía `SubirCapturaOC.gs` a mano; desde el 29/09/2026 nadie la
+  subía). Quien instala el script tiene que poder abrir esa hoja de CG.
 
 Quedan fuera contactos, teléfonos, correos, direcciones, bancos y TAX ID.
 Copia valores (no fórmulas): si una fuente falla, su pestaña se queda con la
@@ -705,7 +684,8 @@ enlace queda vacío.
 
 El robot la lee en `scripts/fuentes-compras.mts` (paso «Leer las fuentes de
 Compras, COMEX y Almacén» de `carpetas-oc.yml`, o solo con
-`fuentes-compras.yml`).
+`fuentes-compras.yml`) y la guarda en la base v2. Si la pestaña de CG no está
+(el script aún no la copió), el robot lo avisa y deja la de antes.
 
 ## Novedades de la reunión del 06/10/2026
 
@@ -741,7 +721,8 @@ privada de fuentes (`CopiarFuentes.gs`) sigue aparte, por seguridad.
 
 **Un solo proyecto de Apps Script, dentro de INROCONTA**
 (Extensiones → Apps Script): `VistaEjecutiva.gs` + `VistaEjecutivaPagina.html`,
-`CarpetaMadre.gs`, `PadronRuc.gs` y, si se usa, `Codigo.gs` + `Tablero.html`.
+`CarpetaMadre.gs` (con `CarpetaMadreV2.gs` y `FacturasSinOcV2.gs`), `PadronRuc.gs`,
+`BaseV2.gs` y, si se usa, `Codigo.gs` + `Tablero.html`.
 No van ahí: `CodigoPadron.gs` (tiene su propio `doGet`; la vista ya muestra el
 padrón en la ficha del proveedor) ni los scripts viejos del legajo
 (`LegajoPorOC`, `VistaLegajo`, `SubirLegajo`, `TableroLegajo`,
@@ -753,7 +734,9 @@ reemplazaron el robot de carpetas y `CarpetaMadre.gs`.
 1. Que el robot llene el libro: correr `pnpm hojas:detalle` (DETALLE) y
    `pnpm sire:local` (COMPROBANTES), o esperar las corridas de la mañana.
 2. En INROCONTA → Apps Script: pegar los archivos de arriba y las Propiedades
-   del script (SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO, ROBOT_CLAVE).
+   del script (desde el 22/10/2026, `SUPABASE_URL_V2` y `SUPABASE_SECRET_KEY`
+   para `CarpetaMadre.gs` y `PadronRuc.gs`: «Las Propiedades del script de la
+   base v2»).
 3. Correr `instalarCarpetaMadre` y `instalarVistaRapida` (activadores de cada hora).
 4. Implementar → Nueva implementación → Aplicación web → copiar el enlace
    nuevo de la vista y repartirlo.
@@ -800,10 +783,13 @@ de SUNAT es otro; y si está repetido en la pestaña o ya en el CONCAR.
 - **Duplicados contra lo ya cargado:** pegar el registro de compras exportado
   del CONCAR en una pestaña **«REGISTRO CONCAR»** de la misma hoja. Se
   compara dentro de la hoja: el registro no se sube a la base.
+- Lee la base v2 (`comprobante` y su `registro_compras`): la regla es la que
+  hacía `verificar_comprobantes_json` en la base vieja, ahora dentro del
+  script (se comparó fila por fila con la vieja: iguales).
 - Instalación: Extensiones → Apps Script → pegar el archivo → Propiedades del
-  script SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO y ROBOT_CLAVE (las de
-  CarpetaMadre.gs) → recargar la hoja. Si la hoja ya tiene otro `onOpen`,
-  agregar el menú «SUNAT» dentro de ese.
+  script `SUPABASE_URL_V2` y `SUPABASE_SECRET_KEY` (ver «Las Propiedades del
+  script de la base v2») → recargar la hoja. Si la hoja ya tiene otro
+  `onOpen`, agregar el menú «SUNAT» dentro de ese.
 
 ## Si algo falla
 
@@ -813,10 +799,11 @@ mensaje dice cuáles. Se arreglan en `COL`, al principio de `Codigo.gs`.
 **El tablero sale vacío** — la persona no tiene acceso a la hoja. Ver el
 paso 4.
 
-**«Faltan credenciales de la base» al sincronizar el padrón** — faltan las
-Propiedades del script (paso 2 de la sección del padrón de RUC). No son las
-mismas que las de `Codigo.gs`: van en Propiedades del proyecto, no en
-variables del código.
+**«Faltan las Propiedades del script: SUPABASE_URL_V2…»** (padrón o carpeta
+madre) — faltan las Propiedades de la base v2 («Las Propiedades del script
+de la base v2»). Van en Propiedades del script, no en variables del código.
+**«La base v2 rechazó SUPABASE_SECRET_KEY»** — la llave está mal copiada
+(con espacios o comillas) o es la anónima: tiene que ser la secreta.
 
 **El padrón de RUC no trae ni un RUC nuevo** — el workflow «SUNAT padrón de
 RUC» de GitHub Actions no ha corrido, o corrió en modo depuración (no

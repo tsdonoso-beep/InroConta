@@ -14,7 +14,7 @@
  * carpetas sin comprador conocido van al responsable de su área (Compras
  * nacionales / COMEX). Los lunes, además, el ranking por comprador.
  *
- * Lee lo mismo que la pestaña CARPETA MADRE (la base, con la cuenta ROBOT):
+ * Lee lo mismo que la pestaña CARPETA MADRE (la base v2, con BaseV2.gs):
  * el robot de las carpetas lee dos veces al día. Si la última lectura es
  * vieja (una corrida falló), NO manda nada a los compradores —para no
  * reclamar lo que quizá ya subieron— y avisa a quien recibe las copias.
@@ -153,21 +153,16 @@ function leerCorreos_() {
 
 /** Las carpetas de la base, agrupadas: por comprador, por área (sin comprador), y el ranking. */
 function datosAlertas_() {
-    var cfg = configuracionCarpetaMadre_();
-    var token = sesionCarpetaMadre_(cfg);
-    var carpetas = [];
-    for (var desde = 0; ; desde += 1000) {
-        var parte = rpcCarpetaMadre_(
-            cfg,
-            token,
-            'carpetas_madre',
-            { p_empresa_ruc: CM_RUC },
-            '?order=procedencia.desc,oc,carpeta_url&limit=1000&offset=' + desde,
-        );
-        carpetas = carpetas.concat(parte);
-        if (parte.length < 1000) break;
-    }
-    var sinOc = rpcCarpetaMadre_(cfg, token, 'facturas_sin_oc', { p_empresa_ruc: CM_RUC }, '?senal=eq.ALTA&order=total.desc&limit=1000');
+    // La misma lectura de la base v2 que la pestaña CARPETA MADRE (BaseV2.gs, CarpetaMadreV2.gs, FacturasSinOcV2.gs).
+    var datos = v2Leer_(cmConsultasV2_(CM_RUC));
+    var carpetas = cmFilasV2_(datos);
+    var sinOc = cmSinOcV2_(datos)
+        .filter(function (x) {
+            return x.senal === 'ALTA';
+        })
+        .sort(function (a, b) {
+            return (Number(b.total) || 0) - (Number(a.total) || 0);
+        });
     var delAnio = carpetas.filter(function (f) {
         return String(f.oc).slice(-4) === AL_ANIO;
     });

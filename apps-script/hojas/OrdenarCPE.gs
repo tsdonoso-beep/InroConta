@@ -15,10 +15,8 @@
 // Extensiones → Configuración del proyecto → Propiedades del script. Poner:
 //   CARPETA_RAIZ        el ID de la carpeta de Drive (SUNAT_DRIVE_FOLDER)
 //   RUC_EMPRESA         20512201611
-//   SUPABASE_URL        el mismo de los secretos de GitHub
-//   SUPABASE_ANON_KEY   el mismo de los secretos de GitHub
-//   ROBOT_CORREO        el correo de la cuenta ROBOT
-//   ROBOT_CLAVE         su clave
+//   SUPABASE_URL_V2     la base v2 (https://….supabase.co), el mismo de los secretos de GitHub
+//   SUPABASE_SECRET_KEY la llave secreta de la base v2 (nunca en el código: el repo es público)
 // La cuenta de Google con la que se corre el script necesita poder editar esa
 // carpeta de Drive —si ya la usas para revisar los comprobantes, ya puede—.
 //
@@ -258,10 +256,10 @@ function configuracion() {
     return {
         carpetaRaiz: p.getProperty('CARPETA_RAIZ'),
         rucEmpresa: p.getProperty('RUC_EMPRESA') || '20512201611',
-        supabaseUrl: p.getProperty('SUPABASE_URL'),
-        anonKey: p.getProperty('SUPABASE_ANON_KEY'),
-        robotCorreo: p.getProperty('ROBOT_CORREO'),
-        robotClave: p.getProperty('ROBOT_CLAVE'),
+        supabaseUrl: String(p.getProperty('SUPABASE_URL_V2') || '')
+            .trim()
+            .replace(/\/+$/, ''),
+        secretKey: String(p.getProperty('SUPABASE_SECRET_KEY') || '').trim(),
     };
 }
 
@@ -718,27 +716,12 @@ function actualizarEnlacesPdf() {
     if (doclotes.length > 0) guardarEnBase(doclotes, cfg);
 }
 
-function iniciarSesionRobot(cfg) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/auth/v1/token?grant_type=password', {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { apikey: cfg.anonKey },
-        payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
-        muteHttpExceptions: true,
-    });
-    if (resp.getResponseCode() >= 300) {
-        throw new Error('No se pudo iniciar sesión con la cuenta ROBOT: ' + resp.getContentText());
-    }
-    return JSON.parse(resp.getContentText()).access_token;
-}
-
 function guardarEnBase(doclotes, cfg) {
-    if (!cfg.supabaseUrl || !cfg.anonKey || !cfg.robotCorreo || !cfg.robotClave) {
-        Logger.log('Faltan credenciales de la base en las Propiedades del script: no se guardó nada, pero los archivos ya se movieron.');
+    if (!cfg.supabaseUrl || !cfg.secretKey) {
+        Logger.log('Faltan SUPABASE_URL_V2 o SUPABASE_SECRET_KEY en las Propiedades del script: no se guardó nada, pero los archivos ya se movieron.');
         return;
     }
 
-    var token = iniciarSesionRobot(cfg);
     var LOTE = 25;
     var nuevos = 0,
         actualizados = 0,
@@ -749,7 +732,7 @@ function guardarEnBase(doclotes, cfg) {
         var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/rest/v1/rpc/guardar_cpe', {
             method: 'post',
             contentType: 'application/json',
-            headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + token },
+            headers: { apikey: cfg.secretKey, Authorization: 'Bearer ' + cfg.secretKey },
             payload: JSON.stringify({ p_empresa_ruc: cfg.rucEmpresa, p_docs: trozo }),
             muteHttpExceptions: true,
         });

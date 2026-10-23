@@ -18,11 +18,13 @@
  * Por eso la consulta la hace un scraper de Playwright
  * (`scripts/consultar-padron-ruc.mts`), corriendo en GitHub Actions —un
  * navegador real resuelve el captcha en silencio, igual que lo haría una
- * persona— y guarda cada resultado en la tabla `padron_ruc` de la base.
+ * persona— y guarda cada resultado en la tabla `contribuyente` de la base v2
+ * (antes `padron_ruc` y `ruc_domicilio` de la base vieja).
  *
  * El trabajo de ESTE archivo es más simple: traer esa tabla a una pestaña
  * PADRÓN RUC de esta misma hoja, para que Contabilidad la vea ahí mismo, sin
- * entrar a la aplicación ni a Supabase.
+ * entrar a la aplicación ni a Supabase. Lee la base v2 con BaseV2.gs: necesita
+ * las Propiedades del script SUPABASE_URL_V2 y SUPABASE_SECRET_KEY.
  *
  * IMPORTANTE: esto solo muestra la condición del proveedor. Si corresponde
  * retenerle o no depende además de si INROPRIN está designada Agente de
@@ -45,28 +47,12 @@ var CABECERAS_PADRON = [
     'Agente de Percepción',
     'Padrones (detalle)',
     'Consultado el',
-    // El domicilio fiscal (padrón reducido de SUNAT, tabla ruc_domicilio, migración 062).
+    // The fiscal address (SUNAT's reduced roll; the columns of contribuyente in v2).
     'Domicilio fiscal',
     'Distrito',
     'Provincia',
     'Departamento',
 ];
-
-/**
- * Las credenciales de la base, desde Propiedades del script (Extensiones →
- * Propiedades del proyecto → Propiedades del script). Son las mismas que usa
- * `OrdenarCPE.gs`: SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO, ROBOT_CLAVE.
- * No van escritas en el código porque esto se guarda en un repositorio.
- */
-function configuracionPadron_() {
-    var p = PropertiesService.getScriptProperties();
-    return {
-        supabaseUrl: p.getProperty('SUPABASE_URL'),
-        anonKey: p.getProperty('SUPABASE_ANON_KEY'),
-        robotCorreo: p.getProperty('ROBOT_CORREO'),
-        robotClave: p.getProperty('ROBOT_CLAVE'),
-    };
-}
 
 // ── Menú (se engancha desde onOpen de Codigo.gs) ──────────────────
 
@@ -82,27 +68,14 @@ function itemsMenuPadron_(menu) {
 // ── Orquestación ──────────────────────────────────────────────────
 
 /**
- * Trae la tabla `padron_ruc` completa de la base y reemplaza la pestaña con
- * ella. Se reescribe entera —no fila por fila— porque la base ya es la
- * fuente de verdad: es más simple y más correcto que ir upseando acá también.
+ * Trae de la base v2 los RUC consultados (tabla `contribuyente`) y reemplaza
+ * la pestaña con ellos. Se reescribe entera —no fila por fila— porque la base
+ * ya es la fuente de verdad: es más simple y más correcto que ir upseando acá
+ * también.
  */
 function sincronizarPadronRuc() {
-    var cfg = configuracionPadron_();
-    if (!cfg.supabaseUrl || !cfg.anonKey || !cfg.robotCorreo || !cfg.robotClave) {
-        var faltan =
-            'Faltan credenciales de la base. En Extensiones → Propiedades del proyecto → ' +
-            'Propiedades del script, agrega SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO y ROBOT_CLAVE ' +
-            '(los mismos valores que usa OrdenarCPE.gs).';
-        Logger.log(faltan);
-        try {
-            SpreadsheetApp.getUi().alert(faltan);
-        } catch (e) {}
-        return;
-    }
-
     try {
-        var token = iniciarSesionRobotPadron_(cfg);
-        var filas = padronDesdeBase_(cfg, token);
+        var filas = padronDesdeBase_();
         escribirPadronCompleto_(filas);
 
         var msg = filas.length + ' RUC en el padrón, traídos de la base.';
@@ -118,66 +91,33 @@ function sincronizarPadronRuc() {
     }
 }
 
-function iniciarSesionRobotPadron_(cfg) {
-    var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/auth/v1/token?grant_type=password', {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { apikey: cfg.anonKey },
-        payload: JSON.stringify({ email: cfg.robotCorreo, password: cfg.robotClave }),
-        muteHttpExceptions: true,
-    });
-    if (resp.getResponseCode() >= 300) {
-        throw new Error('No se pudo iniciar sesión con la cuenta ROBOT: ' + resp.getContentText());
-    }
-    return JSON.parse(resp.getContentText()).access_token;
-}
-
 /**
- * Toda una tabla de la base, de a 1000 filas: la base entrega como máximo 1000
- * por consulta (antes se pedía todo de una vez y la pestaña quedaba en 1000 RUC).
+ * Los RUC que consultó la Consulta RUC (padron_en) o el padrón reducido
+ * (domicilio_en), por RUC: una fila de `contribuyente` por RUC con su
+ * condición y su domicilio. Los que tienen domicilio pero todavía no se
+ * consultaron en la Consulta RUC van igual, con la condición «Sin consultar».
  */
-function tablaCompletaPadron_(cfg, token, tabla, campos) {
-    var todas = [];
-    for (var desde = 0; ; desde += 1000) {
-        var resp = UrlFetchApp.fetch(cfg.supabaseUrl + '/rest/v1/' + tabla + '?select=' + campos + '&order=ruc.asc&limit=1000&offset=' + desde, {
-            headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + token },
-            muteHttpExceptions: true,
-        });
-        if (resp.getResponseCode() >= 300) {
-            throw new Error('No se pudo leer ' + tabla + ' de la base: ' + resp.getContentText());
-        }
-        var pagina = JSON.parse(resp.getContentText());
-        todas = todas.concat(pagina);
-        if (pagina.length < 1000) return todas;
-    }
-}
-
-/**
- * El padrón (padron_ruc) con el domicilio de cada RUC (ruc_domicilio), por RUC.
- * Los RUC que tienen domicilio pero todavía no se consultaron en la Consulta RUC
- * van igual, con la condición «Sin consultar».
- */
-function padronDesdeBase_(cfg, token) {
-    var padron = tablaCompletaPadron_(cfg, token, 'padron_ruc', '*');
-    var domicilios = tablaCompletaPadron_(cfg, token, 'ruc_domicilio', 'ruc,razon_social,estado,condicion,direccion,distrito,provincia,departamento');
-    var dom = {};
-    domicilios.forEach(function (d) {
-        dom[d.ruc] = d;
+function padronDesdeBase_() {
+    var d = v2Leer_({
+        contribuyentes:
+            'contribuyente?select=ruc,razon_social,estado,condicion,buen_contribuyente,agente_retencion,agente_percepcion,padrones_detalle,padron_en,' +
+            'direccion,distrito,provincia,departamento&or=(padron_en.not.is.null,domicilio_en.not.is.null)&order=ruc',
     });
-    var vistos = {};
-    var filas = padron.map(function (r) {
-        vistos[r.ruc] = true;
-        r.domicilio = dom[r.ruc] || null;
-        return r;
+    return d.contribuyentes.map(function (c) {
+        return {
+            ruc: c.ruc,
+            razon_social: c.razon_social,
+            estado: c.estado,
+            condicion: c.condicion,
+            buen_contribuyente: c.buen_contribuyente,
+            agente_retencion: c.agente_retencion,
+            agente_percepcion: c.agente_percepcion,
+            padrones_detalle: c.padrones_detalle,
+            consultado_en: c.padron_en,
+            sinConsultar: !c.padron_en,
+            domicilio: c,
+        };
     });
-    domicilios.forEach(function (d) {
-        if (!vistos[d.ruc])
-            filas.push({ ruc: d.ruc, razon_social: d.razon_social, estado: d.estado, condicion: d.condicion, sinConsultar: true, domicilio: d });
-    });
-    filas.sort(function (a, b) {
-        return a.ruc < b.ruc ? -1 : a.ruc > b.ruc ? 1 : 0;
-    });
-    return filas;
 }
 
 function hojaPadron_() {
@@ -194,7 +134,16 @@ function escribirPadronCompleto_(filas) {
     hoja.setFrozenRows(1);
     if (!filas || filas.length === 0) return;
 
-    var valores = filas.map(function (r) {
+    var valores = valoresPadron_(filas);
+    // Todo como texto (que el RUC no se vuelva número), menos la fecha de consulta.
+    hoja.getRange(2, 1, valores.length, CABECERAS_PADRON.length).setNumberFormat('@');
+    hoja.getRange(2, 9, valores.length, 1).setNumberFormat('dd/mm/yyyy');
+    hoja.getRange(2, 1, valores.length, CABECERAS_PADRON.length).setValues(valores);
+}
+
+/** The tab's cells, one row per RUC, in the order of CABECERAS_PADRON. */
+function valoresPadron_(filas) {
+    return filas.map(function (r) {
         var siNo = function (v) {
             return r.sinConsultar ? 'Sin consultar' : v ? 'Sí' : 'No';
         };
@@ -215,10 +164,6 @@ function escribirPadronCompleto_(filas) {
             d.departamento || '',
         ];
     });
-    // Todo como texto (que el RUC no se vuelva número), menos la fecha de consulta.
-    hoja.getRange(2, 1, valores.length, CABECERAS_PADRON.length).setNumberFormat('@');
-    hoja.getRange(2, 9, valores.length, 1).setNumberFormat('dd/mm/yyyy');
-    hoja.getRange(2, 1, valores.length, CABECERAS_PADRON.length).setValues(valores);
 }
 
 // ── El disparador automático ────────────────────────────────────────

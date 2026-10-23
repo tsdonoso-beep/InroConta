@@ -1,15 +1,17 @@
-// Leer la hoja privada de Contabilidad (Compras, COMEX y Almacén) y subirla a la base
+// Leer la hoja privada de Contabilidad (Compras, COMEX, CG y Almacén) y subirla a la base v2
 //
 // La hoja la llena CopiarFuentes.gs dos veces al día (00:45 y 11:15), con los
 // permisos de quien la instaló, desde los archivos originales: la base de
-// compras nacionales, el STATUS DE CARGAS de COMEX y el kardex de Almacén.
+// compras nacionales, el STATUS DE CARGAS de COMEX, la base de Control de
+// Gestión (pestaña «CG - REGISTRO COMPRAS») y el kardex de Almacén.
 // Está compartida como Lector SOLO con la cuenta de servicio del robot.
 //
 // Esto la lee entera (sin formato: fechas como número de serie, montos como
-// número), la junta por OC y por vale (src/shared/lib/drive/fuentes-compras.ts) y la sube
-// con cargar_fuentes_compras(): la base anota lo que cambió desde la lectura
-// anterior (un monto, una DAM, un vale corregido o anulado) y cruza todo con
-// las carpetas madre (carpetas_madre_fuentes, detalle_de_carpeta).
+// número), la junta por OC y por vale (src/shared/lib/drive/fuentes-compras.ts,
+// src/shared/lib/oc/), compara con lo que ya tiene la base (un monto, una DAM,
+// un vale corregido o anulado) y la guarda con guardar_fuente_oc, una vez por
+// fuente, con esos cambios. Cuándo se copió cada pestaña va a `corrida`.
+// Entra a la base v2 con SUPABASE_URL_V2 + SUPABASE_SECRET_KEY.
 //
 //   FUENTES_HOJA   el ID de la hoja privada (por omisión, la de Contabilidad)
 //   FUENTES_JSON   en vez de leer la hoja, un archivo con las pestañas
@@ -20,10 +22,14 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createClient } from '@supabase/supabase-js';
 import { conectarDrive } from '../src/shared/lib/drive/servidor.ts';
-import { leerFuentes, PESTANAS, type Celda, type Fuentes } from '../src/shared/lib/drive/fuentes-compras.ts';
+import { leerFuentes, PESTANAS, type Celda } from '../src/shared/lib/drive/fuentes-compras.ts';
+import { CG_TAB, cgRows } from '../src/shared/lib/oc/base-cg.ts';
+import { orderKey, sourceChanges } from '../src/shared/lib/oc/cambios-fuentes.ts';
+import { copyRuns, keepResolved, sourceRows } from '../src/shared/lib/oc/fuentes.ts';
 import { cargarClaveDeArchivo } from './local/comun/config.mts';
+import { baseV2, type Base } from './local/oc/base.mts';
+import { canonicalCode, knownOrders, loadSource, readSourcesState, rowsBefore, saveCopies, type Source, type SourcesState } from './local/oc/fuentes.mts';
 
 cargarClaveDeArchivo();
 
@@ -33,123 +39,30 @@ const EMPRESA_RUC = process.env.EMPRESA_RUC?.trim() || '20512201611';
 const SALIDA = join(process.cwd(), 'scripts', 'out', 'salida', 'fuentes-compras');
 mkdirSync(SALIDA, { recursive: true });
 
-function leer(...nombres: string[]): string {
-    for (const n of nombres) {
-        const v = (process.env[n] ?? '').trim();
-        if (v) return v;
-    }
-    throw new Error(`falta ${nombres.join(' o ')} en el entorno`);
-}
+type Pestanas = Partial<Record<(typeof PESTANAS)[number] | typeof CG_TAB, Celda[][]>>;
 
 /** Las pestañas de la hoja privada, sin formato. Las que no están no se piden (Sheets rechaza todo el pedido). */
-async function leerHoja(): Promise<Partial<Record<(typeof PESTANAS)[number], Celda[][]>>> {
+async function leerHoja(): Promise<Pestanas> {
     const { hojas } = conectarDrive();
     const meta = await hojas.spreadsheets.get({ spreadsheetId: HOJA, fields: 'properties(title),sheets(properties(title))' });
     const hay = new Set((meta.data.sheets ?? []).map((s) => s.properties?.title ?? ''));
     console.log(`· hoja «${meta.data.properties?.title}»: ${[...hay].join(', ')}`);
-    const pedir = PESTANAS.filter((p) => hay.has(p));
+    const pedir = ([...PESTANAS, CG_TAB] as const).filter((p) => hay.has(p));
     const r = await hojas.spreadsheets.values.batchGet({
         spreadsheetId: HOJA,
         ranges: pedir.map((p) => `'${p}'`),
         valueRenderOption: 'UNFORMATTED_VALUE',
         dateTimeRenderOption: 'SERIAL_NUMBER',
     });
-    const out: Partial<Record<(typeof PESTANAS)[number], Celda[][]>> = {};
+    const out: Pestanas = {};
     (r.data.valueRanges ?? []).forEach((v, i) => {
         out[pedir[i]] = (v.values ?? []) as Celda[][];
     });
     return out;
 }
 
-// Las filas como las columnas de la base.
-const filasDeCompras = (f: Fuentes) =>
-    f.compras.map((c) => ({
-        procedencia: c.procedencia,
-        oc: c.oc,
-        oc_original: c.ocOriginal,
-        empresa: c.empresa,
-        tipo_documento: c.tipoDocumento,
-        fecha: c.fecha,
-        requerimiento: c.requerimiento,
-        proveedor_ruc: c.proveedorRuc,
-        proveedor: c.proveedor,
-        pais: c.pais,
-        proyecto: c.proyecto,
-        concepto: c.concepto,
-        moneda: c.moneda,
-        total: c.total,
-        total_soles: c.totalSoles,
-        forma_pago: c.formaPago,
-        condicion_pago: c.condicionPago,
-        incoterm: c.incoterm,
-        lugar_entrega: c.lugarEntrega,
-        tiempo_entrega: c.tiempoEntrega,
-        solicitado: c.solicitado,
-        elaborado: c.elaborado,
-        items: c.items,
-    }));
-const filasDeComex = (f: Fuentes) =>
-    f.comex.map((c) => ({
-        oc: c.oc,
-        oc_original: c.ocOriginal,
-        empresa: c.empresa,
-        comprador: c.comprador,
-        estado_compra: c.estadoCompra,
-        fecha_oc: c.fechaOc,
-        proveedor: c.proveedor,
-        origen: c.origen,
-        incoterm: c.incoterm,
-        modalidad: c.modalidad,
-        operador: c.operador,
-        awb_bl: c.awbBl,
-        etd: c.etd,
-        eta: c.eta,
-        ata: c.ata,
-        fecha_aprox_planta: c.fechaAproxPlanta,
-        fecha_real_planta: c.fechaRealPlanta,
-        documentos_enviados: c.documentosEnviados,
-        agente_aduanas: c.agenteAduanas,
-        dam: c.dam,
-        costeo: c.costeo,
-        observaciones: c.observaciones,
-        embarques: c.embarques,
-        duas: c.duas.map((d) => ({
-            dua: d.dua,
-            fecha: d.fecha,
-            encargado: d.encargado,
-            subio_oc: d.subioOc,
-            fecha_subida: d.fechaSubida,
-            observacion: d.observacion,
-        })),
-    }));
-const filasDeVales = (f: Fuentes) =>
-    f.vales.map((v) => ({
-        id: v.id,
-        vale: v.vale,
-        fecha_registro: v.fechaRegistro,
-        fecha_operacion: v.fechaOperacion,
-        movimiento: v.movimiento,
-        operacion: v.operacion,
-        proveedor: v.proveedor,
-        tipo_documento: v.tipoDocumento,
-        numero_documento: v.numeroDocumento,
-        tipo_orden: v.tipoOrden,
-        numero_orden: v.numeroOrden,
-        oc: v.oc ?? '',
-        procedencia: v.procedencia ?? '',
-        proyecto: v.proyecto,
-        sede: v.sede,
-        responsable: v.responsable,
-        recepcionado: v.recepcionado,
-        documento_ruta: v.documentoRuta,
-        documento_url: v.documentoUrl,
-        vale_url: v.valeUrl,
-        items: v.items,
-        cantidad: v.cantidad,
-    }));
-
 const inicio = Date.now();
-const pestanas = process.env.FUENTES_JSON?.trim() ? JSON.parse(readFileSync(process.env.FUENTES_JSON.trim(), 'utf8')) : await leerHoja();
+const pestanas: Pestanas = process.env.FUENTES_JSON?.trim() ? JSON.parse(readFileSync(process.env.FUENTES_JSON.trim(), 'utf8')) : await leerHoja();
 const f = leerFuentes(pestanas);
 
 const resumen = {
@@ -180,33 +93,51 @@ if (ultima) {
 }
 for (const e of f.estado) if (!/^OK/.test(e.resultado)) console.log(`⚠ ${e.pestana}: ${e.resultado}`);
 
+// La base v2: en depuración solo se lee (para armar lo que se guardaría y dejarlo en el artefacto),
+// y si no hay acceso se arma igual, sin comparar con nada.
+let v2: SourcesState = { orders: new Map(), duas: new Map(), vouchers: new Map(), cgRows: 0, costCentres: [] };
+let sb: Base | null = null;
+try {
+    sb = baseV2();
+    v2 = await readSourcesState(sb, EMPRESA_RUC);
+} catch (e) {
+    if (!DEBUG) throw e;
+    console.log(`⚠ sin la base v2 (${e instanceof Error ? e.message : e}): no se compara con lo que ya está`);
+}
+const filas = sourceRows(f);
+const cg = cgRows(pestanas[CG_TAB], knownOrders(v2, filas.COMPRAS), canonicalCode(v2));
+const cargas: [Source, Record<string, unknown>[], boolean][] = [
+    ['COMPRAS', keepResolved(filas.COMPRAS, v2.orders, orderKey), !!pestanas['NACIONALES']?.length || !!pestanas['IMPO - BASE']?.length],
+    ['COMEX', filas.COMEX, !!pestanas['IMPO - STATUS']?.length],
+    ['CG', cg, !!pestanas[CG_TAB]?.length],
+    ['ALMACEN', filas.ALMACEN, !!pestanas['KARDEX - VALES']?.length],
+];
+console.log(`· CG: ${cg.length} filas (OC × centro de costo)${pestanas[CG_TAB]?.length ? '' : ` ⚠ falta la pestaña «${CG_TAB}»`}`);
 if (DEBUG) {
-    console.log('DEBUG=1: no se sube nada a la base.');
+    const seco = cargas.map(([n, x]) => [n, { filas: x, cambios: n === 'CG' ? [] : sourceChanges(n, x, v2, x.length >= rowsBefore(v2, n) / 2) }]);
+    writeFileSync(join(SALIDA, 'cargas.json'), JSON.stringify(Object.fromEntries(seco), null, 1));
+    for (const [n, x] of seco)
+        console.log(`· ${n}: ${(x as { filas: unknown[] }).filas.length} filas, ${(x as { cambios: unknown[] }).cambios.length} cambios`);
+    console.log('DEBUG=1: no se sube nada a la base (lo que se subiría quedó en cargas.json).');
 } else {
-    const sb = createClient(leer('SUPABASE_URL', 'PROJECT_URL'), leer('SUPABASE_ANON_KEY', 'ANON_KEY'), {
-        auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { error } = await sb.auth.signInWithPassword({ email: leer('ROBOT_CORREO'), password: leer('ROBOT_CLAVE') });
-    if (error) throw new Error(`No se pudo entrar como el robot: ${error.message}`);
-    const cargas: [string, unknown[], boolean][] = [
-        ['COMPRAS', filasDeCompras(f), !!pestanas['NACIONALES']?.length || !!pestanas['IMPO - BASE']?.length],
-        ['COMEX', filasDeComex(f), !!pestanas['IMPO - STATUS']?.length],
-        ['ALMACEN', filasDeVales(f), !!pestanas['KARDEX - VALES']?.length],
-        ['COPIA', f.estado, f.estado.length > 0],
-    ];
-    for (const [fuente, filas, hay] of cargas) {
+    for (const [fuente, rows, hay] of cargas) {
         // Una pestaña que no llegó no se sube: borraría lo que ya está en la base.
         if (!hay) {
             console.log(`· ${fuente}: sin datos en la hoja, se deja lo que ya está en la base`);
             continue;
         }
-        const { data, error: e } = await sb.rpc('cargar_fuentes_compras', { p_empresa_ruc: EMPRESA_RUC, p_fuente: fuente, p_filas: filas });
-        if (e) throw new Error(`${fuente}: ${e.message}`);
-        resumen.carga[fuente] = data;
-        const d = data as { filas: number; antes: number; cambios: number; borro: boolean };
+        // Una hoja cortada (menos de la mitad de lo que había) suma, pero no borra.
+        const completa = rows.length >= rowsBefore(v2, fuente) / 2;
+        const d = await loadSource(sb!, EMPRESA_RUC, v2, fuente, rows, completa);
+        resumen.carga[fuente] = d;
         console.log(
-            `· ${fuente}: ${d.filas} filas (antes ${d.antes}), ${d.cambios} cambios anotados${d.borro ? '' : ' ⚠ llegaron menos de la mitad: no se borró nada'}`,
+            `· ${fuente}: ${d.filas} filas (había ${d.habia}, quitadas ${d.quitadas}), ${d.cambios} cambios anotados${completa ? '' : ' ⚠ llegaron menos de la mitad: no se borró nada'}`,
         );
+    }
+    if (f.estado.length) {
+        const n = await saveCopies(sb!, EMPRESA_RUC, copyRuns(f.estado, EMPRESA_RUC, new Date().toISOString()));
+        resumen.carga.COPIA = n;
+        console.log(`· COPIA: ${n} pestañas con una copia nueva`);
     }
 }
 

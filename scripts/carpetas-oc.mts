@@ -13,7 +13,7 @@
 // LUCY.pdf» sin número, una «INVOICE»), el archivo se abre y se lee POR
 // DENTRO: el XML o el ZIP del comprobante, el texto del PDF o, si es un
 // escaneo o una foto, OCR (src/shared/lib/drive/lectura.ts y extraer-texto.ts). Cada
-// archivo se lee una sola vez: lo leído queda en la base (lectura_archivo) y
+// archivo se lee una sola vez: lo leído queda en la base (tabla archivo) y
 // la noche siguiente solo se leen los nuevos o los que cambiaron.
 //
 // Además arma el LEGAJO de cada OC (qué documentos tiene y cuál le falta,
@@ -32,14 +32,17 @@
 // DOS FASES:
 //   • Depuración (DEBUG=1, por omisión): recorre (o solo la subcarpeta
 //     SUBCARPETA) y deja el resultado en scripts/out/salida/carpetas-oc/ y en el resumen
-//     de la corrida. No toca la base ni publica la hoja.
-//   • Real (DEBUG=0): además sube los archivos a la base (origen CARPETA) y
-//     publica la hoja «OC - CARPETAS COMPRAS NACIONALES».
+//     de la corrida. No escribe en la base (solo la lee; los cálculos quedan
+//     en calculos.json) ni publica la hoja.
+//   • Real (DEBUG=0): además guarda el recorrido en la base v2 (carpeta_oc y
+//     archivo, por lotes, y lo cierra si fue completo), calcula para toda la
+//     empresa el vínculo factura ↔ OC y las facturas sin OC (antes vinculos_oc
+//     y facturas_sin_oc en la base vieja), los guarda con guardar_calculos_oc
+//     y publica la hoja «OC - CARPETAS COMPRAS NACIONALES».
 
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
-import { createClient } from '@supabase/supabase-js';
 import { conectarDrive, publicarHoja, escribirPestana, explicarFallo, type Drive, type Hojas } from '../src/shared/lib/drive/servidor.ts';
 import type { TipoColumna } from '../src/shared/lib/export/comprobantes-sunat.ts';
 import { carpetaDeOC, clasificarArchivo, esComprobante, rucsEnNombre, type CarpetaDeOC, type Procedencia } from '../src/shared/lib/drive/carpetas-oc.ts';
@@ -50,9 +53,17 @@ import { Semaforo, procesarCola } from '../src/shared/lib/drive/cola.ts';
 // En la computadora (pnpm carpetas:local) la clave de la cuenta de servicio
 // viene de un archivo (GOOGLE_SA_KEY_FILE en .env.local), como en cpe:local.
 import { cargarClaveDeArchivo } from './local/comun/config.mts';
-import { clavesDeArchivo, type CentroDeCosto } from '../src/shared/lib/drive/legajo-carpeta.ts';
+import { clavesDeArchivo } from '../src/shared/lib/drive/legajo-carpeta.ts';
 import { analizarOCs, ccPrincipalPorOc, catalogoDeCG, type AnalisisOC, type ProyectoCC } from '../src/shared/lib/drive/analisis-carpetas.ts';
 import { compararFotos, type Cambio, type FotoArchivo, type FotoOC } from '../src/shared/lib/drive/cambios-carpetas.ts';
+// La base v2 (llave de servicio): lo que se lee, lo que se guarda y lo que se calcula (scripts/local/oc/).
+import { baseV2, type Base } from './local/oc/base.mts';
+import { costCentreSources, fileUrl, iso, plainName, previousPhoto, previousReadings, recentChanges, type FilaLectura } from './local/oc/carpetas.mts';
+import { approvalsSource, cgSource, type Fuente } from './local/oc/comparacion.mts';
+import { closeWalk, saveCalculations, saveChanges, saveWalk } from './local/oc/guardar.mts';
+import { readState } from './local/oc/estado.mts';
+import { calculate } from './local/oc/calculos.mts';
+import { legajoRows } from './local/oc/legajo.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
@@ -63,6 +74,7 @@ const DEBUG = process.env.DEBUG !== '0';
 // hoja, y la OC (nacional con 4 dígitos, importación con 3).
 const PROCEDENCIA: Procedencia = /^imp/i.test(process.env.PROCEDENCIA?.trim() ?? '') ? 'Importación' : 'Nacional';
 const IMPO = PROCEDENCIA === 'Importación';
+const PROC = IMPO ? 'IMPORTACION' : 'NACIONAL';
 const CARPETA_MADRE = process.env.CARPETA_MADRE?.trim() || (IMPO ? '1oJjtLinBgWej-ofRisFyheC29UwdicKi' : '1oGUtE0IhqwanRsmuuA7QlQRB_koZzOH3');
 // Parte del nombre de una carpeta de proyecto («TALLERES»): recorre solo esa.
 const SUBCARPETA = process.env.SUBCARPETA?.trim() ?? '';
@@ -292,20 +304,6 @@ async function recorrer(drive: Drive): Promise<void> {
 
 // ── La lectura por dentro ─────────────────────────────────────────
 
-/** Una fila de lectura_archivo: lo leído de un archivo, para no volver a leerlo. */
-type FilaLectura = {
-    archivo_id: string;
-    modificado: string;
-    estado: string;
-    metodo: string;
-    tipo: string;
-    serie: string;
-    ruc: string;
-    claves: string;
-    oc_referencia: string;
-    detalle: string;
-};
-
 const deFila = (f: FilaLectura): Lectura => ({
     estado: f.estado as Lectura['estado'],
     metodo: (f.metodo ?? '') as Lectura['metodo'],
@@ -424,14 +422,10 @@ async function leerPorDentro(drive: Drive, sb: Base | null): Promise<void> {
     if (!h.pdf) lectura.avisos.push('falta pdftotext (poppler-utils): los PDF se leen solo por OCR');
     if (!h.ocr) lectura.avisos.push('falta tesseract con español: los escaneos y fotos no se leen');
 
-    const anteriores = new Map<string, FilaLectura>();
+    let anteriores = new Map<string, FilaLectura>();
     if (sb) {
         try {
-            for (const f of await todas<FilaLectura>(sb, 'lectura_archivo', 'archivo_id,modificado,estado,metodo,tipo,serie,ruc,claves,oc_referencia,detalle', [
-                'archivo_id',
-            ])) {
-                anteriores.set(f.archivo_id, f);
-            }
+            anteriores = await previousReadings(sb);
         } catch (e) {
             lectura.avisos.push(`no se pudo traer lo leído antes (${e instanceof Error ? e.message : e}): se lee todo de nuevo`);
         }
@@ -445,7 +439,7 @@ async function leerPorDentro(drive: Drive, sb: Base | null): Promise<void> {
         if (p < 0) continue;
         lectura.candidatos++;
         const antes = anteriores.get(a.id);
-        if (antes && antes.modificado === a.modificadoIso && antes.estado !== 'ERROR') {
+        if (antes && antes.modificado === iso(a.modificadoIso) && antes.estado !== 'ERROR') {
             a.lectura = deFila(antes);
             lectura.deAntes++;
             continue;
@@ -731,125 +725,33 @@ function csv(filas: string[][]): string {
 
 // ── La base ─────────────────────────────────────────────────────────
 
-/** Una variable del entorno; si falta, un error (en depuración la base es opcional). */
-function leer(...nombres: string[]): string {
-    for (const n of nombres) {
-        const v = (process.env[n] ?? '').trim();
-        if (v) return v;
-    }
-    throw new Error(`falta ${nombres.join(' o ')} en el entorno`);
-}
-
-function clienteSupabase() {
-    return createClient(leer('SUPABASE_URL', 'PROJECT_URL'), leer('SUPABASE_ANON_KEY', 'ANON_KEY'), {
-        auth: { autoRefreshToken: false, persistSession: false },
-    });
-}
-type Base = ReturnType<typeof clienteSupabase>;
-
-async function entrarALaBase(): Promise<Base> {
-    const sb = clienteSupabase();
-    const { error } = await sb.auth.signInWithPassword({ email: leer('ROBOT_CORREO'), password: leer('ROBOT_CLAVE') });
-    if (error) throw new Error(`No se pudo entrar como el robot: ${error.message}`);
-    return sb;
-}
-
-/**
- * Todas las filas de una tabla, de a 1000 (el tope de cada consulta). Con un
- * orden fijo: sin él, dos páginas pueden repetir o saltarse filas.
- */
-// El tipo exacto de la consulta de Supabase cambia con cada filtro; aquí basta con que tenga eq/like/gte/order/range.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Consulta = any;
-
-async function todas<T>(sb: Base, tabla: string, columnas: string, orden: string[], filtro: (q: Consulta) => Consulta = (q) => q): Promise<T[]> {
-    const salida: T[] = [];
-    for (let desde = 0; ; desde += 1000) {
-        let q = filtro(sb.from(tabla).select(columnas));
-        for (const c of orden) q = q.order(c);
-        const { data, error } = await q.range(desde, desde + 999);
-        if (error) throw new Error(`${tabla}: ${error.message}`);
-        salida.push(...(data as T[]));
-        if (!data || data.length < 1000) return salida;
-    }
-}
-
-const idDeCarpeta = (url: string) => /\/folders\/([\w-]{10,})/.exec(url ?? '')?.[1] ?? '';
-/** «115-2026» → «0115-2026», como en la base de CG; vacío si no es una OC. */
-const oc4 = (t: string) => {
-    const m = /(\d{1,5})\s*-\s*(20\d\d)/.exec(t ?? '');
-    return m ? `${m[1].padStart(4, '0')}-${m[2]}` : '';
-};
-
-/** Lo que otra fuente sabe de cada OC: si la tiene, a qué carpeta enlaza y cuántos comprobantes se vieron ahí. */
-type Fuente = {
-    nombre: string;
-    corto: string;
-    archivo: string;
-    listado: Set<string>;
-    enlaces: Map<string, Set<string>>;
-    comprobantes: Map<string, number>;
-};
-
-function anotar(f: Fuente, oc: string, url: string, parece?: string) {
-    const id = idDeCarpeta(url);
-    if (id) f.enlaces.set(oc, (f.enlaces.get(oc) ?? new Set()).add(id));
-    if (parece !== undefined && esComprobante(parece)) f.comprobantes.set(oc, (f.comprobantes.get(oc) ?? 0) + 1);
-}
-
-/**
- * Nacionales: Control de Gestión (oc_base_cg) y lo que la captura encontró
- * siguiendo sus enlaces (oc_archivo, origen CAPTURA).
- */
-async function fuenteCG(sb: Base): Promise<Fuente> {
-    const f: Fuente = {
-        nombre: 'Frente a Control de Gestión',
-        corto: 'CG',
-        archivo: 'comparacion-cg.csv',
-        listado: new Set((await todas<{ oc: string }>(sb, 'oc_base_cg', 'oc', ['oc', 'cc_codigo', 'cc_nombre'])).map((r) => r.oc)),
-        enlaces: new Map(),
-        comprobantes: new Map(),
-    };
-    const captura = await todas<{ oc: string; carpeta_url: string; parece: string }>(sb, 'oc_archivo', 'oc,carpeta_url,parece', ['oc', 'url'], (q) =>
-        q.eq('origen', 'CAPTURA'),
+/** Lo que este recorrido vio, como lo guarda guardar_carpetas_oc: cada carpeta de OC y sus archivos. */
+function filasDelRecorrido(porCarpeta: Map<string, Archivo[]>) {
+    const lista = [...ocs.values()];
+    const carpetas = lista.map((o) => ({
+        drive_id: o.carpetaId,
+        procedencia: PROC,
+        oc: o.oc,
+        nombre: o.carpetaNombre,
+        tipo: o.tipo,
+        proveedor: o.proveedor || null,
+        proyecto: o.proyecto || null,
+        proyecto_carpeta: o.proyectoCarpeta || null,
+        archivos: (porCarpeta.get(o.carpetaId) ?? []).length,
+    }));
+    const deArchivos = lista.flatMap((o) =>
+        (porCarpeta.get(o.carpetaId) ?? []).map((a) => ({
+            drive_id: a.id,
+            carpeta_id: o.carpetaId,
+            nombre: a.nombre,
+            mime: a.mime || null,
+            modificado: a.modificadoIso || null,
+            parece: a.parece || null,
+            serie_en_nombre: a.serie || null,
+            rucs_en_nombre: a.rucs,
+        })),
     );
-    for (const r of captura) {
-        for (const o of String(r.oc ?? '')
-            .split(' / ')
-            .map(oc4)
-            .filter(Boolean))
-            anotar(f, o, r.carpeta_url, r.parece ?? '');
-    }
-    return f;
-}
-
-/**
- * Importaciones: el cuadro de aprobaciones, como lo dejó el legajo
- * (oc_legajo y oc_archivo con origen LEGAJO). Ahí la OC ya viene con 3 dígitos.
- */
-async function fuenteCuadro(sb: Base): Promise<Fuente> {
-    const f: Fuente = {
-        nombre: 'Frente al cuadro de aprobaciones (legajo)',
-        corto: 'cuadro',
-        archivo: 'comparacion-cuadro.csv',
-        listado: new Set(),
-        enlaces: new Map(),
-        comprobantes: new Map(),
-    };
-    const legajo = await todas<{ oc: string; carpeta_url: string }>(sb, 'oc_legajo', 'oc,carpeta_url', ['oc', 'carpeta_url'], (q) =>
-        q.eq('procedencia', 'Importación'),
-    );
-    for (const r of legajo) {
-        f.listado.add(r.oc);
-        anotar(f, r.oc, r.carpeta_url);
-    }
-    const archivos = await todas<{ oc: string; parece: string }>(sb, 'oc_archivo', 'oc,parece', ['oc', 'url'], (q) => q.eq('origen', 'LEGAJO'));
-    for (const r of archivos) {
-        for (const o of String(r.oc ?? '').split(' / ')) {
-            if (f.listado.has(o) && esComprobante(r.parece ?? '')) f.comprobantes.set(o, (f.comprobantes.get(o) ?? 0) + 1);
-        }
-    }
-    return f;
+    return [carpetas, deArchivos] as const;
 }
 
 /**
@@ -933,74 +835,6 @@ function comparar(f: Fuente, porCarpeta: Map<string, Archivo[]>, completo: boole
     ].join('\n');
 }
 
-async function subirALaBase(sb: Base, porCarpeta: Map<string, Archivo[]>, analisis: Map<string, AnalisisOC>, completo: boolean) {
-    const carpetas = [...ocs.values()].map((o) => {
-        const l = porCarpeta.get(o.carpetaId) ?? [];
-        const a = analisis.get(o.carpetaId);
-        return {
-            ccCodigo: a?.cc.codigo ?? '',
-            ccNombre: a?.cc.nombre ?? '',
-            ccFuente: a?.cc.fuente ?? '',
-            documentos: a?.documentos ?? '',
-            leFalta: a?.docs.leFalta.join(', ') ?? '',
-            estado: a?.docs.estado ?? '',
-            oc: o.oc,
-            tipo: o.tipo,
-            proveedor: o.proveedor,
-            proyecto: o.proyecto,
-            proyectoCarpeta: o.proyectoCarpeta,
-            archivos: l.length,
-            comprobantes: l.filter(esComprobanteArch).length,
-            series: [...new Set(l.map(serieDe).filter(Boolean))].join(' / '),
-            rucs: [...new Set(l.flatMap((a) => a.rucs))].join(' / '),
-            carpetaUrl: urlCarpeta(o.carpetaId),
-            carpetaNombre: o.carpetaNombre,
-        };
-    });
-    const deArchivos = [...ocs.values()].flatMap((o) =>
-        (porCarpeta.get(o.carpetaId) ?? []).map((a) => {
-            const l = a.lectura;
-            return {
-                oc: o.oc,
-                proveedorRuc: a.rucs.join(' / '),
-                proveedor: o.proveedor,
-                carpetaUrl: urlCarpeta(o.carpetaId),
-                nombre: a.nombre,
-                url: a.url,
-                tipoArchivo: a.mime,
-                serie: a.serie,
-                // Si el nombre no decía que era un comprobante y la lectura sí lo encontró, manda la lectura.
-                parece: l?.estado === 'LEÍDO' && !esComprobante(a.parece) ? l.tipo : a.parece,
-                estadoLectura: l?.estado ?? '',
-                rucLeido: l?.ruc ?? '',
-                serieLeida: l?.estado === 'LEÍDO' ? l.serie : '',
-                modificado: a.modificadoIso,
-            };
-        }),
-    );
-
-    // Solo una corrida completa y sin fallas reemplaza lo anterior; si no, se suma.
-    for (const [parte, filas] of [
-        ['CARPETAS', carpetas],
-        ['ARCHIVOS', deArchivos],
-    ] as const) {
-        let total = 0;
-        for (let i = 0; i < filas.length; i += 1000) {
-            const { data, error: e } = await sb.rpc('cargar_carpetas_oc', {
-                p_empresa_ruc: EMPRESA_RUC,
-                p_parte: parte,
-                p_filas: filas.slice(i, i + 1000).map((f) => ({ ...f, procedencia: PROCEDENCIA })),
-                p_desde_cero: completo && i === 0,
-            });
-            if (e) throw new Error(`cargar_carpetas_oc (${parte}): ${e.message}`);
-            total += Number(data ?? 0);
-        }
-        console.log(
-            `✓ Base: ${total} filas de ${parte === 'CARPETAS' ? 'carpetas de OC' : 'archivos'}${completo ? ' (reemplazó lo anterior)' : ' (sumadas a lo anterior)'}`,
-        );
-    }
-}
-
 // ── El legajo de cada OC: documentos y centro de costo ─────────────
 
 /**
@@ -1009,35 +843,12 @@ async function subirALaBase(sb: Base, porCarpeta: Map<string, Archivo[]>, analis
  * importaciones), el catálogo de CG y lo que Contabilidad corrigió a mano.
  */
 async function datosDeCentroDeCosto(sb: Base) {
-    const cg = await todas<{ oc: string; cc_codigo: string | null; cc_nombre: string | null; lineas: number | null }>(
-        sb,
-        'oc_base_cg',
-        'oc,cc_codigo,cc_nombre,lineas',
-        ['oc', 'cc_codigo', 'cc_nombre'],
-        (q) => q.eq('empresa_ruc', EMPRESA_RUC),
-    );
-    let ccPorOc = ccPrincipalPorOc(cg);
-    if (IMPO) {
-        const leg = await todas<{ oc: string; cc_codigo: string | null; cc_nombre: string | null }>(
-            sb,
-            'oc_legajo',
-            'oc,cc_codigo,cc_nombre',
-            ['oc', 'carpeta_url'],
-            (q) => q.eq('empresa_ruc', EMPRESA_RUC).eq('procedencia', 'Importación'),
-        );
-        ccPorOc = new Map();
-        for (const l of leg) if (l.cc_nombre && !ccPorOc.has(l.oc)) ccPorOc.set(l.oc, { codigo: l.cc_codigo ?? '', nombre: l.cc_nombre });
-    }
-    const manuales = await todas<{ proyecto_carpeta: string; cc_codigo: string | null; cc_nombre: string | null }>(
-        sb,
-        'proyecto_centro_costo',
-        'proyecto_carpeta,cc_codigo,cc_nombre',
-        ['proyecto_carpeta'],
-        (q) => q.eq('empresa_ruc', EMPRESA_RUC).eq('procedencia', PROCEDENCIA).eq('fuente', 'MANUAL'),
-    );
-    const manual = new Map<string, CentroDeCosto>(
-        manuales.filter((m) => m.cc_nombre).map((m) => [m.proyecto_carpeta.trim(), { codigo: m.cc_codigo ?? '', nombre: m.cc_nombre! }]),
-    );
+    const { cg, approvals, manual } = await costCentreSources(sb, EMPRESA_RUC, PROC);
+    // El principal de CG: el de más líneas y, a igualdad, el primero por código (él, 22/10/2026: como
+    // la base vieja, que leía oc_base_cg ordenada por cc_codigo; un área, «-», va primero).
+    const porCodigo = (a: { cc_codigo: string | null; cc_nombre: string | null }, z: typeof a) =>
+        (a.cc_codigo ?? '') < (z.cc_codigo ?? '') ? -1 : (a.cc_codigo ?? '') > (z.cc_codigo ?? '') ? 1 : (a.cc_nombre ?? '') < (z.cc_nombre ?? '') ? -1 : 1;
+    const ccPorOc = IMPO ? approvals : ccPrincipalPorOc(cg.filter((r) => r.procedencia === 'NACIONAL').sort(porCodigo));
     return { ccPorOc, catalogo: catalogoDeCG(cg), manual };
 }
 
@@ -1072,43 +883,6 @@ function filasDeCentroDeCosto(proyectos: ProyectoCC[]): string[][] {
 
 // ── Qué cambió desde la corrida anterior ──────────────────────────
 
-/** La foto que dejó en la base la corrida anterior de esta carpeta madre. */
-async function fotoAnterior(sb: Base): Promise<{ ocs: FotoOC[]; archivos: FotoArchivo[] }> {
-    const ocsAntes = await todas<{
-        oc: string;
-        carpeta_url: string;
-        carpeta_nombre: string | null;
-        proveedor: string | null;
-        le_falta: string | null;
-        estado: string | null;
-    }>(sb, 'oc_carpeta', 'oc,carpeta_url,carpeta_nombre,proveedor,le_falta,estado', ['oc', 'carpeta_url'], (q) =>
-        q.eq('empresa_ruc', EMPRESA_RUC).eq('procedencia', PROCEDENCIA),
-    );
-    // La OC nacional tiene 4 dígitos y la de importación 3: así se separan en oc_archivo.
-    const archivosAntes = await todas<{ oc: string; carpeta_url: string | null; url: string; nombre: string; modificado: string | null }>(
-        sb,
-        'oc_archivo',
-        'oc,carpeta_url,url,nombre,modificado',
-        ['oc', 'url'],
-        (q) =>
-            q
-                .eq('empresa_ruc', EMPRESA_RUC)
-                .eq('origen', 'CARPETA')
-                .like('oc', IMPO ? '___-%' : '____-%'),
-    );
-    return {
-        ocs: ocsAntes.map((o) => ({
-            oc: o.oc,
-            carpetaUrl: o.carpeta_url,
-            carpetaNombre: o.carpeta_nombre ?? '',
-            proveedor: o.proveedor ?? '',
-            leFalta: o.le_falta ?? '',
-            estado: o.estado ?? '',
-        })),
-        archivos: archivosAntes.map((a) => ({ oc: a.oc, carpetaUrl: a.carpeta_url ?? '', url: a.url, nombre: a.nombre, modificado: a.modificado ?? '' })),
-    };
-}
-
 function fotoActual(porCarpeta: Map<string, Archivo[]>, analisis: Map<string, AnalisisOC>): { ocs: FotoOC[]; archivos: FotoArchivo[] } {
     const lista = [...ocs.values()];
     return {
@@ -1117,7 +891,7 @@ function fotoActual(porCarpeta: Map<string, Archivo[]>, analisis: Map<string, An
             return {
                 oc: o.oc,
                 carpetaUrl: urlCarpeta(o.carpetaId),
-                carpetaNombre: o.carpetaNombre,
+                carpetaNombre: plainName(o.carpetaNombre),
                 proveedor: o.proveedor,
                 leFalta: a?.docs.leFalta.join(', ') ?? '',
                 estado: a?.docs.estado ?? '',
@@ -1127,9 +901,10 @@ function fotoActual(porCarpeta: Map<string, Archivo[]>, analisis: Map<string, An
             (porCarpeta.get(o.carpetaId) ?? []).map((a) => ({
                 oc: o.oc,
                 carpetaUrl: urlCarpeta(o.carpetaId),
-                url: a.url,
-                nombre: a.nombre,
-                modificado: a.modificadoIso,
+                // Por el id, como la foto anterior que sale de la base.
+                url: fileUrl(a.id),
+                nombre: plainName(a.nombre),
+                modificado: iso(a.modificadoIso),
             })),
         ),
     };
@@ -1229,6 +1004,44 @@ function resumenDeCambios(cambios: Cambio[], nota: string): string {
     ].join('\n');
 }
 
+// ── Lo calculado ────────────────────────────────────────────────────
+
+/** Lo que el recorrido contó en una carpeta, como lo guardaba la base vieja (oc_carpeta). */
+function contado(l: Archivo[]) {
+    return {
+        comprobantes: l.filter(esComprobanteArch).length,
+        series: [...new Set(l.map(serieDe).filter(Boolean))].join(' / '),
+        rucs: [...new Set(l.flatMap((a) => a.rucs))].join(' / '),
+    };
+}
+
+/**
+ * Lo que la base vieja recalculaba en cada lectura, calculado aquí con lo que ya está en la base
+ * (todos los recorridos): vínculo factura ↔ OC, facturas sin OC, y de esta carpeta madre el legajo
+ * de cada OC y carpeta y la regla de cada carpeta de proyecto. Sin `guardar`, solo en seco.
+ */
+async function calcularYGuardar(sb: Base, porCarpeta: Map<string, Archivo[]>, analisis: Map<string, AnalisisOC>, proyectos: ProyectoCC[], guardar: boolean) {
+    const estado = await readState(sb, EMPRESA_RUC);
+    const calc = calculate(estado);
+    const folders = [...ocs.values()].map((o) => ({
+        folderId: o.carpetaId,
+        oc: o.oc,
+        tipo: o.tipo,
+        files: (porCarpeta.get(o.carpetaId) ?? []).map((a) => clavesDeArchivo(a.parece, a.lectura?.claves)),
+        counted: contado(porCarpeta.get(o.carpetaId) ?? []),
+    }));
+    const legajo = legajoRows({ procedencia: PROC, folders, analysis: analisis, projects: proyectos }, estado, calc.links);
+    const p = { vinculos: calc.vinculos, sinOc: calc.sinOc, ...legajo };
+    const cuenta = `${p.vinculos.length} vínculos factura ↔ OC, ${p.sinOc.length} facturas sin OC (ALTA o MEDIA), ${p.ordenes.length} OC, ${p.carpetas.length} carpetas, ${p.reglas.length} reglas`;
+    if (!guardar) {
+        writeFileSync(join(SALIDA, 'calculos.json'), JSON.stringify(p, null, 1));
+        console.log(`· Cálculos en seco (calculos.json): ${cuenta}`);
+        return;
+    }
+    const r = await saveCalculations(sb, EMPRESA_RUC, p, true);
+    console.log(`✓ Base: ${cuenta} → ${JSON.stringify(r)}`);
+}
+
 // ── Principal ───────────────────────────────────────────────────────
 
 async function main() {
@@ -1250,20 +1063,38 @@ async function main() {
 
     await recorrer(drive);
     const finRecorrido = Date.now();
+    const porCarpeta = agruparPorCarpeta();
+    // Qué cambió: solo con dos fotos completas (si no, lo no visto parecería eliminado).
+    const completo = !SUBCARPETA && fallos.length === 0;
 
-    // La base: para no releer lo ya leído, para comparar con CG y para subir.
+    // La base: para no releer lo ya leído, para comparar con CG y para guardar.
     // En depuración es opcional (si no hay acceso, se lee todo y no se compara).
     let sb: Base | null = null,
-        sinBase = '';
+        sinBase = '',
+        antes: Awaited<ReturnType<typeof previousPhoto>> | null = null;
     try {
-        sb = await entrarALaBase();
+        const base = baseV2();
+        // La foto de la corrida anterior, antes de que este recorrido la reemplace.
+        if (completo) antes = await previousPhoto(base, EMPRESA_RUC, PROC);
+        sb = base;
     } catch (e) {
         if (!DEBUG) throw e;
         sinBase = e instanceof Error ? e.message : String(e);
     }
+    // Lo que no vuelva a ver este recorrido desde aquí deja de ser suyo al cerrarlo (con margen
+    // por si el reloj de la máquina y el de la base no coinciden).
+    const inicioGuardado = new Date(Date.now() - 5 * 60_000);
+    if (!DEBUG) {
+        if (!ocs.size) {
+            console.error('✗ No se encontró ninguna carpeta de OC: no se toca la base ni la hoja.');
+            process.exit(1);
+        }
+        // Primero el recorrido: lo leído por dentro se guarda sobre su archivo, que ya tiene que estar.
+        const g = await saveWalk(sb!, EMPRESA_RUC, ...filasDelRecorrido(porCarpeta));
+        console.log(`✓ Base: ${g.carpetas} carpetas de OC y ${g.archivos} archivos de este recorrido`);
+    }
 
     await leerPorDentro(drive, sb);
-    const porCarpeta = agruparPorCarpeta();
 
     // El legajo de cada OC y su centro de costo.
     let datosCC: Awaited<ReturnType<typeof datosDeCentroDeCosto>> | null = null,
@@ -1279,17 +1110,12 @@ async function main() {
     const { porOc: analisis, proyectos } = analizar(porCarpeta, datosCC);
     const { filasOcs, filasArchivos } = tablas(porCarpeta, analisis);
 
-    // Qué cambió: solo con dos fotos completas (si no, lo no visto parecería eliminado).
-    const completo = !SUBCARPETA && fallos.length === 0;
     let cambios: Cambio[] = [],
         notaCambios = '';
     if (!completo) notaCambios = 'corrida parcial (una subcarpeta o carpetas sin leer): no se comparan cambios';
-    else if (!sb) notaCambios = 'sin acceso a la base: no se comparan cambios';
-    else {
-        const antes = await fotoAnterior(sb);
-        if (!antes.ocs.length) notaCambios = 'primera carga: desde la próxima corrida se anota lo que cambie';
-        else cambios = compararFotos(antes, fotoActual(porCarpeta, analisis));
-    }
+    else if (!antes) notaCambios = 'sin acceso a la base: no se comparan cambios';
+    else if (!antes.ocs.length) notaCambios = 'primera carga: desde la próxima corrida se anota lo que cambie';
+    else cambios = compararFotos(antes, fotoActual(porCarpeta, analisis));
 
     // Lo que quedó fuera de una carpeta de OC: para ver si hay nombres que no se entienden.
     const sueltos = archivos.filter((a) => !a.oc);
@@ -1356,7 +1182,7 @@ async function main() {
     let comparacion: string;
     try {
         if (!sb) throw new Error(sinBase);
-        comparacion = comparar(IMPO ? await fuenteCuadro(sb) : await fuenteCG(sb), porCarpeta, !SUBCARPETA);
+        comparacion = comparar(IMPO ? await approvalsSource(sb, EMPRESA_RUC) : await cgSource(sb, EMPRESA_RUC), porCarpeta, !SUBCARPETA);
     } catch (e) {
         if (!DEBUG) throw e;
         comparacion = `_No se pudo comparar con ${IMPO ? 'el cuadro' : 'CG'}: ${e instanceof Error ? e.message : e}_`;
@@ -1402,44 +1228,22 @@ async function main() {
         `✓ Resultado en ${SALIDA} (ocs.csv, archivos.csv, lecturas.csv, centro-de-costo.csv, cambios.csv, fuera-de-oc.csv, comparacion-*.csv, resumen.md)`,
     );
 
-    if (DEBUG) return;
+    if (DEBUG) {
+        // En depuración los cálculos se hacen igual (solo leyendo la base) y quedan en el artefacto.
+        if (sb) await calcularYGuardar(sb, porCarpeta, analisis, proyectos, false).catch((e) => console.log(`⚠ cálculos en seco: ${explicarFallo(e)}`));
+        return;
+    }
 
-    if (!ocs.size) {
-        console.error('✗ No se encontró ninguna carpeta de OC: no se toca la base ni la hoja.');
-        process.exit(1);
+    if (cambios.length) {
+        await saveChanges(sb!, EMPRESA_RUC, PROC, cambios);
+        console.log(`✓ Base: ${cambios.length} cambios anotados`);
     }
-    await subirALaBase(sb!, porCarpeta, analisis, completo);
-
-    // La regla de cada carpeta de proyecto (sin pisar lo corregido a mano).
-    if (proyectos.length) {
-        const { data, error } = await sb!.rpc('guardar_centro_costo_proyectos', {
-            p_empresa_ruc: EMPRESA_RUC,
-            p_filas: proyectos
-                .filter((p) => !p.manual)
-                .map((p) => ({
-                    procedencia: PROCEDENCIA,
-                    proyectoCarpeta: p.proyectoCarpeta,
-                    ccCodigo: p.codigo,
-                    ccNombre: p.nombre,
-                    fuente: p.fuente,
-                    detalle: p.detalle,
-                    revisar: p.revisar,
-                    ocs: p.ocs,
-                    ocsEnCg: p.ocsEnCg,
-                })),
-        });
-        if (error) throw new Error(`guardar_centro_costo_proyectos: ${error.message}`);
-        console.log(`✓ Base: centro de costo de ${data} carpetas de proyecto`);
-    }
-    for (let i = 0; i < cambios.length; i += 500) {
-        const { error } = await sb!.rpc('guardar_cambios_carpetas', {
-            p_empresa_ruc: EMPRESA_RUC,
-            p_procedencia: PROCEDENCIA,
-            p_filas: cambios.slice(i, i + 500),
-        });
-        if (error) throw new Error(`guardar_cambios_carpetas: ${error.message}`);
-    }
-    if (cambios.length) console.log(`✓ Base: ${cambios.length} cambios anotados`);
+    // Solo un recorrido completo y sin fallas quita lo que ya no está; si no, se suma.
+    if (completo) {
+        const c = await closeWalk(sb!, EMPRESA_RUC, PROC, inicioGuardado);
+        console.log(`✓ Base: recorrido cerrado (${c.carpetas_quitadas} carpetas y ${c.archivos_quitados} archivos que ya no están)`);
+    } else console.log('· Corrida parcial: no se quita de la base lo que este recorrido no vio');
+    await calcularYGuardar(sb!, porCarpeta, analisis, proyectos, true);
 
     const hoja = await publicarHoja({ filas: [CAB_OCS, ...filasOcs], nombre: NOMBRE_HOJA, carpetas: CARPETAS_HOJA, tipos: TIPOS_OCS });
     await asegurarPestana(hojas, hoja.id, 'ARCHIVOS');
@@ -1448,17 +1252,7 @@ async function main() {
     await escribirPestana(hojas, hoja.id, 'CENTRO DE COSTO', [CAB_CC, ...filasDeCentroDeCosto(proyectos)], TIPOS_CC);
     // Los cambios de los últimos 60 días, del más nuevo al más viejo.
     const desde = new Date(Date.now() - 60 * 86400_000).toISOString();
-    const ultimos = await todas<{
-        fecha: string;
-        oc: string;
-        tipo: string;
-        detalle: string | null;
-        enlace: string | null;
-        carpeta_url: string | null;
-        id: number;
-    }>(sb!, 'carpeta_cambio', 'id,fecha,oc,tipo,detalle,enlace,carpeta_url', ['id'], (q) =>
-        q.eq('empresa_ruc', EMPRESA_RUC).eq('procedencia', PROCEDENCIA).gte('fecha', desde),
-    );
+    const ultimos = await recentChanges(sb!, PROC, desde);
     await asegurarPestana(hojas, hoja.id, 'CAMBIOS');
     await escribirPestana(
         hojas,

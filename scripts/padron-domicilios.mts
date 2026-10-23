@@ -2,9 +2,9 @@
 //
 // SUNAT publica cada día un archivo con todos los RUC del país
 // (padron_reducido_ruc.zip, ~400 MB). Esto lo baja, lo lee de corrido sin
-// descomprimirlo a disco (unzip -p) y guarda en ruc_domicilio solo los RUC
-// que nos importan (rucs_para_domicilio: proveedores, clientes, Base de
-// Compras). Los nombres del ubigeo (San Isidro, Lima…) salen de la lista del
+// descomprimirlo a disco (unzip -p) y guarda en la base v2 (columnas de
+// domicilio de `contribuyente`, comun/padron.mts) solo los RUC que nos
+// importan: los de `contribuyente` (proveedores, clientes, Base de Compras). Los nombres del ubigeo (San Isidro, Lima…) salen de la lista del
 // INEI del paquete npm «ubigeo-peru», que se baja en cada corrida (no se
 // guarda en el repositorio).
 //
@@ -12,7 +12,7 @@
 // Contabilidad (06/10/2026): ver dónde está cada proveedor sin entrar a la
 // Consulta RUC.
 //
-// Variables: SUPABASE_URL, SUPABASE_ANON_KEY, ROBOT_CORREO, ROBOT_CLAVE.
+// Variables: SUPABASE_URL_V2, SUPABASE_SECRET_KEY.
 //   DEBUG=1            solo lee y escribe scripts/out/salida/padron-domicilios/domicilios.json, sin tocar la base.
 //   PADRON_ZIP=ruta    usa un zip ya bajado (para probar sin bajar 400 MB).
 //   RUCS=ruc1,ruc2     en vez de pedir la lista a la base.
@@ -23,7 +23,8 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { createClient } from '@supabase/supabase-js';
+import { base } from './local/comun/base.mts';
+import { rucsForAddress, saveAddresses } from './local/comun/padron.mts';
 import { leerLineaPadron, lugarDeUbigeo, ubigeosDesdeLista, type Ubigeos } from '../src/shared/lib/sunat/padron-reducido.ts';
 
 const DEBUG = process.env.DEBUG === '1';
@@ -31,15 +32,6 @@ const URL_PADRON = 'http://www2.sunat.gob.pe/padron_reducido_ruc.zip';
 const URL_UBIGEO = 'https://registry.npmjs.org/ubigeo-peru/-/ubigeo-peru-2.0.2.tgz';
 const SALIDA = join(process.cwd(), 'scripts', 'out', 'salida', 'padron-domicilios');
 mkdirSync(SALIDA, { recursive: true });
-
-function leer(...nombres: string[]): string {
-    for (const n of nombres) {
-        const v = (process.env[n] ?? '').trim();
-        if (v) return v;
-    }
-    console.error(`✗ Falta ${nombres.join(' o ')} en el entorno.`);
-    process.exit(1);
-}
 
 /** Corre un programa y devuelve lo que escribió (para tar). */
 function correr(cmd: string, args: string[], entrada?: Buffer): Promise<Buffer> {
@@ -72,17 +64,7 @@ async function bajarPadron(): Promise<string> {
     return destino;
 }
 
-const sb =
-    DEBUG && process.env.RUCS
-        ? null
-        : createClient(leer('SUPABASE_URL', 'PROJECT_URL'), leer('SUPABASE_ANON_KEY', 'ANON_KEY'), { auth: { persistSession: false } });
-if (sb) {
-    const { error } = await sb.auth.signInWithPassword({ email: leer('ROBOT_CORREO'), password: leer('ROBOT_CLAVE') });
-    if (error) {
-        console.error(`✗ No se pudo entrar a la base: ${error.message}`);
-        process.exit(1);
-    }
-}
+const sb = DEBUG && process.env.RUCS ? null : base();
 
 // A quién buscar.
 let buscados: Set<string>;
@@ -93,17 +75,12 @@ if (process.env.RUCS?.trim()) {
             .filter((r) => /^\d{11}$/.test(r)),
     );
 } else {
-    // La base entrega de a 1000 filas: se pide por páginas hasta que no venga ninguna.
-    buscados = new Set();
-    for (let desde = 0; ; desde += 1000) {
-        const { data, error } = await sb!.rpc('rucs_para_domicilio').range(desde, desde + 999);
-        if (error) {
-            console.error(`✗ rucs_para_domicilio: ${error.message}`);
-            process.exit(1);
-        }
-        const pagina = (data ?? []) as Array<{ ruc: string }>;
-        pagina.forEach((f) => buscados.add(f.ruc));
-        if (pagina.length < 1000) break;
+    // La base entrega de a 1000 filas: rucsForAddress pide por páginas hasta que no venga ninguna.
+    try {
+        buscados = new Set(await rucsForAddress(sb!));
+    } catch (e) {
+        console.error(`✗ No se pudo leer a quién buscar: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
     }
 }
 console.log(`· ${buscados.size} RUC por buscar en el padrón`);
@@ -148,12 +125,10 @@ if (!filas.length) {
 }
 
 let guardados = 0;
-for (let i = 0; i < filas.length; i += 1000) {
-    const { data, error } = await sb.rpc('guardar_domicilios_ruc', { p_filas: filas.slice(i, i + 1000) });
-    if (error) {
-        console.error(`✗ guardar_domicilios_ruc: ${error.message}`);
-        process.exit(1);
-    }
-    guardados += Number(data) || 0;
+try {
+    guardados = await saveAddresses(sb, filas);
+} catch (e) {
+    console.error(`✗ No se guardaron los domicilios: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
 }
 console.log(`✓ ${guardados} domicilios guardados en la base`);

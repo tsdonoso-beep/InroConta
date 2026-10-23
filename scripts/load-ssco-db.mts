@@ -1,15 +1,14 @@
-// Loads SUNAT's list of «sujetos sin capacidad operativa» (SSCO) into Supabase (ruc_ssco,
-// migration 069), replacing the previous list. The view reads it with ssco_json.
+// Loads SUNAT's list of «sujetos sin capacidad operativa» (SSCO) into the v2 base (lista_ssco),
+// replacing the previous list, and flags contribuyente.ssco in the same transaction.
 //
 //   pnpm ssco:db data/sujesincapacidadOperativa.xlsx     parse, then replace the list in the base
 //   pnpm ssco:db --dry-run                               parse the newest .xlsx in data/ and stop
 //
 // load_ssco replaces the whole list in one transaction and refuses a file with less than half
-// the RUC already loaded (a cut download, not SUNAT emptying the list). Signs in as the robot.
+// the RUC already loaded (a cut download, not SUNAT emptying the list). Uses the v2 service key.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { base } from './local/comun/base.mts';
-import { alsoInV2 } from './local/comun/v2.mts';
 import { parseSsco } from '../src/shared/lib/sunat/ssco.ts';
 import { readFirstSheet } from '../src/shared/lib/xlsx/read-sheet.ts';
 
@@ -47,17 +46,17 @@ async function main(): Promise<void> {
     }
     if (!rows.length) throw new Error('The file has no RUC: the list in the base is left as it was.');
 
-    const sb = await base();
+    const sb = base();
     const { data, error } = await sb.rpc('load_ssco', { p_rows: rows });
     if (error) {
         console.error('✗ load_ssco failed:', { code: error.code, message: error.message, details: error.details, hint: error.hint });
-        if (error.code === 'PGRST202') console.error('  The function does not exist yet: apply migration 069_sujetos_sin_capacidad_operativa.sql.');
         process.exit(1);
     }
-    await alsoInV2('load_ssco', { p_rows: rows });
-    const r = data as { loaded: number; removed: number };
-    const { count } = await sb.from('ruc_ssco').select('ruc', { count: 'exact', head: true });
-    console.log(`✓ ${r.loaded} RUC loaded, ${r.removed} removed; ruc_ssco now has ${count} (list as of ${latest}).`);
+    const r = data as { loaded: number; removed: number; flagsChanged: number };
+    const { count } = await sb.from('lista_ssco').select('ruc', { count: 'exact', head: true });
+    console.log(
+        `✓ ${r.loaded} RUC loaded, ${r.removed} removed, ${r.flagsChanged} contribuyente flags changed; lista_ssco now has ${count} (list as of ${latest}).`,
+    );
 }
 
 main().catch((e) => {

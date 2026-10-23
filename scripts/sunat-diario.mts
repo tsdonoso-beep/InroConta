@@ -8,8 +8,8 @@
 // siguen declarando después del cierre, así que un mes «terminado» cambia
 // durante semanas; el actual para ver lo que va entrando.
 //
-// Entra con la cuenta del robot, no con la de una persona. Así la bitácora
-// dice quién consultó, y la clave de nadie vive en un servidor.
+// Guarda en la base v2 con la llave de servicio (sin cuenta de persona: la
+// clave de nadie vive en un servidor) y anota cada consulta en `corrida`.
 
 import { createClient } from '@supabase/supabase-js';
 import { credencialesDe } from '../src/shared/lib/sunat/credenciales.ts';
@@ -19,7 +19,7 @@ import { leerZip } from '../src/shared/lib/sunat/zip.ts';
 import { leerPropuestaRce, revisarIdentidad } from '../src/shared/lib/sunat/rce.ts';
 import { filasComprobantesSunat, mapaPadronPorRuc, TIPOS_SUNAT, type ComprobanteHistorico } from '../src/shared/lib/export/comprobantes-sunat.ts';
 import { publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
-import { alsoInV2 } from './local/comun/v2.mts';
+import { docKey, readHistory, readPadron, readRenderedBy, registerSireRun } from './local/comun/historico.mts';
 
 const EMPRESA = process.env.SUNAT_EMPRESA ?? 'INROPRIN';
 const RUC = process.env.SUNAT_RUC ?? '20512201611';
@@ -45,10 +45,8 @@ function exigir(...nombres: string[]): string {
     process.exit(1);
 }
 
-const url = exigir('SUPABASE_URL', 'PROJECT_URL');
-const anon = exigir('SUPABASE_ANON_KEY', 'ANON_KEY');
-const correo = exigir('ROBOT_CORREO');
-const clave = exigir('ROBOT_CLAVE');
+const url = exigir('SUPABASE_URL_V2');
+const llave = exigir('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
 
 const leidas = credencialesDe(EMPRESA, RUC, process.env);
 if (!leidas.ok) {
@@ -57,18 +55,9 @@ if (!leidas.ok) {
 }
 const cred = leidas.cred;
 
-const sb = createClient(url, anon, {
+const sb = createClient(url, llave, {
     auth: { autoRefreshToken: false, persistSession: false },
 });
-
-const { error: eLogin } = await sb.auth.signInWithPassword({
-    email: correo,
-    password: clave,
-});
-if (eLogin) {
-    console.error('✗ El robot no pudo entrar:', eLogin.message);
-    process.exit(1);
-}
 
 /** Espera a que SUNAT tenga listo el archivo. */
 async function esperarTicket(periodo: string, ticket: string) {
@@ -146,29 +135,33 @@ async function consultar(periodo: string): Promise<boolean> {
     if (eG) throw new Error(`No se pudieron guardar: ${eG.message}`);
     const guardado = (Array.isArray(g) ? g[0] : g) ?? { nuevos: 0, cambiados: 0 };
     console.log(`  ${guardado.nuevos} nuevos · ${guardado.cambiados} distintos de la última vez`);
-    await alsoInV2('guardar_comprobantes_sunat', { p_empresa_ruc: cred.ruc, p_periodo: periodo, p_filas: filas });
 
-    const { error: eB } = await sb.rpc('registrar_consulta_sunat', {
-        p_empresa_ruc: cred.ruc,
-        p_periodo: periodo,
-        p_ticket: ticket,
-        p_archivo: reporte.nombre,
-        p_comprobantes_sunat: filas.length,
-        p_comprobantes_nuestros: 0,
-        p_cuadran: 0,
-        p_monto_distinto: 0,
-        p_no_estan_en_sunat: 0,
-        p_no_comparables: 0,
-        p_solo_en_sunat: 0,
-        p_monto_solo_en_sunat: 0,
-        p_columnas_faltantes: lectura.faltantes,
-        // Para saber después si una columna viene vacía de verdad o si el
-        // lector no la encuentra, sin mirar la pantalla en el momento justo.
-        p_columnas_sin_usar: lectura.sinMapear,
-        p_identidad_sospechosa: identidad.ok ? null : identidad.motivo,
-        p_segundos: Math.round((Date.now() - arranque) / 1000),
+    const eB = await registerSireRun(sb, {
+        empresaRuc: cred.ruc,
+        periodo,
+        ticket,
+        archivo: reporte.nombre,
+        filas: filas.length,
+        startedAt: new Date(arranque),
+        // Los mismos campos que guardaba registrar_consulta_sunat (la mudanza los dejó así en `resumen`).
+        resumen: {
+            nuevos: guardado.nuevos,
+            cambiados: guardado.cambiados,
+            comprobantes_nuestros: 0,
+            cuadran: 0,
+            monto_distinto: 0,
+            no_estan_en_sunat: 0,
+            no_comparables: 0,
+            solo_en_sunat: 0,
+            monto_solo_en_sunat: 0,
+            columnas_faltantes: lectura.faltantes,
+            // Para saber después si una columna viene vacía de verdad o si el
+            // lector no la encuentra, sin mirar la pantalla en el momento justo.
+            columnas_sin_usar: lectura.sinMapear,
+            identidad_sospechosa: identidad.ok ? null : identidad.motivo,
+        },
     });
-    if (eB) console.error(`  ⚠ No se pudo anotar en la bitácora: ${eB.message}`);
+    if (eB) console.error(`  ⚠ No se pudo anotar en la bitácora: ${eB}`);
 
     return guardado.cambiados > 0;
 }
@@ -183,33 +176,17 @@ async function consultar(periodo: string): Promise<boolean> {
  * Es opcional: si faltan las credenciales de Drive, la consulta igual sirvió
  * y los datos quedaron guardados. Se avisa y se sigue.
  */
-/** El histórico de comprobantes, período por período, en orden de fecha. Null (y avisa) si algo falla. */
-async function historicoPorPeriodo(): Promise<ComprobanteHistorico[] | null> {
-    const { data: periodos, error: eP } = await sb.rpc('periodos_comprobantes_sunat');
-    if (eP || !Array.isArray(periodos)) {
-        console.error('⚠ No se pudo leer el histórico para la hoja (períodos):', eP?.message);
-        return null;
-    }
-    const todo: ComprobanteHistorico[] = [];
-    for (const periodo of periodos as string[]) {
-        let ultimo: string | undefined;
-        for (let intento = 1; intento <= 3; intento++) {
-            const { data, error } = await sb.rpc('historico_comprobantes_sunat', { p_periodo: periodo });
-            if (!error && Array.isArray(data)) {
-                todo.push(...(data as ComprobanteHistorico[]));
-                ultimo = undefined;
-                break;
-            }
-            ultimo = error?.message ?? 'respuesta inesperada';
+/** El histórico de comprobantes, en orden de fecha. Null (y avisa) si algo falla. */
+async function leerHistorico(): Promise<ComprobanteHistorico[] | null> {
+    for (let intento = 1; intento <= 3; intento++) {
+        try {
+            return await readHistory(sb, cred.ruc);
+        } catch (e) {
+            console.error(`⚠ No se pudo leer el histórico para la hoja (intento ${intento}/3):`, e instanceof Error ? e.message : e);
             await new Promise((r) => setTimeout(r, 3000 * intento));
         }
-        if (ultimo) {
-            console.error(`⚠ No se pudo leer el histórico para la hoja (${periodo}):`, ultimo);
-            return null;
-        }
     }
-    const clave = (c: ComprobanteHistorico) => `${c.fechaEmision ?? ''}|${c.numero ?? ''}`;
-    return todo.sort((a, b) => clave(a).localeCompare(clave(b)));
+    return null;
 }
 
 async function publicarLaHoja(): Promise<void> {
@@ -218,40 +195,17 @@ async function publicarLaHoja(): Promise<void> {
         return;
     }
 
-    // De a un período: todo junto (~18 000 comprobantes, ~15 MB) pasaba los 8 s
-    // que la base le da a cada consulta y la hoja dejó de publicarse (02/10/2026).
-    const data = await historicoPorPeriodo();
+    // Tablas leídas de a 1000 filas (allPages): ninguna consulta arma el
+    // histórico entero en la base, que es lo que pasaba los 8 s (02/10/2026).
+    const data = await leerHistorico();
     if (!data) return;
 
     // Quién rindió cada comprobante: es la columna que SUNAT no puede dar, y la
     // que hace que esta hoja valga más que bajar el archivo del portal.
-    const gastos: Array<Record<string, unknown>> = [];
-    for (let desde = 0; ; desde += 1000) {
-        const { data: pagina } = await sb
-            .from('gastos')
-            .select('proveedor_ruc, tipo_comprobante, serie, numero, usuarios:usuario_id ( nombre )')
-            .eq('clase', 'COMPROBANTE')
-            .not('numero', 'is', null)
-            .range(desde, desde + 999);
-        if (!pagina?.length) break;
-        gastos.push(...pagina);
-        if (pagina.length < 1000) break;
-    }
-
-    const sinCeros = (v: string | null) => (v ?? '').replace(/^0+/, '') || '';
-    const llave = (r: string | null, t: string | null, se: string | null, n: string | null) =>
-        [r ?? '', t ?? '', (se ?? '').toUpperCase(), sinCeros(n)].join('|');
-
-    const quien = new Map<string, string>();
-    for (const g of gastos) {
-        const u = g.usuarios as { nombre?: string } | null;
-        if (u?.nombre) {
-            quien.set(
-                llave(g.proveedor_ruc as string | null, g.tipo_comprobante as string | null, g.serie as string | null, g.numero as string | null),
-                u.nombre,
-            );
-        }
-    }
+    const quien = await readRenderedBy(sb).catch((e) => {
+        console.error('⚠ No se pudo leer quién rindió cada comprobante:', e instanceof Error ? e.message : e);
+        return new Map<string, string>();
+    });
 
     const aNum = (v: unknown) => (v == null || v === '' ? null : Number(v));
 
@@ -262,14 +216,17 @@ async function publicarLaHoja(): Promise<void> {
         igv: aNum(c.igv),
         detraccion: aNum(c.detraccion),
         tipoCambio: aNum(c.tipoCambio),
-        rendidoPor: quien.get(llave(c.proveedorRuc, c.tipoComprobante, c.serie, c.numero)) ?? null,
+        rendidoPor: quien.get(docKey(c.proveedorRuc, c.tipoComprobante, c.serie, c.numero)) ?? null,
     }));
 
-    // La condición del RUC (Buen Contribuyente / Agente de Retención), de la
-    // tabla que llena el scraper de Playwright. Es chica —una fila por
-    // proveedor, no por comprobante— así que se trae entera de una vez.
-    const { data: padronCrudo } = await sb.from('padron_ruc').select('ruc, condicion, buen_contribuyente, agente_retencion, agente_percepcion');
-    const padron = mapaPadronPorRuc((padronCrudo as Array<Record<string, unknown>>) ?? []);
+    // La condición del RUC (Buen Contribuyente / Agente de Retención), de las
+    // columnas que llena el scraper de Playwright en `contribuyente`. Una fila
+    // por proveedor, no por comprobante (de a 1000: ya pasa de mil).
+    const padronCrudo = await readPadron(sb).catch((e) => {
+        console.error('⚠ No se pudo leer el padrón de RUC:', e instanceof Error ? e.message : e);
+        return [];
+    });
+    const padron = mapaPadronPorRuc(padronCrudo);
 
     const r = await publicarHojaPorAnio({
         filas: filasComprobantesSunat(historico, padron),

@@ -5,9 +5,8 @@
 import { dormir, crudo, primeraLinea, type Bitacora } from './bitacora.mts';
 import { clave, decidir, type Clase, type Pendiente, type Politica } from './tipos.mts';
 import { statsDrive, type Archivo } from './drive.mts';
-import { ARCHIVO_NO_EXISTE } from './base.mts';
+import { markDownloads, type FailedDownload } from './base.mts';
 import { Salida } from './salida.mts';
-import { appendFileSync } from 'node:fs';
 import { Etapas } from './etapas.mts';
 
 export interface Tarea {
@@ -140,12 +139,26 @@ export class Tuberia {
         if (d.motivo === 'ok') this.finales.ok++;
         else if (d.motivo === 'no_existe') {
             this.finales.noExiste++;
-            appendFileSync(ARCHIVO_NO_EXISTE, JSON.stringify({ t: new Date().toISOString(), clave: clave(t.p), p: t.p }) + '\n');
+            this.mark({ p: t.p, estado: 'NO_EXISTE' });
         } else {
             this.finales.agotados++;
             this.b.log('error', quien, `${t.p.serie}-${t.p.numero}: se rinde tras ${t.intentos} intentos (${t.historial.join(', ')})`);
             this.b.jsonl('agotados.jsonl', { clave: clave(t.p), p: t.p, historial: t.historial });
+            this.mark({ p: t.p, estado: 'ERROR', error: `se rinde tras ${t.intentos} intentos (${t.historial.join(', ')})` });
         }
+    }
+
+    /**
+     * What could not be downloaded goes to the base (marcar_descargas_cpe) 50 at a time, in order,
+     * without holding the workers; `all` sends what is left (on closing).
+     */
+    private toMark: FailedDownload[] = [];
+    private marking: Promise<void> = Promise.resolve();
+    private mark(d: FailedDownload | null, all = false) {
+        if (d) this.toMark.push(d);
+        if (!this.toMark.length || (this.toMark.length < 50 && !all)) return;
+        const batch = this.toMark.splice(0);
+        this.marking = this.marking.then(() => markDownloads(this.b, batch));
     }
 
     /** Si casi todo lo de los últimos 2 min fue «SUNAT caído», pausa a todos en vez de seguir martillando. */
@@ -186,6 +199,8 @@ export class Tuberia {
     /** Espera a que termine todo lo subido y guardado. */
     async cerrar(): Promise<void> {
         await this.salida.cerrar();
+        this.mark(null, true);
+        await this.marking;
         this.revisarEtapas();
     }
 

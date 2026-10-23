@@ -15,33 +15,26 @@
 // el captcha en silencio, como lo haría una persona al hacer clic.
 //
 // A diferencia de `descargar-cpe.mts`, esta consulta NO necesita login: la
-// Consulta RUC es pública. La lista de a quién consultar sale de la base
-// (`rucs_por_actualizar_en_padron`), no de un rango de fechas.
+// Consulta RUC es pública. La lista de a quién consultar sale de la base v2
+// (`contribuyente`, por su `padron_en`), no de un rango de fechas.
 //
 // DOS FASES:
 //   • Depuración (DEBUG=1, por omisión): consulta uno o pocos RUC de prueba
 //     (RUCS_PRUEBA) y sube capturas + HTML de cada paso como artefacto. No
 //     toca la base.
 //   • Real (DEBUG=0): trae la lista de RUC vencidos de la base, los consulta
-//     todos (hasta MAX_CONSULTAS) y guarda cada resultado con `guardar_padron_ruc`.
+//     todos (hasta MAX_CONSULTAS) y guarda cada resultado en `contribuyente` (comun/padron.mts).
 
 import { type Page } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { type CondicionRuc } from '../src/shared/lib/sunat/consulta-ruc.ts';
 import { consultarRuc, launchBrowser, newRucPage, randomPause as pausaAlAzar } from './local/comun/consulta-ruc-web.mts';
+import { base } from './local/comun/base.mts';
+import { rucsToRefresh, savePadron, suppliersSince } from './local/comun/padron.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
-
-function pedir(...nombres: string[]): string {
-    for (const n of nombres) {
-        const v = (process.env[n] ?? '').trim();
-        if (v) return v;
-    }
-    console.error(`✗ Falta ${nombres.join(' o ')} en el entorno.`);
-    process.exit(1);
-}
 
 const DEBUG = process.env.DEBUG !== '0';
 const DIAS_VIGENCIA = Number(process.env.DIAS_VIGENCIA?.trim() || '30');
@@ -72,29 +65,6 @@ async function evidencia(page: Page, nombre: string) {
 
 // ── Guardar en la base ──────────────────────────────────────────────
 
-function clienteSupabase() {
-    const url = pedir('SUPABASE_URL', 'PROJECT_URL');
-    return createClient(url, pedir('SUPABASE_ANON_KEY', 'ANON_KEY'), { auth: { autoRefreshToken: false, persistSession: false } });
-}
-
-/** Entra como el robot; ante un corte de red («fetch failed») reintenta 5 veces con espera creciente (30/09/2026: la ruta a Supabase cortaba de a ratos). */
-async function autenticarRobot(sb: ReturnType<typeof clienteSupabase>) {
-    for (let intento = 1; intento <= 5; intento++) {
-        const { error } = await sb.auth.signInWithPassword({
-            email: pedir('ROBOT_CORREO'),
-            password: pedir('ROBOT_CLAVE'),
-        });
-        if (!error) return;
-        const deRed = /fetch failed|network|timeout|ECONN|ETIMEDOUT/i.test(error.message);
-        if (!deRed || intento === 5) {
-            console.error('✗ No se pudo entrar como el robot:', error.message);
-            process.exit(1);
-        }
-        console.log(`⚠ no se pudo entrar como el robot (${error.message}); reintento ${intento}/4 en ${5 * intento} s`);
-        await pausaAlAzar(5000 * intento, 5000 * intento);
-    }
-}
-
 /**
  * La lista de RUC a consultar: los que no están en el padrón, o llevan más de
  * DIAS_VIGENCIA sin revisarse — con los proveedores del año en curso PRIMERO.
@@ -107,18 +77,13 @@ async function autenticarRobot(sb: ReturnType<typeof clienteSupabase>) {
  *     ellos antes que en los de 2026. PERIODO_DESDE (por omisión, enero del año
  *     en curso) decide qué va primero; lo demás igual se consulta después.
  */
-async function rucsPendientes(sb: ReturnType<typeof clienteSupabase>): Promise<string[]> {
-    const todos: string[] = [];
-    for (let desde = 0; ; desde += 1000) {
-        const { data, error } = await sb.rpc('rucs_por_actualizar_en_padron', { p_dias_vigencia: DIAS_VIGENCIA }).range(desde, desde + 999);
-        if (error) {
-            console.error('✗ No se pudo leer la lista de RUC pendientes:', error.message);
-            break;
-        }
+async function rucsPendientes(sb: SupabaseClient): Promise<string[]> {
+    let todos: string[] = [];
+    try {
         // Solo RUC de 11 dígitos: el SIRE trae un proveedor «0» (basura) que hacía perder 30 s en cada corrida.
-        const filas = (data as Array<{ ruc: string }>).map((r) => r.ruc).filter((r) => /^\d{11}$/.test(r ?? ''));
-        todos.push(...filas);
-        if (filas.length < 1000) break;
+        todos = await rucsToRefresh(sb, DIAS_VIGENCIA);
+    } catch (e) {
+        console.error('✗ No se pudo leer la lista de RUC pendientes:', e instanceof Error ? e.message : e);
     }
     const periodoDesde = process.env.PERIODO_DESDE?.trim() || `${new Date().getFullYear()}01`;
     const recientes = await proveedoresDesde(sb, periodoDesde);
@@ -127,28 +92,23 @@ async function rucsPendientes(sb: ReturnType<typeof clienteSupabase>): Promise<s
     return [...primero, ...todos.filter((r) => !recientes.has(r))];
 }
 
-/** Los RUC de proveedores con comprobantes en el SIRE desde un período (paginado por id). */
-async function proveedoresDesde(sb: ReturnType<typeof clienteSupabase>, periodo: string): Promise<Set<string>> {
-    const rucs = new Set<string>();
-    let ultimo: string | null = null;
-    for (;;) {
-        let q = sb.from('comprobantes_sunat').select('id, proveedor_ruc').gte('periodo', periodo);
-        if (ultimo) q = q.gt('id', ultimo);
-        const { data, error } = await q.order('id').limit(1000);
-        if (error) {
-            console.error('⚠ No se pudo leer los proveedores recientes:', error.message);
-            return rucs;
-        }
-        for (const f of data ?? []) if (f.proveedor_ruc) rucs.add(f.proveedor_ruc);
-        if ((data ?? []).length < 1000) return rucs;
-        ultimo = data![data!.length - 1].id;
+/** Los RUC de proveedores con comprobantes en el SIRE desde un período (vacío si no se pudo leer). */
+async function proveedoresDesde(sb: SupabaseClient, periodo: string): Promise<Set<string>> {
+    try {
+        return await suppliersSince(sb, periodo);
+    } catch (e) {
+        console.error('⚠ No se pudo leer los proveedores recientes:', e instanceof Error ? e.message : e);
+        return new Set();
     }
 }
 
 /** Guarda un resultado apenas se consulta —no al final del lote—, para no perder lo ya hecho si algo falla después. */
-async function guardarResultado(sb: ReturnType<typeof clienteSupabase>, r: CondicionRuc): Promise<void> {
-    const { error } = await sb.rpc('guardar_padron_ruc', { p_filas: [r] });
-    if (error) console.error(`  ⚠ no se guardó ${r.ruc}: ${error.message}`);
+async function guardarResultado(sb: SupabaseClient, r: CondicionRuc): Promise<void> {
+    try {
+        await savePadron(sb, [r]);
+    } catch (e) {
+        console.error(`  ⚠ no se guardó ${r.ruc}: ${e instanceof Error ? e.message : e}`);
+    }
 }
 
 // ── Principal ─────────────────────────────────────────────────────
@@ -165,8 +125,7 @@ const nuevaPagina = () => newRucPage(navegador);
 const page = await nuevaPagina();
 
 try {
-    const sb = DEBUG ? null : clienteSupabase();
-    if (sb) await autenticarRobot(sb);
+    const sb = DEBUG ? null : base();
 
     const rucs = DEBUG ? RUCS_PRUEBA : await rucsPendientes(sb!);
     const enEstaCorrida = rucs.slice(0, MAX_CONSULTAS);

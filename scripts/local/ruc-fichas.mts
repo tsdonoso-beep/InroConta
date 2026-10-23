@@ -1,6 +1,6 @@
-// Fills the full Consulta RUC ficha (migration 068) of every RUC in padron_ruc, from this laptop.
+// Fills the full Consulta RUC ficha of every RUC in the v2 base (contribuyente), from this laptop.
 //
-//   pnpm ruc:fichas                       every RUC without a ficha (ficha_consultada_en null)
+//   pnpm ruc:fichas                       every RUC without a ficha (ficha_en null)
 //   pnpm ruc:fichas --dry-run             queries but saves nothing (try it first with MAX=10)
 //   DIAS=30 pnpm ruc:fichas               also the fichas older than 30 days
 //   RUCS=20512201611,20100047218 pnpm ruc:fichas     only those
@@ -13,7 +13,7 @@
 //
 // Same brake as the daily robot: if 3 of the last 10 pages could not be read, every tab stops
 // 60 s and the pause between queries doubles (up to 16 s). A page that fails is retried twice,
-// at the back of the queue. Results are saved in batches of 25 (guardar_padron_ruc), so a cut
+// at the back of the queue. Results are saved in batches of 25 (comun/padron.mts), so a cut
 // loses at most one batch; what could not be saved goes to scripts/out/ruc-fichas/.
 // Re-running continues where it stopped: it only picks rows still without a ficha.
 // Ctrl+C: the tabs finish the query in hand, the batch is saved, and it exits. Twice: exits now.
@@ -22,6 +22,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from 'playwright';
 import { base } from './comun/base.mts';
+import { savePadron } from './comun/padron.mts';
 import { Barra, duracion, simpleBarText } from './comun/barra.mts';
 import { crearBitacora, crudo, dormir, primeraLinea, usarSalida, vigilarProceso } from './comun/bitacora.mts';
 import { consultarRuc, launchBrowser, newRucPage, randomPause } from './comun/consulta-ruc-web.mts';
@@ -45,7 +46,7 @@ vigilarProceso(b);
 const OUT = join(process.cwd(), 'scripts', 'out', 'ruc-fichas');
 mkdirSync(OUT, { recursive: true });
 
-const sb = await base();
+const sb = base();
 
 /** RUC still without a ficha (or with one older than DIAS), by cursor on the primary key. */
 async function pending(): Promise<string[]> {
@@ -53,12 +54,12 @@ async function pending(): Promise<string[]> {
     const rucs: string[] = [];
     const older = DAYS ? new Date(Date.now() - DAYS * 86400000).toISOString() : null;
     for (let after = ''; ;) {
-        let q = sb.from('padron_ruc').select('ruc').gt('ruc', after).order('ruc').limit(1000);
-        q = older ? q.or(`ficha_consultada_en.is.null,ficha_consultada_en.lt.${older}`) : q.is('ficha_consultada_en', null);
+        // The RUC the Consulta RUC already answered (padron_en), as padron_ruc held them.
+        let q = sb.from('contribuyente').select('ruc').eq('tipo_documento', '6').not('padron_en', 'is', null).gt('ruc', after).order('ruc').limit(1000);
+        q = older ? q.or(`ficha_en.is.null,ficha_en.lt.${older}`) : q.is('ficha_en', null);
         const { data, error } = await q;
         if (error) {
-            b.log('error', 'base', `could not read padron_ruc: ${error.code} ${error.message}`, { error });
-            if (error.code === '42703') b.log('error', 'base', 'falta aplicar la migración 068_ficha_completa_del_ruc.sql');
+            b.log('error', 'base', `could not read contribuyente: ${error.code} ${error.message}`, { error });
             process.exit(1);
         }
         rucs.push(...data.map((r) => r.ruc as string).filter((r) => /^\d{11}$/.test(r)));
@@ -93,14 +94,12 @@ async function flush(): Promise<void> {
         return;
     }
     for (let attempt = 1; attempt <= 4; attempt++) {
-        const { data, error } = await sb.rpc('guardar_padron_ruc', { p_filas: rows });
-        if (!error) {
-            saved += Number(data) || 0;
+        try {
+            saved += await savePadron(sb, rows);
             return;
+        } catch (e) {
+            b.log('aviso', 'base', `guardar las fichas falló (intento ${attempt}/4): ${primeraLinea(e)}`);
         }
-        b.log('aviso', 'base', `guardar_padron_ruc falló (intento ${attempt}/4): ${error.code ?? ''} ${error.message}`, {
-            error: { code: error.code, message: error.message, details: error.details, hint: error.hint },
-        });
         await dormir(3000 * attempt);
     }
     unsaved.push(...rows);

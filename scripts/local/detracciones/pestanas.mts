@@ -1,11 +1,10 @@
-// Las pestañas DETRACCIONES y DETRACCIONES SIN CONSTANCIA del libro INROCONTA (migración 067).
+// Las pestañas DETRACCIONES y DETRACCIONES SIN CONSTANCIA del libro INROCONTA (sus filas: pestanas-datos.mts).
 //
 // La constancia también va en la hoja DETALLE (migración 066), pero ahí solo se ven las de facturas con XML
 // y del período de la hoja. Estas pestañas traen TODAS, con el caso marcado, para rastrear los atípicos.
 
-import { RUC } from '../comun/config.mts';
 import { primeraLinea, type Bitacora } from '../comun/bitacora.mts';
-import { base } from '../comun/base.mts';
+import { detraccionesHoja, detraccionesSinConstancia } from './pestanas-datos.mts';
 import { publicarHoja } from '../../../src/shared/lib/drive/servidor.ts';
 import type { TipoColumna } from '../../../src/shared/lib/export/comprobantes-sunat.ts';
 
@@ -65,21 +64,8 @@ function celda(v: unknown, tipo: TipoColumna): string {
     return s;
 }
 
-/** Todas las filas, de a 1000: la API de la base no entrega más por pedido (la función ordena de forma fija). */
-async function todas(funcion: string): Promise<Record<string, unknown>[]> {
-    const sb = await base();
-    const filas: Record<string, unknown>[] = [];
-    for (let desde = 0; ; desde += 1000) {
-        const { data, error } = await sb.rpc(funcion, { p_empresa_ruc: RUC }).range(desde, desde + 999);
-        if (error) throw new Error(`${funcion}: ${error.message}`);
-        const pagina = (data ?? []) as Record<string, unknown>[];
-        filas.push(...pagina);
-        if (pagina.length < 1000) return filas;
-    }
-}
-
-async function publicar(b: Bitacora, funcion: string, nombre: string, columnas: Columna[]): Promise<void> {
-    const filas = (await todas(funcion)).map((r) => columnas.map(([, campo, tipo]) => celda(r[campo], tipo)));
+async function publicar(b: Bitacora, leer: () => Promise<Record<string, unknown>[]>, nombre: string, columnas: Columna[]): Promise<void> {
+    const filas = (await leer()).map((r) => columnas.map(([, campo, tipo]) => celda(r[campo], tipo)));
     const h = await publicarHoja({ filas: [columnas.map((c) => c[0]), ...filas], nombre, carpetas: ['SUNAT'], tipos: columnas.map((c) => c[2]) });
     b.log('info', 'hoja', `${nombre}: ${filas.length} filas · ${h.url}`);
 }
@@ -90,12 +76,12 @@ export async function publicarPestanas(b: Bitacora): Promise<void> {
         b.log('info', 'hoja', 'sin GOOGLE_DRIVE_FOLDER_ID: no se publican las pestañas');
         return;
     }
-    for (const [funcion, nombre, columnas] of [
-        ['detracciones_hoja', 'DETRACCIONES', DETRACCIONES],
-        ['detracciones_sin_constancia', 'DETRACCIONES SIN CONSTANCIA', SIN_CONSTANCIA],
+    for (const [leer, nombre, columnas] of [
+        [detraccionesHoja, 'DETRACCIONES', DETRACCIONES],
+        [detraccionesSinConstancia, 'DETRACCIONES SIN CONSTANCIA', SIN_CONSTANCIA],
     ] as const) {
         try {
-            await publicar(b, funcion, nombre, columnas);
+            await publicar(b, () => leer(), nombre, columnas);
         } catch (e) {
             b.log('error', 'hoja', `no se publicó ${nombre}: ${primeraLinea(e)}`);
         }

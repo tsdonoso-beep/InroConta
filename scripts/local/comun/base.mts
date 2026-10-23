@@ -1,31 +1,27 @@
-// Supabase: qué falta confirmar, guardar lo confirmado, publicar la hoja de detalle.
+// Supabase (the v2 base): the robots' client, what is left to download, and what could not be.
+//
+// Since 22/10/2026 the old base is gone for the robots: they read and write only v2
+// (docs/database/v2/) with the service key. No robot user and no sign-in: the key bypasses RLS
+// and does not expire, so there is no session to renew.
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pedir, RUC, PERIODOS, MAS_RECIENTE_PRIMERO, RUCS, SERIES, TIPOS } from './config.mts';
 import { dormir, type Bitacora } from './bitacora.mts';
-import { detalleCpeCompleto } from '../../../src/shared/lib/export/items-sunat.ts';
 import { clave, type Pendiente } from './tipos.mts';
 
 let sb: SupabaseClient | null = null;
-export async function base(forzar = false): Promise<SupabaseClient> {
-    if (sb && !forzar) return sb;
-    const c = createClient(pedir('SUPABASE_URL', 'PROJECT_URL'), pedir('SUPABASE_ANON_KEY', 'ANON_KEY'), {
-        auth: { autoRefreshToken: true, persistSession: false },
+
+/** The v2 client (SUPABASE_URL_V2 + SUPABASE_SECRET_KEY), one per process. */
+export function base(): SupabaseClient {
+    sb ??= createClient(pedir('SUPABASE_URL_V2'), pedir('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'), {
+        auth: { autoRefreshToken: false, persistSession: false },
     });
-    // Ante un corte de red («fetch failed») se reintenta: la ruta a Supabase cortaba de a ratos (30/09/2026).
-    for (let intento = 1; ; intento++) {
-        const { error } = await c.auth.signInWithPassword({ email: pedir('ROBOT_CORREO'), password: pedir('ROBOT_CLAVE') });
-        if (!error) break;
-        if (intento >= 5 || !/fetch failed|network|timeout|ECONN|ETIMEDOUT/i.test(error.message))
-            throw new Error(`No se pudo entrar a la base: ${error.message}`);
-        console.log(`⚠ no se pudo entrar a la base (${error.message}); reintento ${intento}/4 en ${5 * intento} s`);
-        await dormir(5000 * intento);
-    }
-    sb = c;
-    return c;
+    return sb;
 }
+
+/** A network or time error (not the data's): worth retrying. */
+export const transient = (e: { code?: string; message?: string }) =>
+    e.code === '57014' || e.code === '25P02' || /fetch failed|network|timeout|ECONNRESET|ETIMEDOUT|502|503|504|520|522/i.test(e.message ?? '');
 
 const PAGINA = 500;
 type ErrorPg = { message: string; code?: string; details?: string | null; hint?: string | null };
@@ -35,17 +31,13 @@ type Pagina<T> = (despuesDe: string | null, tamano: number) => PromiseLike<{ dat
 /**
  * Lee una tabla entera, de a PAGINA filas, por CURSOR (id > el último visto).
  *
- * Antes era por offset (`.range(1000, 1999)`…): cada página obligaba a la base
- * a recorrer y descartar todas las anteriores, y con la base ocupada (otra
- * corrida guardando lotes) las últimas pasaban el statement_timeout de
- * Supabase («canceling statement due to statement timeout», código 57014) —
- * 30/09/2026, en el sondeo de una segunda laptop. Por cursor, todas las
- * páginas cuestan lo mismo. Si igual se corta por tiempo, se reintenta con
- * páginas más chicas (500 → 250 → … → 50): la regla de acceso de
- * cpe_comprobante evalúa `seguridad.puede_ver_todo()` por cada fila revisada,
- * y con la base cargada ni 500 entraban en el tope (ver migración 043).
+ * Por offset (`.range(1000, 1999)`…) cada página obliga a la base a recorrer y
+ * descartar todas las anteriores, y con la base ocupada las últimas pasaban el
+ * statement_timeout de Supabase (código 57014, 30/09/2026). Por cursor, todas
+ * las páginas cuestan lo mismo. Si igual se corta por tiempo, se reintenta con
+ * páginas más chicas (500 → 250 → … → 50).
  */
-async function todas<T extends { id: string }>(b: Bitacora | null, etiqueta: string, pagina: Pagina<T>): Promise<T[]> {
+export async function todas<T extends { id: string }>(b: Bitacora | null, etiqueta: string, pagina: Pagina<T>): Promise<T[]> {
     const filas: T[] = [];
     let ultimo: string | null = null;
     let tamano = PAGINA;
@@ -59,7 +51,7 @@ async function todas<T extends { id: string }>(b: Bitacora | null, etiqueta: str
             b?.log('aviso', 'base', `leer ${etiqueta} falló (intento ${intento}/8, sigue de a ${tamano}): ${r.error.code ?? ''} ${r.error.message}`, {
                 error: r.error,
             });
-            if (!tiempo || intento === 8) throw new Error(`No se pudo leer ${etiqueta}: ${r.error.code ?? ''} ${r.error.message}`);
+            if (!(tiempo || transient(r.error)) || intento === 8) throw new Error(`No se pudo leer ${etiqueta}: ${r.error.code ?? ''} ${r.error.message}`);
             await dormir(1000 * intento);
         }
         const data = r.data ?? [];
@@ -69,186 +61,166 @@ async function todas<T extends { id: string }>(b: Bitacora | null, etiqueta: str
     }
 }
 
-/** Orden por fecha de emisión (y id para desempatar), como lo pedía la consulta antes de ir por cursor. */
+/** By issue date (and id to break ties). */
 function porFecha<T extends { id: string; fecha_emision: string | null }>(filas: T[], asc: boolean): T[] {
     const k = (x: T) => `${x.fecha_emision ?? '9999-99-99'}|${x.id}`;
     return filas.sort((a, z) => (asc ? 1 : -1) * k(a).localeCompare(k(z)));
 }
 
-/** Archivo acumulado (entre corridas) de lo que SUNAT dijo que no existe. */
-export const ARCHIVO_NO_EXISTE = join(process.cwd(), 'scripts', 'out', 'logs', 'cpe-no-existe.jsonl');
+/** A document as the queue reads it: with its issuer's name and its months in the Registro de Compras. */
+export type DocToDownload = {
+    id: string;
+    emisor_ruc: string;
+    tipo: string;
+    serie: string;
+    numero: string;
+    fecha_emision: string | null;
+    periodo: number | null;
+    moneda: string | null;
+    emisor_nombre: string | null;
+    emisor: { razon_social: string | null } | null;
+    registro_compras: Array<{ periodo: number; total: number | null; ultima_vez: string }> | null;
+};
+const DOC_TO_DOWNLOAD =
+    'id, emisor_ruc, tipo, serie, numero, fecha_emision, periodo, moneda, emisor_nombre, emisor:emisor_ruc(razon_social), ' +
+    'registro_compras(periodo, total, ultima_vez)';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Filter = (q: any) => any;
 
 /**
- * Lo que el SIRE dice que existe (01/07/08, serie no-E) y todavía no está en
- * `cpe_comprobante`. Mismo criterio que consultar-cpe-individual.mts, con la
- * comparación normalizada (serie en mayúsculas, número sin ceros a la izquierda).
+ * The company's RECIBIDO documents whose `xml_estado` is in `states` (the query, not paged).
+ * `sirePeriods` filters by the Registro de Compras month, not by the issue date: a document
+ * recorded late sits in another month than its date's.
+ */
+function toDownloadQuery(states: string[], sirePeriods: string[], filter: Filter, select: string, opciones?: object) {
+    const sel = sirePeriods.length ? select.replace('registro_compras(', 'registro_compras!inner(') : select;
+    let q = filter(
+        base().from('comprobante').select(sel, opciones).eq('empresa_ruc', RUC).eq('origen', 'RECIBIDO').in('xml_estado', states).neq('emisor_ruc', '0'),
+    );
+    if (sirePeriods.length) q = q.in('registro_compras.periodo', sirePeriods);
+    return q;
+}
+
+/** The same, whole and by cursor. */
+export function toDownload(b: Bitacora | null, states: string[], sirePeriods: string[], filter: Filter = (q) => q): Promise<DocToDownload[]> {
+    return todas<DocToDownload>(b, 'comprobante', (despues, tamano) => {
+        let q = toDownloadQuery(states, sirePeriods, filter, DOC_TO_DOWNLOAD);
+        if (despues) q = q.gt('id', despues);
+        return q.order('id').limit(tamano);
+    });
+}
+
+/** The Registro de Compras month (the first, if several) or, without one, the issue date's. */
+export const sirePeriod = (x: DocToDownload): string | null => {
+    const meses = (x.registro_compras ?? []).map((r) => r.periodo).sort();
+    return meses.length ? String(meses[0]) : x.periodo != null ? String(x.periodo) : null;
+};
+
+/** The issuer's name: as the document said it or, if not, contribuyente's. */
+export const issuerName = (x: DocToDownload): string | null => x.emisor_nombre ?? x.emisor?.razon_social ?? null;
+
+const toPending = (x: DocToDownload): Pendiente => ({
+    proveedorRuc: x.emisor_ruc,
+    proveedorNombre: issuerName(x),
+    tipoComprobante: x.tipo,
+    serie: x.serie,
+    numero: x.numero,
+    fechaEmision: x.fecha_emision,
+    periodo: sirePeriod(x),
+});
+
+/** The run's filters (TIPOS, SERIES, RUCS). The series is already upper case (guardar_*). */
+const runFilters: Filter = (q) => {
+    q = q.in('tipo', TIPOS);
+    if (SERIES === 'noE') q = q.not('serie', 'like', 'E%');
+    if (SERIES === 'E') q = q.like('serie', 'E%');
+    if (RUCS.length) q = q.in('emisor_ruc', RUCS);
+    return q;
+};
+
+/**
+ * What the SIRE says exists (01/07/08, non-E series) and still has no XML: `comprobante.xml_estado`
+ * PENDIENTE or ERROR (it replaces the SIRE vs cpe_comprobante cross). What SUNAT already said does
+ * not exist (NO_EXISTE, left in the base by markDownloads from any machine) is skipped, unless
+ * REINTENTAR_NO_EXISTE=1.
  */
 export async function pendientes(b: Bitacora): Promise<Pendiente[]> {
-    const c = await base();
-    type FilaSire = {
-        id: string;
-        proveedor_ruc: string;
-        proveedor_nombre: string | null;
-        tipo_comprobante: string;
-        serie: string;
-        numero: string;
-        fecha_emision: string | null;
-        periodo: string | null;
-    };
-    const asc = !MAS_RECIENTE_PRIMERO;
-    const sire = porFecha(
-        await todas<FilaSire>(b, 'comprobantes_sunat', (despues, tamano) => {
-            let q = c
-                .from('comprobantes_sunat')
-                .select('id, proveedor_ruc, proveedor_nombre, tipo_comprobante, serie, numero, fecha_emision, periodo')
-                .eq('empresa_ruc', RUC)
-                .in('tipo_comprobante', TIPOS)
-                .neq('proveedor_ruc', '0');
-            if (SERIES === 'noE') q = q.not('serie', 'ilike', 'E%');
-            if (SERIES === 'E') q = q.ilike('serie', 'E%');
-            if (PERIODOS.length) q = q.in('periodo', PERIODOS);
-            if (RUCS.length) q = q.in('proveedor_ruc', RUCS);
-            if (despues) q = q.gt('id', despues);
-            return q.order('id').limit(tamano);
-        }),
-        asc,
-    );
-    const ya = await yaGuardados(b);
-    const vistos = new Set(ya.map((x) => clave(x)));
-    const noExisten = leerNoExisten();
-    const lista = sire
-        .filter((x) => x.proveedor_ruc && x.tipo_comprobante && x.serie && x.numero)
-        .map((x) => ({
-            proveedorRuc: x.proveedor_ruc,
-            proveedorNombre: x.proveedor_nombre,
-            tipoComprobante: x.tipo_comprobante,
-            serie: x.serie,
-            numero: x.numero,
-            fechaEmision: x.fecha_emision,
-            periodo: x.periodo,
-        }))
-        .filter((p) => !vistos.has(clave(p)));
+    const retry = process.env.REINTENTAR_NO_EXISTE === '1';
+    const filas = await toDownload(b, retry ? ['PENDIENTE', 'ERROR', 'NO_EXISTE'] : ['PENDIENTE', 'ERROR'], PERIODOS, runFilters);
+    const lista = porFecha(filas, !MAS_RECIENTE_PRIMERO)
+        .filter((x) => x.emisor_ruc && x.tipo && x.serie && x.numero)
+        .map(toPending);
     // Notas de crédito/débito serie E: la API responde 404 a todas (sondeo del
     // 30/09/2026, 6/6), no porque no existan. Las sigue bajando «descargar XML»
     // por pantallas; aquí no se piden para no anotarlas como «no existe».
-    const sinNotasE = lista.filter((p) => !(/^E/i.test(p.serie) && (p.tipoComprobante === '07' || p.tipoComprobante === '08')));
-    const final = sinNotasE.filter((p) => !noExisten.has(clave(p)));
-    if (final.length < lista.length)
-        b.log('info', 'cola', `se saltan ${lista.length - final.length} que SUNAT ya dijo que no existen (REINTENTAR_NO_EXISTE=1 para pedirlos igual)`);
+    const final = lista.filter((p) => !(/^E/i.test(p.serie) && (p.tipoComprobante === '07' || p.tipoComprobante === '08')));
+    if (!retry) {
+        const { count } = await toDownloadQuery(['NO_EXISTE'], PERIODOS, runFilters, 'id, registro_compras(periodo)', {
+            count: 'exact',
+            head: true,
+        });
+        if (count) b.log('info', 'cola', `se saltan ${count} que SUNAT ya dijo que no existen (REINTENTAR_NO_EXISTE=1 para pedirlos igual)`);
+    }
     return final;
 }
 
 /**
- * MODO=pdf: lo que YA está en cpe_comprobante pero sin PDF en Drive.
+ * MODO=pdf: what already has its XML (xml_estado OK) but not its PDF in Drive.
  *
- * Volver a pasarlos por la tubería completa es seguro: el XML ya subido se
- * reconoce por nombre en Drive («existe», no se duplica) y `guardar_cpe`
- * conserva los enlaces que ya había (coalesce) — solo llena el del PDF.
+ * Running them through the whole pipeline again is safe: the XML already uploaded is
+ * recognised by name in Drive (not duplicated) and `guardar_cpe` keeps the links it had
+ * (coalesce) — it only fills the PDF's.
  */
 export async function pendientesSinPdf(b: Bitacora): Promise<Pendiente[]> {
+    const c = base();
+    const filas = await todas<DocToDownload>(b, 'comprobante sin PDF', (despues, tamano) => {
+        let q: ReturnType<Filter> = c
+            .from('comprobante')
+            .select(DOC_TO_DOWNLOAD)
+            .eq('empresa_ruc', RUC)
+            .eq('xml_estado', 'OK')
+            .is('pdf_drive_id', null)
+            .in('tipo', TIPOS);
+        // The issue date's period, as cpe_comprobante filtered it.
+        if (PERIODOS.length) q = q.in('periodo', PERIODOS);
+        if (despues) q = q.gt('id', despues);
+        return q.order('id').limit(tamano);
+    });
     const unicos = new Map<string, Pendiente>();
-    for (const x of await yaGuardados(b)) {
-        if (x.conPdf || !TIPOS.includes(x.tipoComprobante)) continue;
-        if (PERIODOS.length && !PERIODOS.includes(x.periodo ?? '')) continue;
-        unicos.set(clave(x), {
-            proveedorRuc: x.proveedorRuc,
-            proveedorNombre: null,
-            tipoComprobante: x.tipoComprobante,
-            serie: x.serie,
-            numero: x.numero,
-            fechaEmision: x.fechaEmision,
-            periodo: x.periodo,
-        });
-    }
+    for (const x of filas) if (x.serie && x.numero) unicos.set(clave(toPending(x)), { ...toPending(x), proveedorNombre: null });
     const lista = [...unicos.values()].sort((a, z) => (MAS_RECIENTE_PRIMERO ? -1 : 1) * (a.fechaEmision ?? '').localeCompare(z.fechaEmision ?? ''));
     b.log('info', 'cola', `guardados sin PDF: ${lista.length}`);
     return lista;
 }
 
-/**
- * Qué comprobantes ya están guardados, leído de `detalle_cpe` (la misma
- * función que arma la hoja de detalle) y NO de la tabla cpe_comprobante.
- *
- * La regla de acceso de cpe_comprobante evalúa `seguridad.puede_ver_todo()`
- * por cada fila; con ~12 700 filas (30/09/2026) ni una página de 50 entraba en
- * el statement_timeout de Supabase. `detalle_cpe` es security definer (sin esa
- * regla por fila) y ya se usaba para publicar la hoja sin problemas. Trae una
- * fila por ítem: se deduplica por comprobante. Un comprobante sin ítems no
- * aparece y se volvería a bajar: inofensivo (guardar_cpe es idempotente).
- * El arreglo de fondo es la migración 043.
- */
-async function yaGuardados(b: Bitacora): Promise<Array<Pendiente & { conPdf: boolean }>> {
-    const t0 = Date.now();
-    // Directo de la tabla (rápido desde la migración 043): trae también los
-    // comprobantes sin ítems, que detalle_cpe no muestra y se volverían a bajar.
-    try {
-        const c = await base();
-        type Fila = {
-            id: string;
-            proveedor_ruc: string | null;
-            tipo_comprobante: string | null;
-            serie: string | null;
-            numero: string | null;
-            fecha_emision: string | null;
-            periodo: string | null;
-            pdf_drive_url: string | null;
-        };
-        const filas = await todas<Fila>(b, 'cpe_comprobante', (despues, tamano) => {
-            let q = c
-                .from('cpe_comprobante')
-                .select('id, proveedor_ruc, tipo_comprobante, serie, numero, fecha_emision, periodo, pdf_drive_url')
-                .eq('empresa_ruc', RUC);
-            if (despues) q = q.gt('id', despues);
-            return q.order('id').limit(tamano);
-        });
-        const lista = filas
-            .filter((x) => x.proveedor_ruc && x.serie && x.numero)
-            .map((x) => ({
-                proveedorRuc: x.proveedor_ruc!,
-                proveedorNombre: null,
-                tipoComprobante: x.tipo_comprobante ?? '',
-                serie: x.serie!,
-                numero: x.numero!,
-                fechaEmision: x.fecha_emision,
-                periodo: x.periodo,
-                conPdf: !!x.pdf_drive_url,
-            }));
-        b.log('info', 'base', `ya guardados: ${lista.length} comprobantes (de la tabla, en ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
-        return lista;
-    } catch (e) {
-        b.log('aviso', 'base', `la tabla no respondió (${e instanceof Error ? e.message : e}); se usa detalle_cpe`);
-    }
-    const filas = await detalleCpeCompleto(await base(), null);
-    const m = new Map<string, Pendiente & { conPdf: boolean }>();
-    for (const d of filas) {
-        const x = {
-            proveedorRuc: String(d.proveedor_ruc ?? ''),
-            proveedorNombre: null,
-            tipoComprobante: String(d.tipo_comprobante ?? ''),
-            serie: String(d.serie ?? ''),
-            numero: String(d.numero ?? ''),
-            fechaEmision: (d.fecha_emision as string) ?? null,
-            periodo: (d.periodo as string) ?? null,
-            conPdf: !!d.enlace_pdf,
-        };
-        if (!x.proveedorRuc || !x.serie || !x.numero) continue;
-        const k = clave(x);
-        const previo = m.get(k);
-        m.set(k, previo ? { ...previo, conPdf: previo.conPdf || x.conPdf } : x);
-    }
-    b.log('info', 'base', `ya guardados: ${m.size} comprobantes (${filas.length} ítems, leídos en ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
-    return [...m.values()];
-}
+export type FailedDownload = { p: Pendiente; estado: 'NO_EXISTE' | 'ERROR'; error?: string };
 
-function leerNoExisten(): Set<string> {
-    const s = new Set<string>();
-    if (!existsSync(ARCHIVO_NO_EXISTE) || process.env.REINTENTAR_NO_EXISTE === '1') return s;
-    for (const l of readFileSync(ARCHIVO_NO_EXISTE, 'utf8').split('\n')) {
-        try {
-            if (l.trim()) s.add((JSON.parse(l) as { clave: string }).clave);
-        } catch {
-            /* línea rota */
+/**
+ * Tells the base what could not be downloaded (`marcar_descargas_cpe`): NO_EXISTE (SUNAT says it
+ * is not there) or ERROR (attempts ran out). It replaces the local file cpe-no-existe.jsonl, so
+ * the next run, on any machine, does not ask again for what does not exist. Never stops the run:
+ * if it does not go in, it stays in no-marcados.jsonl and the next run asks for those again.
+ */
+export async function markDownloads(b: Bitacora, filas: FailedDownload[]): Promise<void> {
+    if (!filas.length) return;
+    const p_filas = filas.map(({ p, estado, error }) => ({
+        emisor_ruc: p.proveedorRuc,
+        tipo: p.tipoComprobante,
+        serie: p.serie,
+        numero: p.numero,
+        estado,
+        error: error ?? null,
+    }));
+    for (let intento = 1; intento <= 3; intento++) {
+        const { data, error } = await base().rpc('marcar_descargas_cpe', { p_empresa_ruc: RUC, p_filas });
+        if (!error) {
+            b.log('info', 'base', `marcados ${Number(data) || 0} de ${filas.length} que no se pudieron bajar`);
+            return;
         }
+        b.log('aviso', 'base', `marcar_descargas_cpe falló (intento ${intento}/3): ${error.code ?? ''} ${error.message}`);
+        if (!transient(error)) break;
+        await dormir(2000 * intento);
     }
-    return s;
+    b.jsonl('no-marcados.jsonl', { filas: p_filas });
 }

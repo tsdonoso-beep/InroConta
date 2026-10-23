@@ -63,7 +63,7 @@ export interface ComprobanteHistorico {
 
 /**
  * La condición del proveedor ante SUNAT (Buen Contribuyente, Agente de
- * Retención/Percepción), tal como la guarda `padron_ruc`. De ahí depende si
+ * Retención/Percepción), tal como la guarda `contribuyente`. De ahí depende si
  * a la compra le corresponde o no la retención del IGV.
  */
 export interface CondicionProveedor {
@@ -75,7 +75,7 @@ export interface CondicionProveedor {
 }
 
 /**
- * Arma el mapa RUC → condición desde las filas crudas de `padron_ruc`
+ * Arma el mapa RUC → condición desde las filas crudas de `contribuyente`
  * (snake_case, tal como las devuelve PostgREST), para no repetir esta
  * conversión en cada sitio que publica la hoja.
  */

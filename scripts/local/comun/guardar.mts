@@ -1,15 +1,15 @@
-// Guardar lo confirmado en Supabase (guardar_cpe) y publicar la hoja de detalle.
+// Guardar lo confirmado en la base v2 (guardar_cpe) y publicar la hoja de detalle.
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RUC } from './config.mts';
 import { dormir, type Bitacora } from './bitacora.mts';
 import { base } from './base.mts';
-import { alsoInV2, detailFromV2 } from './v2.mts';
+import { leerDetalle } from './detalle.mts';
 import { prepararLote, identidad } from '../../../src/shared/lib/sunat/cpe-importacion.ts';
 import type { ComprobanteCpe } from '../../../src/shared/lib/sunat/cpe-xml.ts';
 import { publicarHojaPorAnio } from '../../../src/shared/lib/drive/servidor.ts';
-import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../../../src/shared/lib/export/items-sunat.ts';
+import { filasItemsSunat, TIPOS_ITEMS } from '../../../src/shared/lib/export/items-sunat.ts';
 
 export type Confirmado = { c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null };
 
@@ -26,14 +26,13 @@ export async function guardarLote(b: Bitacora, comprobantes: Confirmado[]): Prom
         d.pdfDriveUrl = par?.pdfUrl ?? null;
     }
     for (let i = 1; i <= 3; i++) {
-        const { data, error } = await (await base(i > 1)).rpc('guardar_cpe', { p_empresa_ruc: RUC, p_docs: docs });
+        const { data, error } = await base().rpc('guardar_cpe', { p_empresa_ruc: RUC, p_docs: docs });
         if (!error) {
             const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
             b.log('info', 'base', `guardados ${docs.length}: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems`);
-            await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: docs });
             return { guardados: (r?.nuevos ?? 0) + (r?.actualizados ?? 0), items: r?.items ?? 0 };
         }
-        b.log('error', 'base', `guardar_cpe falló (intento ${i}/3): ${error.message}`, { error });
+        b.log('error', 'base', `guardar_cpe falló (intento ${i}/3): ${error.code ?? ''} ${error.message}`, { error });
         await dormir(3000 * i);
     }
     const archivo = join(b.dir, `lote-no-guardado-${Date.now()}.json`);
@@ -50,7 +49,7 @@ export async function publicarDetalle(b: Bitacora): Promise<void> {
     }
     const t0 = Date.now();
     try {
-        const filas = (await detailFromV2()) ?? (await detalleCpeCompleto(await base(), null)).map(filaDetalleDesdeRpc);
+        const filas = await leerDetalle();
         const r = await publicarHojaPorAnio({
             filas: filasItemsSunat(filas),
             nombre: 'COMPROBANTES SUNAT - DETALLE',

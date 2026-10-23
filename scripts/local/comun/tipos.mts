@@ -10,7 +10,7 @@ export interface Pendiente {
     periodo: string | null;
 }
 
-/** Identidad de un comprobante para comparar SIRE vs cpe_comprobante: serie en mayúsculas, número sin ceros a la izquierda. */
+/** Identidad de un comprobante para comparar: serie en mayúsculas, número sin ceros a la izquierda. */
 export function clave(x: { proveedorRuc: string; tipoComprobante: string; serie: string; numero: string }): string {
     return `${x.proveedorRuc}|${x.tipoComprobante}|${x.serie.toUpperCase()}|${x.numero.replace(/^0+/, '') || '0'}`;
 }

@@ -1,4 +1,4 @@
-// Re-derives the three flags of padron_ruc (good taxpayer, withholding agent, perception agent) from the
+// Re-derives the three flags of contribuyente (good taxpayer, withholding agent, perception agent) from the
 // «Padrones» text each row already stores, with the fixed reader (leerPadrones). Needs no query to SUNAT.
 //
 // Why: until 09/10/2026 the reader looked for «agente de retención» and SUNAT writes «Agentes de
@@ -6,20 +6,15 @@
 // also kept a stray «Razón Social: eeee -->» at the end of the text.
 //
 //   pnpm padron:repair             only counts and lists what would change (nothing is written)
-//   pnpm padron:repair --apply     writes the rows that change, through guardar_padron_ruc
+//   pnpm padron:repair --apply     writes the rows that change (comun/padron.mts, v2 base)
 //
-// guardar_padron_ruc stamps consultado_en = now() on what it writes: the repaired rows are not
+// Saving stamps padron_en = now() on what it writes: the repaired rows are not
 // re-queried by the robot for DIAS_VIGENCIA days, which is fine (their text is current).
-import { createClient } from '@supabase/supabase-js';
 import { leerPadrones } from '../src/shared/lib/sunat/consulta-ruc.ts';
+import { base } from './local/comun/base.mts';
+import { savePadron } from './local/comun/padron.mts';
 
 const apply = process.argv.includes('--apply');
-
-const need = (...names: string[]): string => {
-    for (const n of names) if (process.env[n]?.trim()) return process.env[n]!.trim();
-    console.error(`✗ Missing ${names.join(' or ')} in the environment (.env.local).`);
-    process.exit(1);
-};
 
 interface Row {
     ruc: string;
@@ -32,24 +27,19 @@ interface Row {
     padrones_detalle: string | null;
 }
 
-const sb = createClient(need('SUPABASE_URL', 'PROJECT_URL'), need('SUPABASE_ANON_KEY', 'ANON_KEY'), {
-    auth: { autoRefreshToken: false, persistSession: false },
-});
-const { error: loginError } = await sb.auth.signInWithPassword({ email: need('ROBOT_CORREO'), password: need('ROBOT_CLAVE') });
-if (loginError) {
-    console.error('✗ Could not sign in as the robot:', loginError.message);
-    process.exit(1);
-}
+const sb = base();
 
 const rows: Row[] = [];
 for (let from = 0; ; from += 1000) {
     const { data, error } = await sb
-        .from('padron_ruc')
+        .from('contribuyente')
         .select('ruc, razon_social, estado, condicion, buen_contribuyente, agente_retencion, agente_percepcion, padrones_detalle')
+        // The RUC the Consulta RUC answered (what padron_ruc held).
+        .not('padron_en', 'is', null)
         .order('ruc')
         .range(from, from + 999);
     if (error) {
-        console.error('✗ Could not read padron_ruc:', error.message);
+        console.error('✗ Could not read contribuyente:', error.message);
         process.exit(1);
     }
     rows.push(...(data as Row[]));
@@ -74,7 +64,7 @@ const changes = rows.flatMap((r) => {
 });
 
 const count = (pick: (c: (typeof changes)[number]) => boolean) => changes.filter(pick).length;
-console.log(`${rows.length} RUC in padron_ruc; ${changes.length} change.`);
+console.log(`${rows.length} RUC looked up in contribuyente; ${changes.length} change.`);
 console.log(`  withholding agent  false → true: ${count((c) => c.flags.agenteRetencion && !c.before.agente_retencion)}`);
 console.log(`  perception agent   false → true: ${count((c) => c.flags.agentePercepcion && !c.before.agente_percepcion)}`);
 console.log(`  good taxpayer      changed:      ${count((c) => c.flags.buenContribuyente !== c.before.buen_contribuyente)}`);
@@ -97,11 +87,11 @@ for (let i = 0; i < changes.length; i += 200) {
         ...flags,
         padronesTexto: text,
     }));
-    const { error } = await sb.rpc('guardar_padron_ruc', { p_filas: batch });
-    if (error) {
-        console.error(`✗ Batch from ${i} failed (${saved} already saved):`, error.message);
+    try {
+        saved += await savePadron(sb, batch);
+    } catch (e) {
+        console.error(`✗ Batch from ${i} failed (${saved} already saved):`, e instanceof Error ? e.message : e);
         process.exit(1);
     }
-    saved += batch.length;
 }
 console.log(`\n✓ ${saved} rows written.`);

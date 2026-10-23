@@ -3,7 +3,7 @@
 //
 // `descargar-cpe.mts` usa "Consulta de Facturas y Notas Electrónicas", que
 // pide un rango de fechas y trae TODO lo de ese rango... pero solo si es
-// serie E001. Confirmado contra el SIRE (`comprobantes_sunat`) el
+// serie E001. Confirmado contra el SIRE (el Registro de Compras) el
 // 28/09/2026: en agosto, esa pantalla trajo 559 comprobantes y los 559 eran
 // serie E, mientras el SIRE tenía 857 más de serie F en el mismo rango. No
 // es un bug del scraper ni de la cuenta de SOL que se usa: es la pantalla
@@ -30,21 +30,22 @@
 // de siempre—, así que en DEBUG (por omisión) el script entra, radiografía
 // el formulario y sube capturas + HTML de cada paso, sin guardar nada
 // todavía. Con esa evidencia se escribe la FASE 2 —llenarlo de verdad, leer
-// el resultado y guardarlo en `cpe_comprobante`—, igual que se hizo con
+// el resultado y guardarlo en la base—, igual que se hizo con
 // boletas en `descargar-cpe.mts`.
 
 import { chromium, type Page, type Frame, type Download } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { google } from 'googleapis';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizarClavePrivada, correoDeServicio, carpeta, publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
 import { leerZip } from '../src/shared/lib/sunat/zip.ts';
 import { crearSubidor } from './local/comun/cache-drive.mts';
-import { alsoInV2, detailFromV2 } from './local/comun/v2.mts';
+import { base, toDownload } from './local/comun/base.mts';
+import { leerDetalle } from './local/comun/detalle.mts';
 import { documentoPrincipal, leerComprobanteXml, type ComprobanteCpe } from '../src/shared/lib/sunat/cpe-xml.ts';
 import { prepararLote, origenDe, periodoDe, identidad } from '../src/shared/lib/sunat/cpe-importacion.ts';
-import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
+import { filasItemsSunat, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
 
 function pedir(...nombres: string[]): string {
     for (const n of nombres) {
@@ -494,8 +495,8 @@ function calificadorTipoComprobante(serie: string): string {
 
 /**
  * Lo que el SIRE ya sabe que existe, para este período, con serie distinta
- * a E001 —la que la consulta por rango sí cubre—, y que todavía no está en
- * `cpe_comprobante`.
+ * a E001 —la que la consulta por rango sí cubre—, y que todavía no tiene su
+ * XML en la base.
  *
  * Es al revés de como arma la lista `descargar-cpe.mts`: ahí la lista sale
  * de SUNAT y se guarda en la base; acá la lista sale de la base (el SIRE ya
@@ -512,91 +513,34 @@ function calificadorTipoComprobante(serie: string): string {
  * por fecha) y la consulta las manda con un RUC que nunca va a encontrar
  * nada.
  *
- * «Ya está en cpe_comprobante» se busca SIN filtrar por período: el del SIRE
- * es el del registro de compras y el de `cpe_comprobante` sale de la fecha de
- * emisión, y nada garantiza que coincidan (al 30/09/2026 coinciden en todos
- * los casos, pero si alguna vez no, filtrando por período ese comprobante se
- * vería pendiente para siempre). Se acota por serie no-E, lo único que se compara.
- *
- * Las dos lecturas van paginadas: PostgREST corta cualquier respuesta en
- * 1000 filas sin avisar, y agosto solo ya tiene 2106 pendientes no-E.
+ * Lo que falta es lo que la base v2 tiene sin XML (`comprobante.xml_estado`
+ * PENDIENTE, ERROR o NO_EXISTE: esta pantalla es justo la otra vía para lo que
+ * la API dijo que no existe). PERIODO filtra por el mes del Registro de Compras
+ * (el del SIRE), como antes. Se acota por serie no-E. La lectura va por cursor
+ * (base.mts): PostgREST corta cualquier respuesta en 1000 filas sin avisar, y
+ * agosto solo ya tuvo 2106 pendientes no-E.
  */
 async function pendientes(periodos: string[]): Promise<Pendiente[]> {
-    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-    if (!url) {
-        console.error('✗ Falta SUPABASE_URL o PROJECT_URL.');
-        process.exit(1);
-    }
-    const key = pedir('SUPABASE_ANON_KEY', 'ANON_KEY');
-    const sb = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
-
-    const { error: eLogin } = await sb.auth.signInWithPassword({
-        email: pedir('ROBOT_CORREO'),
-        password: pedir('ROBOT_CLAVE'),
-    });
-    if (eLogin) {
-        console.error('✗ No se pudo entrar a la base:', eLogin.message);
-        process.exit(1);
-    }
-
-    const PAGINA = 1000;
-    async function todas<T>(
-        etiqueta: string,
-        pagina: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-    ): Promise<T[]> {
-        const filas: T[] = [];
-        for (let desde = 0; ; desde += PAGINA) {
-            const { data, error } = await pagina(desde, desde + PAGINA - 1);
-            if (error) {
-                console.error(`✗ No se pudo leer ${etiqueta}:`, error.message);
-                process.exit(1);
-            }
-            filas.push(...(data ?? []));
-            if ((data ?? []).length < PAGINA) return filas;
-        }
-    }
-
-    const asc = !MAS_RECIENTE_PRIMERO;
-    const sire = await todas('comprobantes_sunat', (desde, hasta) => {
-        let q = sb
-            .from('comprobantes_sunat')
-            .select('proveedor_ruc, proveedor_nombre, tipo_comprobante, serie, numero, fecha_emision, total, moneda')
-            .eq('empresa_ruc', RUC)
-            .not('serie', 'ilike', 'E%')
-            .in('tipo_comprobante', ['01', '07', '08'])
-            .neq('proveedor_ruc', '0');
-        if (periodos.length) q = q.in('periodo', periodos);
-        // Desempate por id: sin un orden total, dos páginas pueden repetir o saltarse filas.
-        return q.order('fecha_emision', { ascending: asc }).order('id', { ascending: asc }).range(desde, hasta);
-    });
-
-    const yaEstan = await todas('cpe_comprobante', (desde, hasta) =>
-        sb
-            .from('cpe_comprobante')
-            .select('proveedor_ruc, tipo_comprobante, serie, numero')
-            .eq('empresa_ruc', RUC)
-            .not('serie', 'ilike', 'E%')
-            .order('id')
-            .range(desde, hasta),
-    );
-
-    const identidad = (c: { proveedor_ruc: string | null; tipo_comprobante: string | null; serie: string | null; numero: string | null }) =>
-        `${c.proveedor_ruc}|${c.tipo_comprobante}|${c.serie}|${c.numero}`;
-    const vistos = new Set(yaEstan.map(identidad));
-
-    return sire
-        .filter((c) => c.proveedor_ruc && c.tipo_comprobante && c.serie && c.numero)
-        .filter((c) => !vistos.has(identidad(c)))
-        .map((c) => ({
-            proveedorRuc: c.proveedor_ruc as string,
-            proveedorNombre: c.proveedor_nombre,
-            tipoComprobante: c.tipo_comprobante as string,
-            serie: c.serie as string,
-            numero: c.numero as string,
-            fechaEmision: c.fecha_emision,
-            total: c.total,
-            moneda: c.moneda,
-        }));
+    const filas = await toDownload(null, ['PENDIENTE', 'ERROR', 'NO_EXISTE'], periodos, (q) => q.in('tipo', ['01', '07', '08']).not('serie', 'like', 'E%'));
+    const asc = MAS_RECIENTE_PRIMERO ? -1 : 1;
+    const k = (x: (typeof filas)[number]) => `${x.fecha_emision ?? '9999-99-99'}|${x.id}`;
+    return filas
+        .sort((a, z) => asc * k(a).localeCompare(k(z)))
+        .filter((c) => c.emisor_ruc && c.tipo && c.serie && c.numero)
+        .map((c) => {
+            // The total the SIRE declared (its latest line), as the old SIRE table gave it.
+            const linea = [...(c.registro_compras ?? [])].sort((a, z) => z.ultima_vez.localeCompare(a.ultima_vez))[0];
+            return {
+                proveedorRuc: c.emisor_ruc,
+                proveedorNombre: c.emisor_nombre ?? c.emisor?.razon_social ?? null,
+                tipoComprobante: c.tipo,
+                serie: c.serie,
+                numero: c.numero,
+                fechaEmision: c.fecha_emision,
+                total: linea?.total == null ? null : Number(linea.total),
+                moneda: c.moneda,
+            };
+        });
 }
 
 /**
@@ -873,26 +817,19 @@ async function carpetaDelLote(drive: ReturnType<typeof clienteDrive>, origen: 'R
     return promesa;
 }
 
-/** Entra a la base como el robot. `null` si falla, que es un aviso, no un motivo para tumbar la corrida. */
-async function clienteBase(): Promise<SupabaseClient | null> {
-    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-    if (!url) return null;
-    const sb = createClient(url, pedir('SUPABASE_ANON_KEY', 'ANON_KEY'), { auth: { autoRefreshToken: false, persistSession: false } });
-    const { error } = await sb.auth.signInWithPassword({
-        email: pedir('ROBOT_CORREO'),
-        password: pedir('ROBOT_CLAVE'),
-    });
-    if (error) {
-        console.error('⚠ No se pudo entrar a la base:', error.message);
+/** El cliente de la base v2. `null` sin credenciales, que es un aviso, no un motivo para tumbar la corrida. */
+function clienteBase(): SupabaseClient | null {
+    if (!process.env.SUPABASE_URL_V2?.trim()) {
+        console.error('⚠ Falta SUPABASE_URL_V2: no se guarda en la base.');
         return null;
     }
-    return sb;
+    return base();
 }
 
 /**
- * Guarda el lote de comprobantes confirmados en `cpe_comprobante`, y
- * devuelve el cliente ya logueado como el robot para que el llamador pueda
- * reusarlo y publicar la hoja de detalle sin loguearse de nuevo.
+ * Guarda el lote de comprobantes confirmados en la base v2 (`comprobante`, con
+ * xml_estado OK) y devuelve el cliente para que el llamador sepa que quedó
+ * guardado y publique la hoja de detalle.
  *
  * Mismo `guardar_cpe` que usa `descargar-cpe.mts`: un comprobante que ya
  * estaba se actualiza en vez de duplicarse, así que repetir un rango ya
@@ -913,7 +850,7 @@ async function guardarLote(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: stri
         d.pdfDriveUrl = par?.pdfUrl ?? null;
     }
 
-    const sb = await clienteBase();
+    const sb = clienteBase();
     if (!sb) return null;
     const { data, error } = await sb.rpc('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
     if (error) {
@@ -921,8 +858,7 @@ async function guardarLote(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: stri
         return null;
     }
     const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
-    console.log(`Guardado en cpe_comprobante: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
-    await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
+    console.log(`Guardado en la base: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
     return sb;
 }
 
@@ -935,20 +871,19 @@ async function guardarLote(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: stri
  * credenciales de Drive, el detalle igual quedó guardado en la base y solo
  * se salta la publicación.
  */
-async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
+async function publicarLaHojaDetalle(): Promise<void> {
     if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
         console.log('Sin credenciales de Drive: no se actualiza la hoja de detalle.');
         return;
     }
 
-    let filas = await detailFromV2();
-    if (!filas)
-        try {
-            filas = (await detalleCpeCompleto(sb, null)).map(filaDetalleDesdeRpc);
-        } catch (e) {
-            console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
-            return;
-        }
+    let filas;
+    try {
+        filas = await leerDetalle();
+    } catch (e) {
+        console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
+        return;
+    }
 
     const r = await publicarHojaPorAnio({
         filas: filasItemsSunat(filas),
@@ -995,14 +930,14 @@ try {
     // frágil: un cupo de API lleno en el pendiente 47/100 tumbó la corrida
     // entera, y como `guardarLote` recién se llamaba DESPUÉS del for, los 46
     // confirmados y ya archivados en Drive antes de ese punto no llegaron a
-    // `cpe_comprobante` —trabajo hecho pero no guardado—. Ahora se vuelca a la
+    // la base —trabajo hecho pero no guardado—. Ahora se vuelca a la
     // base cada tantos confirmados, así una corrida grande solo arriesga el
     // último lote parcial, no todo lo caminado.
     const LOTE_GUARDADO = 20;
     async function volcar(): Promise<void> {
         if (comprobantes.length === 0) return;
         const sb = await guardarLote(comprobantes);
-        if (sb) await publicarLaHojaDetalle(sb);
+        if (sb) await publicarLaHojaDetalle();
         comprobantes = [];
     }
 

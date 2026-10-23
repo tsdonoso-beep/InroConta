@@ -29,7 +29,6 @@ import { chromium, type Page, type Frame, type Locator, type Download } from 'pl
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { google } from 'googleapis';
-import { createClient } from '@supabase/supabase-js';
 import { normalizarClavePrivada, correoDeServicio, carpeta, publicarHoja, publicarHojaPorAnio } from '../src/shared/lib/drive/servidor.ts';
 import { leerZip } from '../src/shared/lib/sunat/zip.ts';
 import { crearSubidor } from './local/comun/cache-drive.mts';
@@ -45,9 +44,10 @@ import {
     type Consulta,
     type Tanda,
 } from '../src/shared/lib/sunat/cpe-consulta.ts';
-import { filasItemsSunat, filaDetalleDesdeRpc, detalleCpeCompleto, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
+import { filasItemsSunat, TIPOS_ITEMS } from '../src/shared/lib/export/items-sunat.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { alsoInV2, detailFromV2 } from './local/comun/v2.mts';
+import { base } from './local/comun/base.mts';
+import { leerDetalle } from './local/comun/detalle.mts';
 
 // ── Configuración desde el entorno ────────────────────────────────
 
@@ -1073,37 +1073,29 @@ async function carpetaDelLote(drive: ReturnType<typeof clienteDrive>, origen: Do
 // ── Guardar el detalle (opcional, si hay base) ────────────────────
 
 /**
- * Entra a la base como el robot. `null` si no hay credenciales o si el login
- * falla, que es un aviso, no un motivo para tumbar la corrida: lo bajado ya
- * quedó archivado en Drive.
+ * El cliente de la base v2 (llave de servicio). `null` si no hay credenciales,
+ * que es un aviso, no un motivo para tumbar la corrida: lo bajado ya quedó
+ * archivado en Drive.
  *
- * Aparte de `guardarDetalle` porque publicar una hoja también necesita entrar,
+ * Aparte de `guardarDetalle` porque publicar una hoja también necesita la base,
  * y hay un caso en que hay que publicar sin haber guardado nada: cuando la
  * corrida no bajó nada nuevo pero la hoja del rango se pidió igual.
  */
-async function clienteBase(): Promise<SupabaseClient | null> {
-    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-    if (!url) return null;
-    const sb = createClient(url, pedir('SUPABASE_ANON_KEY', 'ANON_KEY'), { auth: { autoRefreshToken: false, persistSession: false } });
-    const { error } = await sb.auth.signInWithPassword({
-        email: pedir('ROBOT_CORREO'),
-        password: pedir('ROBOT_CLAVE'),
-    });
-    if (error) {
-        console.error('⚠ No se pudo entrar a la base:', error.message);
+function clienteBase(): SupabaseClient | null {
+    if (!process.env.SUPABASE_URL_V2?.trim()) {
+        console.error('⚠ Falta SUPABASE_URL_V2: no se guarda en la base.');
         return null;
     }
-    return sb;
+    return base();
 }
 
 /**
- * Guarda el detalle y devuelve el cliente ya logueado como el robot, para
- * que el llamador pueda reusarlo y dejar la hoja publicada sin loguearse de
- * nuevo. `null` si no había credenciales de la base o nada que guardar.
+ * Guarda el detalle y devuelve el cliente de la base, para que el llamador
+ * sepa que quedó guardado y deje la hoja publicada. `null` si no había
+ * credenciales de la base, nada que guardar o no se pudo guardar.
  */
 async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: string | null; pdfUrl: string | null }>): Promise<SupabaseClient | null> {
-    const url = process.env.SUPABASE_URL || process.env.PROJECT_URL;
-    if (!url || comprobantes.length === 0) return null;
+    if (comprobantes.length === 0) return null;
     const lote = prepararLote(
         comprobantes.map((x) => x.c),
         RUC,
@@ -1120,7 +1112,7 @@ async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: s
         d.pdfDriveUrl = par?.pdfUrl ?? null;
     }
 
-    const sb = await clienteBase();
+    const sb = clienteBase();
     if (!sb) return null;
     const { data, error } = await sb.rpc('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
     if (error) {
@@ -1129,7 +1121,6 @@ async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: s
     }
     const r = (Array.isArray(data) ? data[0] : data) as { nuevos: number; actualizados: number; items: number };
     console.log(`Detalle guardado: ${r?.nuevos} nuevos, ${r?.actualizados} actualizados, ${r?.items} ítems.`);
-    await alsoInV2('guardar_cpe', { p_empresa_ruc: RUC, p_docs: lote });
     return sb;
 }
 
@@ -1144,20 +1135,19 @@ async function guardarDetalle(comprobantes: Array<{ c: ComprobanteCpe; xmlUrl: s
  * Es opcional: si faltan las credenciales de Drive, el detalle igual quedó
  * guardado en la base y solo se salta la publicación.
  */
-async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
+async function publicarLaHojaDetalle(): Promise<void> {
     if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
         console.log('Sin credenciales de Drive: no se actualiza la hoja de detalle.');
         return;
     }
 
-    let filas = await detailFromV2();
-    if (!filas)
-        try {
-            filas = (await detalleCpeCompleto(sb, null)).map(filaDetalleDesdeRpc);
-        } catch (e) {
-            console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
-            return;
-        }
+    let filas;
+    try {
+        filas = await leerDetalle();
+    } catch (e) {
+        console.error('⚠ No se pudo leer el detalle para la hoja:', e instanceof Error ? e.message : e);
+        return;
+    }
 
     const r = await publicarHojaPorAnio({
         filas: filasItemsSunat(filas),
@@ -1184,7 +1174,7 @@ async function publicarLaHojaDetalle(sb: SupabaseClient): Promise<void> {
  * El nombre lleva el rango y es estable, así que la corrida siguiente del
  * mismo rango REEMPLAZA esta hoja en vez de dejar otra al lado.
  */
-async function publicarLaHojaDelRango(sb: SupabaseClient): Promise<void> {
+async function publicarLaHojaDelRango(): Promise<void> {
     if (!process.env.GOOGLE_SA_EMAIL || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
         console.log('Sin credenciales de Drive: no se crea la hoja del rango.');
         return;
@@ -1197,17 +1187,16 @@ async function publicarLaHojaDelRango(sb: SupabaseClient): Promise<void> {
         return;
     }
 
-    // Un período por llamada: `detalle_cpe` filtra por período exacto, no por
-    // rango, y paginar cada uno es el camino que ya está probado.
-    const datos: Record<string, unknown>[] = [];
+    // El detalle entero (las mismas líneas que la hoja histórica), quedándose
+    // con los períodos del rango (el de la fecha de emisión).
+    let filas;
     try {
-        for (const periodo of periodos) datos.push(...(await detalleCpeCompleto(sb, periodo)));
+        filas = await leerDetalle(periodos);
     } catch (e) {
         console.error('⚠ No se pudo leer el detalle del rango:', e instanceof Error ? e.message : e);
         return;
     }
 
-    const filas = datos.map(filaDetalleDesdeRpc);
     const r = await publicarHoja({
         filas: filasItemsSunat(filas),
         nombre,
@@ -1386,11 +1375,11 @@ try {
         // Cuando sí hubo algo que bajar, en cambio, un guardado que falla deja el
         // `null` de siempre y NO se publica nada: una hoja a la que le falta lo de
         // esta corrida es peor que ninguna, porque se lee como completa.
-        const sb = comprobantes.length > 0 ? await guardarDetalle(comprobantes) : HOJA_DEL_RANGO ? await clienteBase() : null;
+        const sb = comprobantes.length > 0 ? await guardarDetalle(comprobantes) : HOJA_DEL_RANGO ? clienteBase() : null;
 
         if (sb) {
-            await publicarLaHojaDetalle(sb);
-            if (HOJA_DEL_RANGO) await publicarLaHojaDelRango(sb);
+            await publicarLaHojaDetalle();
+            if (HOJA_DEL_RANGO) await publicarLaHojaDelRango();
         }
     }
 } catch (e) {

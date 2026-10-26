@@ -4,8 +4,9 @@
 // retained each month (what is declared), the wrong retentions (an ERROR: the invoice has a
 // detraction, and an operation subject to the SPOT is not retained) and the invoices the base has
 // not read yet (NOT an error). Everything is drawn at once; only the numbers wait for the base
-// (retentionsStore, read once per tab).
-import { useMemo, useState } from 'react';
+// (retentionsStore, read once per tab). The filters, the order and the pages go in the URL
+// (?periodo=&estado=&texto=&orden=&pag=&pag_mal=&pag_leer=), for a link.
+import { useMemo } from 'react';
 import {
     DEFAULT_RETENTION_FILTERS,
     filterRetentions,
@@ -28,6 +29,7 @@ import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
 import { KpiGrid } from '../_comprobantes/kpi-cards.tsx';
 import { retentionsStore } from '../_lib/stores.ts';
+import { urlState } from '../_lib/url-state.ts';
 import { shortSoles, soles } from '../detracciones/labels.tsx';
 import { CreTable, UnreadTable, WrongTable } from './tables.tsx';
 
@@ -46,8 +48,12 @@ const SORTS: { value: RetentionSort; label: string }[] = [
     { value: 'cre', label: 'Número de CRE' },
 ];
 
-// The filters survive moving to another section and back (not a reload), like Detracciones'.
-let saved: RetentionFilters = DEFAULT_RETENTION_FILTERS;
+// The filters survive moving to another section and back, like Detracciones' (urlState remembers them).
+const view$ = urlState(
+    { ...DEFAULT_RETENTION_FILTERS, sort: 'issued-desc' as RetentionSort, page: '1', pageWrong: '1', pageUnread: '1' },
+    { period: 'periodo', status: 'estado', text: 'texto', sort: 'orden', page: 'pag', pageWrong: 'pag_mal', pageUnread: 'pag_leer' },
+    { status: STATUSES.map((s) => s.value), sort: SORTS.map((s) => s.value) },
+);
 
 function RetentionKpiCards({ k }: { k: RetentionKpis | null }) {
     return (
@@ -107,12 +113,10 @@ const TableGap = () => (
 
 export function RetencionesView() {
     const { data, error } = retentionsStore.use();
-    const [f, setF] = useState<RetentionFilters>(saved);
-    const [sort, setSort] = useState<RetentionSort>('issued-desc');
-    const set = (patch: Partial<RetentionFilters>) => {
-        saved = { ...f, ...patch };
-        setF(saved);
-    };
+    const f = view$.use();
+    const { sort } = f;
+    const setSort = (s: RetentionSort) => view$.set({ sort: s });
+    const set = (patch: Partial<RetentionFilters>) => view$.set(patch);
 
     const all = useMemo(() => data?.retentions ?? [], [data]);
     const months = useMemo(() => retentionMonths(all), [all]);
@@ -129,9 +133,9 @@ export function RetencionesView() {
         };
     }, [data, all, f]);
     const sorted = useMemo(() => (v ? sortRetentions(v.list, sort) : []), [v, sort]);
-    const crePage = usePaged(sorted, sorted, PAGE);
-    const wrongPage = usePaged(v?.wrong ?? [], v?.wrong, PAGE);
-    const unreadPage = usePaged(v?.unread ?? [], v?.unread, PAGE);
+    const crePage = usePaged(sorted, sorted, PAGE, view$.usePage());
+    const wrongPage = usePaged(v?.wrong ?? [], v?.wrong, PAGE, view$.usePage('pageWrong'));
+    const unreadPage = usePaged(v?.unread ?? [], v?.unread, PAGE, view$.usePage('pageUnread'));
     const pickedMonth = /^m\d{6}$/.test(f.period) ? f.period.slice(1) : '';
 
     return (

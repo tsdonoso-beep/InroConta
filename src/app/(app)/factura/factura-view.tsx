@@ -4,6 +4,7 @@
 // RUC, number, amount or words, and all of them while nothing is typed; the supplier's card on top when all are of one. The port of the
 // «factura» section and buscarFacturas (VistaEjecutivaPagina.html). Every match, with the filters of
 // Consulta RUC (date, kind, amount, order) over them and in pages: all in memory, one page drawn.
+// The search goes in the URL (?buscar=), and the filters with it (docs-list.tsx), for a link.
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { searchDocs, type Doc } from '../../../modules/comprobantes/application/views.ts';
@@ -13,11 +14,19 @@ import { Pager, usePaged } from '../../../shared/ui/pager.tsx';
 import { useDocs } from '../_comprobantes/docs-store.ts';
 import { PageHeader } from '../_comprobantes/page-header.tsx';
 import { useRucIndex, type RucIndex } from '../_lib/stores.ts';
-import { DocFilters, listTitle, useDocList } from '../_ruc/docs-list.tsx';
+import { urlState } from '../_lib/url-state.ts';
+import { DocFilters, docList$, listTitle, useDocList } from '../_ruc/docs-list.tsx';
 import { RucListsError, TaxpayerCardView } from '../_ruc/taxpayer-card.tsx';
 import { InvoiceRow, InvoiceRowGap } from './invoice-row.tsx';
 
 const EXAMPLES = ['F216-777773', 'DHL', '20101128777', '43.64'];
+const search$ = urlState({ q: '' }, { q: 'buscar' });
+/** A new search starts without the last one's filters, as when the list was keyed by it. */
+const search = (q: string) => {
+    search$.set({ q });
+    docList$.reset();
+};
+
 const keyOf = (d: Doc) => `${d.ruc}|${d.kind}|${d.number}|${d.origin}`;
 
 function Examples({ onPick }: { onPick: (q: string) => void }) {
@@ -42,7 +51,7 @@ function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucInd
     const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
     const r = useMemo(() => searchDocs(docs, query), [docs, query]);
     const state = useDocList(r.found);
-    const paged = usePaged(state.list, state.filter);
+    const paged = usePaged(state.list, null, undefined, docList$.usePage());
     const { title, sums } = listTitle(state, r.total, r.total === 1 ? 'comprobante' : 'comprobantes');
     const toggle = (k: string) =>
         setOpen((s) => {
@@ -83,7 +92,8 @@ function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucInd
 export function FacturaView() {
     const { snapshot, error } = useDocs();
     const idx = useRucIndex();
-    const [query, setQuery] = useState('');
+    const { q: query } = search$.use();
+    const setQuery = search;
     return (
         <>
             <PageHeader title="Buscar factura" />

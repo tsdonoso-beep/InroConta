@@ -18,19 +18,25 @@ export interface Paged<T> {
     setPage: (p: number) => void;
 }
 
-export function usePaged<T>(list: T[], reset: unknown, size = PAGE_SIZE): Paged<T> {
+/**
+ * `control`: the page kept outside (in the URL: _lib/url-state.ts), which then goes back to 1 by
+ * itself when a filter changes, so `reset` is not used. Without it the page lives here.
+ */
+export function usePaged<T>(list: T[], reset: unknown, size = PAGE_SIZE, control?: { page: number; setPage: (p: number) => void }): Paged<T> {
     const [state, setState] = useState({ page: 1, reset });
     // Changing what is listed starts again on page 1 (set while rendering: no extra paint).
-    if (state.reset !== reset) setState({ page: 1, reset });
+    if (!control && state.reset !== reset) setState({ page: 1, reset });
     const pages = Math.max(1, Math.ceil(list.length / size));
-    const page = Math.min(Math.max(1, state.reset === reset ? state.page : 1), pages);
+    // Clamped only to draw: while the list travels a page 3 from a link is kept, not written back as 1.
+    const wanted = control ? control.page : state.reset === reset ? state.page : 1;
+    const page = Math.min(Math.max(1, wanted), pages);
     return {
         rows: list.slice((page - 1) * size, page * size),
         page,
         pages,
         total: list.length,
         size,
-        setPage: (p) => setState({ page: p, reset }),
+        setPage: control ? control.setPage : (p) => setState({ page: p, reset }),
     };
 }
 

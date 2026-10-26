@@ -3,8 +3,10 @@
 // The filters of a list of documents (date of issue, kind, origin, currency, amount and order) and
 // the list of one RUC's documents with us (Consulta RUC) that uses them. Buscar factura uses the same
 // filters over its rows. Everything is already in the browser (the docs store), so a filter answers
-// at once; only the page on screen is drawn (shared/ui/pager.tsx).
-import { useMemo, useState } from 'react';
+// at once; only the page on screen is drawn (shared/ui/pager.tsx). The filters, the order and the
+// page go in the URL (?emision=&clase=&cv=&mon=&desde=&hasta=&cpe_orden=&cpe_pag=): the two screens
+// never show it at once, so they share one store.
+import { useMemo } from 'react';
 import {
     currenciesOf,
     DOC_LIST_DEFAULT,
@@ -21,6 +23,7 @@ import { Card } from '../../../shared/ui/card.tsx';
 import { money, thousands } from '../../../shared/ui/format.ts';
 import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
+import { urlState } from '../_lib/url-state.ts';
 import { DocsTable, KIND_NAMES } from './docs-table.tsx';
 
 const SORTS: { value: DocSort; label: string }[] = [
@@ -35,19 +38,25 @@ const CURRENCY_NAMES: Record<string, string> = { PEN: 'Soles', USD: 'Dólares' }
 /** '' → null (open bound); a typed amount → its number, commas aside. */
 const bound = (v: string) => (v.trim() === '' || isNaN(Number(v.replace(/,/g, ''))) ? null : Number(v.replace(/,/g, '')));
 
-/** Keeps what is typed (so «12.» stays while writing); emptied by remounting it (DocFilters' `boxes`). */
-function AmountBox({ placeholder, onChange }: { placeholder: string; onChange: (v: number | null) => void }) {
-    const [text, setText] = useState('');
+/** What the filters keep: as typed (the amounts too, so «12.» stays while writing). */
+type DocListText = Omit<DocListFilter, 'min' | 'max'> & { min: string; max: string; page: string };
+
+/** Not remembered: the documents of the next RUC open without the last one's filters. */
+export const docList$ = urlState<DocListText>(
+    { ...DOC_LIST_DEFAULT, min: '', max: '', page: '1' },
+    { period: 'emision', kind: 'clase', origin: 'cv', currency: 'mon', min: 'desde', max: 'hasta', sort: 'cpe_orden', page: 'cpe_pag' },
+    { kind: ['', ...Object.keys(KIND_NAMES)], origin: ['', 'compra', 'venta'], sort: SORTS.map((s) => s.value) },
+    false,
+);
+
+function AmountBox({ placeholder, value, onChange }: { placeholder: string; value: string; onChange: (v: string) => void }) {
     return (
         <input
             inputMode="decimal"
             aria-label={placeholder}
             placeholder={placeholder}
-            value={text}
-            onChange={(e) => {
-                setText(e.target.value);
-                onChange(bound(e.target.value));
-            }}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             className={`${CONTROL} w-[120px]`}
         />
     );
@@ -55,27 +64,27 @@ function AmountBox({ placeholder, onChange }: { placeholder: string; onChange: (
 
 export interface DocList {
     filter: DocListFilter;
-    set: (patch: Partial<DocListFilter>) => void;
+    /** The amounts as typed. */
+    text: { min: string; max: string };
+    set: (patch: Partial<DocListText>) => void;
     /** The documents that pass, in order. */
     list: Doc[];
-    /** Bumped by «Quitar filtros», to empty the amount boxes. */
-    boxes: number;
     clear: () => void;
 }
 
 export function useDocList(docs: Doc[]): DocList {
-    const [filter, setFilter] = useState<DocListFilter>(DOC_LIST_DEFAULT);
-    const [boxes, setBoxes] = useState(0);
+    const t = docList$.use();
+    const filter = useMemo<DocListFilter>(
+        () => ({ period: t.period, kind: t.kind, origin: t.origin, currency: t.currency, min: bound(t.min), max: bound(t.max), sort: t.sort }),
+        [t],
+    );
     const list = useMemo(() => listDocs(docs, filter), [docs, filter]);
     return {
         filter,
+        text: { min: t.min, max: t.max },
         list,
-        boxes,
-        set: (patch) => setFilter((f) => ({ ...f, ...patch })),
-        clear: () => {
-            setFilter((f) => ({ ...DOC_LIST_DEFAULT, sort: f.sort }));
-            setBoxes((b) => b + 1);
-        },
+        set: docList$.set,
+        clear: () => docList$.set({ ...DOC_LIST_DEFAULT, min: '', max: '', sort: t.sort }),
     };
 }
 
@@ -116,9 +125,9 @@ export function DocFilters({ docs, state }: { docs: Doc[]; state: DocList }) {
                     ))}
                 </Select>
             )}
-            <span key={state.boxes} className="flex items-center gap-1.5">
-                <AmountBox placeholder="Monto desde" onChange={(min) => set({ min })} />
-                <AmountBox placeholder="hasta" onChange={(max) => set({ max })} />
+            <span className="flex items-center gap-1.5">
+                <AmountBox placeholder="Monto desde" value={state.text.min} onChange={(min) => set({ min })} />
+                <AmountBox placeholder="hasta" value={state.text.max} onChange={(max) => set({ max })} />
             </span>
             <SortSelect value={filter.sort} onChange={(sort) => set({ sort })} options={SORTS} />
             {isFiltered(filter) && <TextButton onClick={state.clear}>Quitar filtros</TextButton>}
@@ -141,7 +150,7 @@ export function listTitle(state: DocList, all: number, noun: string) {
 
 export function DocsList({ docs }: { docs: Doc[] }) {
     const state = useDocList(docs);
-    const paged = usePaged(state.list, state.filter);
+    const paged = usePaged(state.list, null, undefined, docList$.usePage());
     const { title, sums } = listTitle(state, docs.length, 'comprobantes con nosotros');
     return (
         <Card title={title} note={sums}>

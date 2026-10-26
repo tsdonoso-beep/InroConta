@@ -2,7 +2,7 @@
 
 // Cambios del robot: what changed in the OC folders, day by day (Lima days), with the filters of
 // kind, area and text. The port of the «cambios» section (pintarCambios) of the Apps Script view.
-import { useState } from 'react';
+// The filters go in the URL (?tipo=&area=&periodo=&texto=), for a link.
 import {
     CHANGE_DEFAULT,
     changeMonths,
@@ -11,7 +11,6 @@ import {
     filterChanges,
     type ChangeArea,
     type ChangeDay,
-    type ChangeFilter,
     type ChangeKind,
 } from '../../../modules/legajo/application/views.ts';
 import { Card, Chip, Segmented } from '../../../shared/ui/card.tsx';
@@ -21,6 +20,7 @@ import { PeriodPicker } from '../../../shared/ui/period-picker.tsx';
 import { driveFolder } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { changesStore } from '../_lib/stores.ts';
+import { urlState } from '../_lib/url-state.ts';
 
 const KINDS: { value: ChangeKind; label: string }[] = [
     { value: '', label: 'Todos' },
@@ -85,10 +85,16 @@ function ListGap() {
     );
 }
 
+const view$ = urlState(
+    { ...CHANGE_DEFAULT },
+    { kind: 'tipo', area: 'area', period: 'periodo', text: 'texto' },
+    { kind: KINDS.map((k) => k.value), area: AREAS.map((a) => a.value) },
+);
+
 export function CambiosView() {
     const { data, error } = changesStore.use();
-    const [f, setF] = useState<ChangeFilter>(CHANGE_DEFAULT);
-    const set = (patch: Partial<ChangeFilter>) => setF((old) => ({ ...old, ...patch }));
+    const f = view$.use();
+    const set = view$.set;
     const days = data ? changesByDay(filterChanges(data.changes, f)) : null;
     return (
         <>

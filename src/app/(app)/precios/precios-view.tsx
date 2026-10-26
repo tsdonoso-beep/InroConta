@@ -2,8 +2,9 @@
 
 // Precios: «¿Cuánto pagamos por…?», what each product cost month by month. The port of the
 // «precios» section of the Apps Script view (pintarBuscador and its controls). It does not use
-// the SUNAT filters: it has its own words, mode and order, and goes in pages of 25.
-import { useMemo, useState } from 'react';
+// the SUNAT filters: it has its own words, mode and order, and goes in pages of 25. All of it in
+// the URL (?buscar=&compras=&orden=&pag=), for a link.
+import { useMemo } from 'react';
 import { findPrices, preparePrices, priceWords, type PriceMode, type PriceOrder } from '../../../modules/comprobantes/application/views.ts';
 import { Empty, Notice, SearchBox, SectionTitle } from '../../../shared/ui/bits.tsx';
 import { Card, Segmented } from '../../../shared/ui/card.tsx';
@@ -11,6 +12,7 @@ import { thousands } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { productsStore } from '../_lib/stores.ts';
+import { urlState } from '../_lib/url-state.ts';
 import { ProductRow, ROW_GRID } from './product-row.tsx';
 
 const STEP = 25;
@@ -25,6 +27,12 @@ const MODES: { value: PriceMode; label: string }[] = [
     { value: 'repite', label: 'Compradas en 2+ meses' },
 ];
 
+const view$ = urlState(
+    { query: '', mode: 'todo' as PriceMode, order: 'gasto' as PriceOrder, page: '1' },
+    { query: 'buscar', mode: 'compras', order: 'orden', page: 'pag' },
+    { mode: MODES.map((m) => m.value), order: ORDERS.map((o) => o.value) },
+);
+
 function RowsGap() {
     return (
         <div className="flex flex-col gap-3 pt-3">
@@ -38,12 +46,13 @@ function RowsGap() {
 export function PreciosView() {
     const { data, error } = productsStore.use();
     const all = useMemo(() => (data ? preparePrices(data.products) : null), [data]);
-    const [query, setQuery] = useState('');
-    const [mode, setMode] = useState<PriceMode>('todo');
-    const [order, setOrder] = useState<PriceOrder>('gasto');
+    const { query, mode, order } = view$.use();
+    const setQuery = (q: string) => view$.set({ query: q });
+    const setMode = (m: PriceMode) => view$.set({ mode: m });
+    const setOrder = (o: PriceOrder) => view$.set({ order: o });
     const list = useMemo(() => (all ? findPrices(all, query, mode, order) : null), [all, query, mode, order]);
     // Any change of the search goes back to the first page.
-    const paged = usePaged(list ?? [], list, STEP);
+    const paged = usePaged(list ?? [], list, STEP, view$.usePage());
 
     let note: React.ReactNode = null;
     if (data && list)

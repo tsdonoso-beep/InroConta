@@ -1,14 +1,16 @@
 'use client';
 
 // The local expenses of each import PO (freight, customs, courier…): the port of pintarImpo()
-// of the Apps Script view. All the POs, found by OC or supplier, in the order asked and in pages.
-import { useMemo, useState } from 'react';
+// of the Apps Script view. All the POs, found by OC or supplier, in the order asked and in pages;
+// the search, the order and the page go in the URL (?impo=&impo_orden=&impo_pag=), for a link.
+import { useMemo } from 'react';
 import { importsByPo, legajoTone, pickImports, type Doc, type ImportSort } from '../../../modules/comprobantes/application/views.ts';
 import { Empty, FilterRow, SearchBox, T } from '../../../shared/ui/bits.tsx';
 import { Chip } from '../../../shared/ui/card.tsx';
 import { parsePeriod, periodLabel } from '../../../shared/period.ts';
 import { money } from '../../../shared/ui/format.ts';
 import { Pager, SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
+import { urlState } from '../_lib/url-state.ts';
 
 const SORTS: { value: ImportSort; label: string }[] = [
     { value: 'spend-desc', label: 'Más gasto' },
@@ -17,12 +19,19 @@ const SORTS: { value: ImportSort; label: string }[] = [
     { value: 'oc', label: 'Número de OC' },
 ];
 
+const view$ = urlState(
+    { text: '', sort: 'spend-desc' as ImportSort, page: '1' },
+    { text: 'impo', sort: 'impo_orden', page: 'impo_pag' },
+    { sort: SORTS.map((s) => s.value) },
+);
+
 export function Imports({ docs, period, currency }: { docs: Doc[]; period: string; currency: string }) {
     const all = useMemo(() => importsByPo(docs, period, currency), [docs, period, currency]);
-    const [text, setText] = useState('');
-    const [sort, setSort] = useState<ImportSort>('spend-desc');
+    const { text, sort } = view$.use();
+    const setText = (t: string) => view$.set({ text: t });
+    const setSort = (s: ImportSort) => view$.set({ sort: s });
     const list = useMemo(() => pickImports(all, text, sort), [all, text, sort]);
-    const paged = usePaged(list, `${text}|${sort}|${period}|${currency}`, 10);
+    const paged = usePaged(list, null, 10, view$.usePage());
     if (!all.length) return <Empty>Todavía no hay facturas unidas a OC de importación{period ? ` en ${periodLabel(parsePeriod(period))}` : ''}.</Empty>;
     return (
         <>

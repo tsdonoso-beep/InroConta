@@ -1,7 +1,8 @@
 'use client';
 
 // Legajo por OC: the OC folders with what their legajo lacks, by area, state, company and buyer,
-// and the ranking per buyer. Port of the «legajo» section (pintarLegajo and arrancarBase).
+// and the ranking per buyer. Port of the «legajo» section (pintarLegajo and arrancarBase). The
+// filters, the order and the page go in the URL (?area=&estado=&empresa=&comprador=&texto=&orden=&pag=).
 import { useEffect, useMemo, useState } from 'react';
 import {
     ALL_COMPANIES,
@@ -13,7 +14,6 @@ import {
     folderList,
     sortFolders,
     type FolderArea,
-    type FolderFilters,
     type FolderKpis,
     type FolderSort,
     type FolderState,
@@ -25,6 +25,7 @@ import { Hueco } from '../../../shared/ui/hueco.tsx';
 import { SortSelect, usePaged } from '../../../shared/ui/pager.tsx';
 import { KpiGrid } from '../_comprobantes/kpi-cards.tsx';
 import { folderStore, foldersStore } from '../_lib/stores.ts';
+import { urlState } from '../_lib/url-state.ts';
 import { FolderTable } from './folder-table.tsx';
 
 const PAGE = 50;
@@ -50,6 +51,12 @@ const STATES: { value: FolderState; label: string; title?: string }[] = [
     { value: 'VACÍA', label: 'Vacías' },
     { value: '', label: 'Todas' },
 ];
+
+const view$ = urlState(
+    { ...DEFAULT_FOLDER_FILTERS, sort: 'base' as FolderSort, page: '1' },
+    { area: 'area', state: 'estado', company: 'empresa', buyer: 'comprador', text: 'texto', sort: 'orden', page: 'pag' },
+    { area: AREAS.map((a) => a.value), state: STATES.map((s) => s.value), sort: SORTS.map((s) => s.value) },
+);
 
 function LegajoKpis({ k }: { k: FolderKpis | null }) {
     const n = (v: number) => thousands(v);
@@ -112,19 +119,20 @@ function LegajoKpis({ k }: { k: FolderKpis | null }) {
 
 export function LegajoView() {
     const { data, error } = foldersStore.use();
-    const [filters, setFilters] = useState<FolderFilters>(DEFAULT_FOLDER_FILTERS);
-    const [sort, setSort] = useState<FolderSort>('base');
+    const filters = view$.use();
+    const { sort } = filters;
+    const setSort = (s: FolderSort) => view$.set({ sort: s });
     const [open, setOpen] = useState<number | null>(null);
 
     const folders = useMemo(() => data?.folders ?? [], [data]);
     const company = effectiveCompany(folders, filters.company);
-    const f = useMemo(() => ({ ...filters, company }), [filters, company]);
+    const f = useMemo(() => ({ area: filters.area, state: filters.state, buyer: filters.buyer, text: filters.text, company }), [filters, company]);
     const view = useMemo(() => {
         if (!data) return null;
         const v = folderList(folders, f);
         return { ...v, list: sortFolders(v.list, sort) };
     }, [data, folders, f, sort]);
-    const paged = usePaged(view?.list ?? [], view, PAGE);
+    const paged = usePaged(view?.list ?? [], view, PAGE, view$.usePage());
     const buyers = useMemo(() => buyersOf(folders), [folders]);
     const companies = useMemo(() => companiesOf(folders), [folders]);
     const indexOf = useMemo(() => new Map(folders.map((x, i) => [x, i])), [folders]);
@@ -144,7 +152,7 @@ export function LegajoView() {
         return () => clearTimeout(t);
     }, [pageIds]);
 
-    const change = (patch: Partial<FolderFilters>) => setFilters((old) => ({ ...old, ...patch }));
+    const change = view$.set;
 
     return (
         <>

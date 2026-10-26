@@ -7,6 +7,7 @@
 
 import { chromium, type Browser, type Page } from 'playwright';
 import { leerResultadoConsultaRuc, type CondicionRuc } from '../../../src/shared/lib/sunat/consulta-ruc.ts';
+import { HEADLESS } from './config.mts';
 
 export const URL_CONSULTA_RUC = 'https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp';
 
@@ -14,8 +15,9 @@ export const URL_CONSULTA_RUC = 'https://e-consultaruc.sunat.gob.pe/cl-ti-itmrco
 // (seen with the SOL portal in descargar-cpe.mts).
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
+// HEADLESS=0 opens a visible window: since 21/10/2026 Cloudflare challenges the headless one on every query.
 export function launchBrowser(): Promise<Browser> {
-    return chromium.launch({ headless: true, args: ['--disable-blink-features=AutomationControlled'] });
+    return chromium.launch({ headless: HEADLESS, args: ['--disable-blink-features=AutomationControlled'] });
 }
 
 /** A tab in its own context (own cookies): the reCAPTCHA sees each one as a separate visit. */

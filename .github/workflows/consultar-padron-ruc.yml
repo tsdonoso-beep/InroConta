@@ -87,8 +87,10 @@ jobs:
           # Si SUNAT empieza a rechazar, el script frena solo (para 60 s y alarga la pausa).
           MAX_CONSULTAS: ${{ inputs.max_consultas || '150' }}
           PARALELO: '3'
+          # A visible browser: Cloudflare challenges the headless one since 21/10/2026. xvfb-run gives it a screen.
+          HEADLESS: '0'
         # con-bitacora: hora y nivel en cada línea y scripts/out/logs/<script>-<fecha>/ (eventos, HTTP con error, resumen).
-        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/consultar-padron-ruc.mts
+        run: xvfb-run -a node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/local/comun/con-bitacora.mts scripts/consultar-padron-ruc.mts
 
       - name: Subir capturas
         if: always()

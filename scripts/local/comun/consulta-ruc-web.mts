@@ -15,14 +15,34 @@ export const URL_CONSULTA_RUC = 'https://e-consultaruc.sunat.gob.pe/cl-ti-itmrco
 // (seen with the SOL portal in descargar-cpe.mts).
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
+// PATCHRIGHT=1 drives Chrome through patchright, a Playwright fork that hides the automation
+// leaks Cloudflare looks for; the test is whether it passes without a window (HEADLESS=1).
+const PATCHRIGHT = process.env.PATCHRIGHT?.trim() === '1';
+const CHANNEL = process.env.BROWSER_CHANNEL?.trim() || 'chrome';
+
 // HEADLESS=0 opens a visible window: since 21/10/2026 Cloudflare challenges the headless one on every query.
-export function launchBrowser(): Promise<Browser> {
-    return chromium.launch({ headless: HEADLESS, args: ['--disable-blink-features=AutomationControlled'] });
+export async function launchBrowser(): Promise<Browser> {
+    if (!PATCHRIGHT) return chromium.launch({ headless: HEADLESS, args: ['--disable-blink-features=AutomationControlled'] });
+    const { chromium: patched } = await import('patchright');
+    console.log(`  · patchright, canal ${CHANNEL}, ${HEADLESS ? 'sin ventana' : 'con ventana'}`);
+    return (await patched.launch({ channel: CHANNEL, headless: HEADLESS })) as unknown as Browser;
+}
+
+/**
+ * patchright asks not to fake the User-Agent: a Windows one on a Linux runner is itself a tell. Only
+ * the «HeadlessChrome» word of the real one is swapped, so it still matches the platform.
+ */
+async function userAgentFor(browser: Browser): Promise<string> {
+    if (!PATCHRIGHT) return USER_AGENT;
+    const probe = await browser.newPage();
+    const real = await probe.evaluate(() => navigator.userAgent);
+    await probe.context().close();
+    return real.replace('HeadlessChrome', 'Chrome');
 }
 
 /** A tab in its own context (own cookies): the reCAPTCHA sees each one as a separate visit. */
 export async function newRucPage(browser: Browser): Promise<Page> {
-    return (await browser.newContext({ locale: 'es-PE', userAgent: USER_AGENT })).newPage();
+    return (await browser.newContext({ locale: 'es-PE', userAgent: await userAgentFor(browser) })).newPage();
 }
 
 /** Queries one RUC and reads the result page. */

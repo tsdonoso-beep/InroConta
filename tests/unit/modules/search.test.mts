@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import type { Doc } from '../../../src/modules/comprobantes/domain/entities/Doc.ts';
 import { docsOfRuc, partiesByLastDoc, searchDocs, splitNumber } from '../../../src/modules/comprobantes/domain/policies/search.ts';
 import type { SscoEntry, TaxpayerCard } from '../../../src/modules/ruc/domain/entities/Taxpayer.ts';
-import { isNaturalPerson, isOdd, placeOf, rucsByName, sscoHits } from '../../../src/modules/ruc/domain/policies.ts';
+import { byWords, isNaturalPerson, isOdd, placeOf, sscoHits } from '../../../src/modules/ruc/domain/policies.ts';
+import { listParties, PARTY_FILTER_DEFAULT, sscoByName, type PartyFilter } from '../../../src/modules/ruc/domain/parties.ts';
 
 const doc = (p: Partial<Doc>): Doc => ({
     period: '202609',
@@ -89,6 +90,11 @@ describe('searchDocs (buscarFacturas)', () => {
             ['20555555555', 1, '20/08/2026'],
         ]);
     });
+    it('keeps the first document, the roles and the sum in soles of every RUC', () => {
+        const [juan, dhl] = partiesByLastDoc(DOCS);
+        expect([dhl.firstOn, dhl.lastOn, dhl.purchases, dhl.sales, dhl.totalPen]).toEqual(['05/09/2026', '', 2, 0, 200]);
+        expect([juan.purchases, juan.sales]).toEqual([0, 1]);
+    });
     it('lists the documents of a RUC, newest first', () => {
         expect(docsOfRuc(DOCS, '20101128777').map((d) => d.number)).toEqual(['F216-777773', 'F216-12']);
     });
@@ -130,26 +136,69 @@ describe('RUC rules', () => {
         ]).toEqual([false, true, true, false]);
         expect(['10444444444', '15444444444', '17444444444', '20444444444'].map(isNaturalPerson)).toEqual([true, true, true, false]);
     });
-    it('searches names in our parties first, then the SSCO list, one per RUC', () => {
-        const list = [ssco('20555555555', '2026-01-15'), ssco('20999999999', '2026-01-15')];
-        const found = rucsByName('comercio', DOCS, list);
-        expect(found).toEqual([{ ruc: '20555555555', name: 'CÁMARA DE COMERCIO', inSsco: false }]);
-        expect(rucsByName('fantasma', DOCS, list).map((f) => [f.ruc, f.inSsco])).toEqual([
-            ['20555555555', true],
-            ['20999999999', true],
+    it('matches every word in the RUC or the name, accents and case aside', () => {
+        const m = byWords('camara  COMERCIO');
+        expect([m('20555555555', 'CÁMARA DE COMERCIO'), m('20555555555', 'CÁMARA'), byWords('2055')('20555555555', ''), byWords('')('1', '')]).toEqual([
+            true,
+            false,
+            true,
+            true,
         ]);
-        expect(
-            rucsByName(
-                'a',
-                Array.from({ length: 30 }, (_, i) => ({ ruc: String(i), name: 'A' })),
-                null,
-            ),
-        ).toHaveLength(15);
     });
     it('counts the received invoices from SSCO suppliers', () => {
         const list = new Map([['20101128777', ssco('20101128777', '2026-09-01')]]);
         const hits = sscoHits(DOCS, (r) => list.get(r));
         // The one without an issue date counts, but not as «after it became final».
         expect([hits.docs.length, hits.suppliers, hits.afterFinal]).toEqual([2, 1, 1]);
+    });
+});
+
+describe('listParties (the RUCs with us in Consulta RUC)', () => {
+    const parties = partiesByLastDoc(DOCS);
+    const cards = new Map([
+        ['20101128777', card({ ruc: '20101128777', goodTaxpayer: true, withholdingAgent: true })],
+        ['20555555555', card({ ruc: '20555555555', condition: 'NO HALLADO', perceptionAgent: true })],
+    ]);
+    const list = new Map([['20555555555', ssco('20555555555', '2026-01-15')]]);
+    const at = { card: (r: string) => cards.get(r) ?? null, ssco: (r: string) => list.get(r) };
+    const rucs = (f: Partial<PartyFilter>) => listParties(parties, { ...PARTY_FILTER_DEFAULT, ...f }, at).map((p) => p.ruc);
+
+    it('keeps the order the screen had by default', () => {
+        expect(rucs({})).toEqual(['10444444444', '20101128777', '20555555555']);
+    });
+    it('filters suppliers, customers, companies and people', () => {
+        expect(rucs({ role: 'customer' })).toEqual(['10444444444']);
+        expect(rucs({ role: 'supplier' })).toEqual(['20101128777', '20555555555']);
+        expect(rucs({ type: 'person' })).toEqual(['10444444444']);
+        expect(rucs({ type: 'company', role: 'customer' })).toEqual([]);
+    });
+    it('filters by what SUNAT says', () => {
+        expect(rucs({ flag: 'good' })).toEqual(['20101128777']);
+        expect(rucs({ flag: 'withholding' })).toEqual(['20101128777']);
+        expect(rucs({ flag: 'perception' })).toEqual(['20555555555']);
+        expect(rucs({ flag: 'odd' })).toEqual(['20555555555']);
+        expect(rucs({ flag: 'ssco' })).toEqual(['20555555555']);
+        expect(rucs({ flag: 'no-card' })).toEqual(['10444444444']);
+    });
+    it('sorts by the first and last document, the count, the amount and the name', () => {
+        expect(rucs({ sort: 'last-asc' })).toEqual(['20555555555', '20101128777', '10444444444']);
+        expect(rucs({ sort: 'first-asc' })).toEqual(['20555555555', '20101128777', '10444444444']);
+        expect(rucs({ sort: 'first-desc' })).toEqual(['10444444444', '20101128777', '20555555555']);
+        expect(rucs({ sort: 'docs-desc' })[0]).toBe('20101128777');
+        expect(rucs({ sort: 'amount-desc' })).toEqual(['20101128777', '10444444444', '20555555555']);
+        expect(rucs({ sort: 'name' })).toEqual(['20555555555', '20101128777', '10444444444']);
+    });
+    it('searches by words of the RUC or the name, with the filters on', () => {
+        const q = (text: string, f: Partial<PartyFilter> = {}) => listParties(parties, { ...PARTY_FILTER_DEFAULT, ...f }, at, text).map((p) => p.ruc);
+        expect(q('dhl peru')).toEqual(['20101128777']);
+        expect(q('20')).toEqual(['20101128777', '20555555555']);
+        expect(q('20', { flag: 'ssco' })).toEqual(['20555555555']);
+        expect(q('nadie')).toEqual([]);
+    });
+    it('offers the SSCO subjects the search names that we never dealt with', () => {
+        const country = [ssco('20555555555', '2026-01-15'), ssco('20999999999', '2026-01-15')];
+        const withUs = (r: string) => parties.some((p) => p.ruc === r);
+        expect(sscoByName('fantasma', country, withUs).map((s) => s.ruc)).toEqual(['20999999999']);
+        expect(sscoByName('fantasma', null, withUs)).toEqual([]);
     });
 });

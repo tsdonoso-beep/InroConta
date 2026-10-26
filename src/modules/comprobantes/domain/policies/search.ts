@@ -86,20 +86,45 @@ export interface Party {
     name: string;
     /** Issue date (dd/mm/yyyy) of its newest document; '' when that one has none. */
     lastOn: string;
+    /** Issue date (dd/mm/yyyy) of its oldest document; '' when that one has none. */
+    firstOn: string;
+    /** dateKey of its newest and oldest documents: what the list is sorted by. */
+    lastKey: string;
+    firstKey: string;
     docs: number;
+    /** Its documents in our purchases (a supplier) and in our sales (a customer). */
+    purchases: number;
+    sales: number;
+    /** Everything in soles, credit notes subtracting; what has no exchange rate is left out. */
+    totalPen: number;
 }
 
 /** Every RUC with documents with us, the one we dealt with last first (Consulta RUC). */
 export function partiesByLastDoc(docs: Doc[]): Party[] {
-    const by = new Map<string, { party: Party; key: string }>();
+    const by = new Map<string, Party>();
     for (const d of docs) {
         const key = dateKey(d);
-        const seen = by.get(d.ruc);
-        if (!seen) by.set(d.ruc, { party: { ruc: d.ruc, name: d.name, lastOn: d.issuedOn, docs: 1 }, key });
-        else {
-            seen.party.docs++;
-            if (key > seen.key) Object.assign(seen, { key, party: { ...seen.party, name: d.name || seen.party.name, lastOn: d.issuedOn } });
-        }
+        let p = by.get(d.ruc);
+        if (!p) {
+            p = {
+                ruc: d.ruc,
+                name: d.name,
+                lastOn: d.issuedOn,
+                firstOn: d.issuedOn,
+                lastKey: key,
+                firstKey: key,
+                docs: 0,
+                purchases: 0,
+                sales: 0,
+                totalPen: 0,
+            };
+            by.set(d.ruc, p);
+        } else if (key > p.lastKey) Object.assign(p, { lastKey: key, name: d.name || p.name, lastOn: d.issuedOn });
+        else if (key < p.firstKey) Object.assign(p, { firstKey: key, firstOn: d.issuedOn });
+        p.docs++;
+        if (d.origin === 'venta') p.sales++;
+        else if (d.origin === 'compra') p.purchases++;
+        p.totalPen += d.totalPen ?? 0;
     }
-    return [...by.values()].sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0)).map((p) => p.party);
+    return [...by.values()].sort((a, b) => (a.lastKey < b.lastKey ? 1 : a.lastKey > b.lastKey ? -1 : 0));
 }

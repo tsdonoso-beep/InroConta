@@ -4,9 +4,6 @@
 // and paintSscoWarning (VistaConsultaRuc.html).
 import type { SscoEntry, TaxpayerCard } from './entities/Taxpayer.ts';
 
-/** How many RUCs the name search offers. */
-export const NAME_MATCH_LIMIT = 15;
-
 const plain = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
 
 /** «dd/mm/yyyy» → «yyyy-mm-dd»; '' when it is not a date. */
@@ -27,28 +24,13 @@ export const isOdd = (card: TaxpayerCard) => (!!card.state && card.state !== 'AC
 /** RUCs 10, 15 and 17 are people: SUNAT does not publish their address. */
 export const isNaturalPerson = (ruc: string) => /^(10|15|17)/.test(ruc);
 
-export interface NameMatch {
-    ruc: string;
-    name: string;
-    inSsco: boolean;
-}
-
-/** Every word in the RUC or the name; our parties first, then the SSCO list; one per RUC. */
-export function rucsByName(query: string, parties: Iterable<{ ruc: string; name: string }>, ssco: SscoEntry[] | null): NameMatch[] {
+/** Every word of the query in the RUC or the name, accents and case aside (Consulta RUC). */
+export function byWords(query: string): (ruc: string, name: string) => boolean {
     const words = plain(query).split(/\s+/).filter(Boolean);
-    const found: NameMatch[] = [];
-    const seen = new Set<string>();
-    const add = (ruc: string, name: string, inSsco: boolean) => {
-        if (seen.has(ruc) || found.length >= NAME_MATCH_LIMIT) return;
+    return (ruc, name) => {
         const t = plain(`${ruc} ${name}`);
-        if (words.every((w) => t.includes(w))) {
-            seen.add(ruc);
-            found.push({ ruc, name, inSsco });
-        }
+        return words.every((w) => t.includes(w));
     };
-    for (const p of parties) add(p.ruc, p.name, false);
-    for (const s of ssco ?? []) add(s.ruc, s.name, true);
-    return found;
 }
 
 export interface SscoHits<D> {

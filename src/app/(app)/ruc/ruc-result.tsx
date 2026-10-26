@@ -2,13 +2,13 @@
 
 // What Consulta RUC shows for one RUC: its card, whether it is in the SSCO list, the full SUNAT
 // ficha and its documents with us. The port of rucCard (VistaConsultaRuc.html).
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { docsOfRuc, type Doc } from '../../../modules/comprobantes/application/views.ts';
 import type { SscoEntry } from '../../../modules/ruc/application/views.ts';
 import { dmy } from '../../../shared/ui/format.ts';
 import { Hueco } from '../../../shared/ui/hueco.tsx';
 import type { RucIndex } from '../_lib/stores.ts';
-import { DocsList } from '../_ruc/docs-list.tsx';
+import { DocsList, docList$ } from '../_ruc/docs-list.tsx';
 import { SunatFichaCard } from '../_ruc/sunat-ficha.tsx';
 import { TaxpayerCardGap, TaxpayerCardView } from '../_ruc/taxpayer-card.tsx';
 
@@ -40,6 +40,13 @@ export function RucResult({ ruc, all, idx }: { ruc: string; all: Doc[] | null; i
     const docs = useMemo(() => (all ? docsOfRuc(all, ruc) : []), [all, ruc]);
     const entry = idx.ssco(ruc);
     const name = docs[0]?.name || entry?.name || '';
+    // Another RUC starts with its documents unfiltered and on page 1 (a link to one keeps its own).
+    const shown = useRef(ruc);
+    useEffect(() => {
+        if (shown.current === ruc) return;
+        shown.current = ruc;
+        docList$.reset();
+    }, [ruc]);
     return (
         <div className="flex flex-col gap-3.5">
             {all ? (
@@ -59,8 +66,7 @@ export function RucResult({ ruc, all, idx }: { ruc: string; all: Doc[] | null; i
             )}
             <SscoBox entry={entry} idx={idx} />
             <SunatFichaCard ruc={ruc} />
-            {/* key: another RUC starts with its filters cleared and on page 1. */}
-            {docs.length > 0 && <DocsList key={ruc} docs={docs} />}
+            {docs.length > 0 && <DocsList docs={docs} />}
         </div>
     );
 }

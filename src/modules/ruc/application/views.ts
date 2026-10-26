@@ -3,3 +3,4 @@
 export type { Activity, RucLists, SscoEntry, SunatFicha, TaxpayerCard } from '../domain/entities/Taxpayer.ts';
 export { isRuc } from '../domain/entities/Taxpayer.ts';
 export * from '../domain/policies.ts';
+export * from '../domain/parties.ts';

@@ -3,6 +3,7 @@
 // changes, and what the script calculated.
 
 import type { Cambio } from '../../../src/shared/lib/drive/cambios-carpetas.ts';
+import { dormir } from '../comun/bitacora.mts';
 import { call, type Base } from './base.mts';
 import type { Row } from './estado.mts';
 import type { Proc } from './carpetas.mts';
@@ -61,20 +62,38 @@ export async function saveChanges(sb: Base, companyRuc: string, procedencia: Pro
         await call(sb, 'guardar_carpetas_oc', { p_empresa_ruc: companyRuc, p_recorrido: 'CARPETA', p_cambios: rows.slice(i, i + 500) });
 }
 
+// The nacional save takes ~20 s and the base cuts it when the SUNAT robots are writing at the same
+// time (GitHub often delays the 01:17 run to 07:00-08:00): seen on 27 and 28/10/2026. It is one
+// transaction, so a cut one leaves nothing half done and can simply be sent again.
+const CUT_BY_TIMEOUT = /statement timeout/i;
+export const RETRY_WAITS_MS = [60_000, 120_000];
+
 /** What the script calculated, all in one transaction. `complete`: the links and signals not sent are deleted. */
-export function saveCalculations(
+export async function saveCalculations(
     sb: Base,
     companyRuc: string,
     p: { vinculos: Row[]; sinOc: Row[]; ordenes: Row[]; carpetas: Row[]; reglas: Row[] },
     complete: boolean,
+    wait: (ms: number) => Promise<void> = dormir,
 ) {
-    return call<Record<string, number>>(sb, 'guardar_calculos_oc', {
-        p_empresa_ruc: companyRuc,
-        p_vinculos: p.vinculos,
-        p_sin_oc: p.sinOc,
-        p_ordenes: p.ordenes,
-        p_carpetas: p.carpetas,
-        p_reglas: p.reglas,
-        p_completo: complete,
-    });
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await call<Record<string, number>>(sb, 'guardar_calculos_oc', {
+                p_empresa_ruc: companyRuc,
+                p_vinculos: p.vinculos,
+                p_sin_oc: p.sinOc,
+                p_ordenes: p.ordenes,
+                p_carpetas: p.carpetas,
+                p_reglas: p.reglas,
+                p_completo: complete,
+            });
+        } catch (e) {
+            const ms = RETRY_WAITS_MS[attempt];
+            if (ms === undefined || !CUT_BY_TIMEOUT.test(e instanceof Error ? e.message : String(e))) throw e;
+            console.warn(
+                `⚠ guardar_calculos_oc: la base lo cortó por tiempo; se reintenta en ${ms / 60_000} min (intento ${attempt + 2} de ${RETRY_WAITS_MS.length + 1})`,
+            );
+            await wait(ms);
+        }
+    }
 }

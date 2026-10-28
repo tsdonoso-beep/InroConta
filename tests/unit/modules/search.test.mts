@@ -34,6 +34,8 @@ const doc = (p: Partial<Doc>): Doc => ({
     detractionIssue: '',
     exchangeRate: 1,
     detractionProof: null,
+    plate: '',
+    fuel: false,
     ...p,
 });
 
@@ -45,6 +47,13 @@ const DOCS = [
 ];
 
 describe('searchDocs (buscarFacturas)', () => {
+    it('finds by vehicle plate, with or without the dash, and falls back to the series when no plate matches', () => {
+        const withPlates = [...DOCS, doc({ number: 'F777-1', name: 'GRIFO SAC', plate: 'ABC123 / D4E567', fuel: true })];
+        expect(searchDocs(withPlates, 'abc-123').found.map((d) => d.number)).toEqual(['F777-1']);
+        expect(searchDocs(withPlates, 'D4E567').total).toBe(1);
+        expect(searchDocs(withPlates, 'grifo d4e567').total).toBe(1);
+        expect(searchDocs(withPlates, 'F216-777773').found.map((d) => d.number)).toEqual(['F216-777773']);
+    });
     it('finds by series-number, ignoring zeros and case', () => {
         expect(searchDocs(DOCS, 'f216-0777773').found.map((d) => d.number)).toEqual(['F216-777773']);
         expect(searchDocs(DOCS, 'F216 777773').total).toBe(1);

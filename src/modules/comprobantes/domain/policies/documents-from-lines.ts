@@ -5,6 +5,7 @@
 // on the same tab.
 import { fechaCorta, nombreDeTipo } from '../../../../shared/lib/export/comprobantes-sunat.ts';
 import type { FilaDetalleCpe } from '../../../../shared/lib/export/items-sunat.ts';
+import { esCombustible } from '../../../../shared/lib/sunat/placa.ts';
 import { nameCase, sentenceCase } from '../../../../shared/text.ts';
 import { driveId, kindOf, type Doc, type Origin } from '../entities/Doc.ts';
 
@@ -14,15 +15,26 @@ const text = (v: string | null | undefined) => (v ?? '').trim();
 
 const ORIGIN: Record<string, Origin> = { RECIBIDO: 'compra', EMITIDO: 'venta' };
 
+/** Series and number as the document shows them (F001-123): «00000123» and «123» are one invoice. */
+const keyOf = (f: FilaDetalleCpe) =>
+    [
+        f.proveedorRuc,
+        nombreDeTipo(f.tipoComprobante),
+        text(f.serie).toUpperCase(),
+        text(f.numero).replace(/^0+(?=\d)/, ''),
+        ORIGIN[f.origen ?? ''] ?? 'otro',
+    ].join('|');
+
 export function documentsFromLines(rows: FilaDetalleCpe[]): Doc[] {
     const seen = new Set<string>();
     const docs: Doc[] = [];
+    // A document is fuel if any of its lines is, not only the first one.
+    const fuel = new Set(rows.filter((f) => esCombustible(f.descripcion, f.unidad)).map(keyOf));
     for (const f of rows) {
         if (!f.proveedorRuc && !f.serie) continue;
         const typeName = nombreDeTipo(f.tipoComprobante);
         const origin = ORIGIN[f.origen ?? ''] ?? 'otro';
-        // Series and number as the document shows them (F001-123): «00000123» and «123» are one invoice.
-        const key = [f.proveedorRuc, typeName, text(f.serie).toUpperCase(), text(f.numero).replace(/^0+(?=\d)/, ''), origin].join('|');
+        const key = keyOf(f);
         if (seen.has(key)) continue;
         seen.add(key);
 
@@ -67,6 +79,8 @@ export function documentsFromLines(rows: FilaDetalleCpe[]): Doc[] {
                           status: proofStatus,
                       }
                     : null,
+            plate: text(f.placa),
+            fuel: fuel.has(key),
         });
     }
     return docs;

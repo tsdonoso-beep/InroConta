@@ -108,7 +108,7 @@ export function FacturaView() {
                     onChange={setQuery}
                     delay={120}
                     className="mb-3 w-full"
-                    placeholder="F001-123, número, RUC, proveedor o monto (ej.: 43.64)"
+                    placeholder="F001-123, número, RUC, proveedor, monto (ej.: 43.64) o placa"
                 />
                 {!query.trim() && <Examples onPick={setQuery} />}
                 {snapshot ? (

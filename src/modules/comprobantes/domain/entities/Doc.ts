@@ -44,6 +44,10 @@ export interface Doc {
     detractionIssue: string;
     exchangeRate: number | null;
     detractionProof: DetractionProof | null;
+    /** The vehicle plate(s) the invoice names, without the dash («ABC123 / D4E567»); '' when none. */
+    plate: string;
+    /** Some item is fuel (gallons, diesel, gasohol…): without a plate it does not support the expense. */
+    fuel: boolean;
 }
 
 /** The documents of the book and when they were read. */

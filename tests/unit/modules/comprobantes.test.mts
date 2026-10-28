@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { detailGrid } from '../../fixtures/detail-sheet.mts';
 import { monthsOf, type Doc } from '../../../src/modules/comprobantes/domain/entities/Doc.ts';
 import { documentsFromLines } from '../../../src/modules/comprobantes/domain/policies/documents-from-lines.ts';
+import type { FilaDetalleCpe } from '../../../src/shared/lib/export/items-sunat.ts';
 import { ALL_IN_PEN, currencies, kindSlices, kpis, ofPeriod, periodMonths, scope } from '../../../src/modules/comprobantes/domain/policies/summary.ts';
 import { decodeDocs, encodeDocs } from '../../../src/modules/comprobantes/application/wire.ts';
 import { detailFromSheet, isoDate } from '../../../src/modules/comprobantes/infrastructure/detail-sheet.ts';
@@ -108,5 +109,19 @@ describe('the wire format', () => {
     it('sends each repeated text once', () => {
         const w = encodeDocs({ docs: appDocs(), lines: 7, readAt: '' });
         expect(w.dict.filter((t) => t === 'Toner Peru SAC')).toHaveLength(1);
+    });
+});
+
+describe('documentsFromLines: plate and fuel', () => {
+    const line = (p: Partial<FilaDetalleCpe>): FilaDetalleCpe =>
+        ({ origen: 'RECIBIDO', proveedorRuc: '20100000001', tipoComprobante: '01', serie: 'F001', numero: '7', totalComprobante: 100, ...p }) as FilaDetalleCpe;
+    it('takes the plate of the tab and calls it fuel when ANY of its lines is', () => {
+        const [d] = documentsFromLines([
+            line({ linea: 1, descripcion: 'LAVADO', placa: 'ABC123' }),
+            line({ linea: 2, descripcion: 'DIESEL B5', unidad: 'GLL', placa: 'ABC123' }),
+        ]);
+        expect([d.plate, d.fuel]).toEqual(['ABC123', true]);
+        const [other] = documentsFromLines([line({ numero: '8', descripcion: 'TONER' })]);
+        expect([other.plate, other.fuel]).toEqual(['', false]);
     });
 });

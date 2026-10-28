@@ -30,6 +30,8 @@ const doc = (p: Partial<Doc>): Doc => ({
     detractionIssue: '',
     exchangeRate: 1,
     detractionProof: null,
+    plate: '',
+    fuel: false,
     ...p,
 });
 
@@ -77,5 +79,20 @@ describe('filterDocs', () => {
         expect(isFiltered(DOC_LIST_DEFAULT)).toBe(false);
         expect(isFiltered({ ...DOC_LIST_DEFAULT, min: 0 })).toBe(true);
         expect(issueMonths(DOCS).sort()).toEqual(['202608', '202609', '202610']);
+    });
+});
+
+describe('filterDocs: the vehicle plate', () => {
+    const fuel = [
+        doc({ number: 'F010-1', fuel: true, plate: 'ABC123' }),
+        doc({ number: 'F010-2', fuel: true }),
+        doc({ number: 'F010-3', plate: 'BZA857' }),
+        doc({ number: 'F010-4' }),
+    ];
+    it('keeps the ones with a plate, the fuel, and the fuel without a plate', () => {
+        expect(numbers(filterDocs(fuel, { ...DOC_LIST_DEFAULT, plate: 'with' }))).toEqual(['F010-1', 'F010-3']);
+        expect(numbers(filterDocs(fuel, { ...DOC_LIST_DEFAULT, plate: 'fuel' }))).toEqual(['F010-1', 'F010-2']);
+        expect(numbers(filterDocs(fuel, { ...DOC_LIST_DEFAULT, plate: 'fuel-without' }))).toEqual(['F010-2']);
+        expect(isFiltered({ ...DOC_LIST_DEFAULT, plate: 'with' })).toBe(true);
     });
 });

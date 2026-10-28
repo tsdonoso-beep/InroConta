@@ -4,6 +4,7 @@
 // or it is a DUA) comes out as ONE line without item. Before, it had no line and never showed
 // (tests/data/facturas.test.mts, 19/10/2026).
 import { costCentreSource, documentsText } from '../drive/folder-texts.ts';
+import { placasEnTexto } from '../sunat/placa.ts';
 import { detractionIssue } from './detraction-codes.ts';
 import type { DetailSource, Row } from './detail-v2-read.ts';
 import type { FilaDetalleCpe } from './items-sunat.ts';
@@ -183,6 +184,9 @@ export function detailLinesFromV2(src: DetailSource): FilaDetalleCpe[] {
         const detraction = n(d.detraccion_monto),
             rate = n(d.detraccion_porcentaje);
         const proof = proofColumns(proofs.get(id) ?? [], detraction, rate);
+        const lines = items.get(id) ?? [{ linea: null }];
+        // The XML's own (015), and for the XML read before it, what the descriptions say.
+        const plates = [...new Set([...String(d.placa ?? '').split(' / '), ...placasEnTexto(...lines.map((i) => s(i.descripcion)))].filter(Boolean))];
         const head = {
             periodo: s(d.periodo),
             origen: s(d.origen),
@@ -206,6 +210,7 @@ export function detailLinesFromV2(src: DetailSource): FilaDetalleCpe[] {
             detraccionMonto: detraction,
             detraccionCuentaBanco: s(d.detraccion_cuenta),
             detraccionCodigoBienServicio: s(d.detraccion_codigo),
+            placa: plates.join(' / ') || null,
             ...oc,
             baseGravada: tax.baseGravada,
             igvComprobante: tax.igvComprobante,
@@ -219,7 +224,6 @@ export function detailLinesFromV2(src: DetailSource): FilaDetalleCpe[] {
                 ? withholdingColumns(withholdings.get(id) ?? [], (detraction ?? 0) > 0 || !!proof.detraccionConstancia)
                 : { retencionEstado: '' }),
         };
-        const lines = items.get(id) ?? [{ linea: null }];
         for (const i of lines)
             out.push({
                 ...head,

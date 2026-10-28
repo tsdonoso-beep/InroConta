@@ -39,6 +39,8 @@ const doc = (d: Partial<Doc>): Doc => ({
     detractionIssue: '',
     exchangeRate: null,
     detractionProof: null,
+    plate: '',
+    fuel: false,
     ...d,
 });
 

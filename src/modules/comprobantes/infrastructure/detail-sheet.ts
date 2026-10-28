@@ -52,6 +52,7 @@ const COLUMNS: [header: string, field: Field, kind: Kind][] = [
     ['PDF constancia de detracción', 'detraccionPdf', 'text'],
     ['HTML constancia de detracción', 'detraccionHtml', 'text'],
     ['Detracción: constancia', 'detraccionConstanciaEstado', 'text'],
+    ['Placa', 'placa', 'text'],
 ];
 
 const isBlank = (v: unknown) => v == null || String(v).trim() === '';

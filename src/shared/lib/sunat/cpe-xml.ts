@@ -17,6 +17,8 @@
 // raro tiene que poder mirarse, no tumbar la importación de las otras mil
 // facturas del lote.
 
+import { placaDe } from './placa.ts';
+
 export interface ItemCpe {
     /** El orden de la línea dentro del comprobante. */
     linea: number | null;
@@ -75,6 +77,8 @@ export interface ComprobanteCpe {
     guiaRemision: string | null;
     /** El número de la orden de compra relacionada, si la trae. */
     ordenCompra: string | null;
+    /** La placa del vehículo (combustible, peajes), sin guion; varias con « / »; null si no trae (placa.ts). */
+    placa: string | null;
     /** Cuánto se descontó del total por un anticipo ya facturado antes. */
     anticipoAplicado: number | null;
     /** El comprobante que referencia —típico en anticipos y valorizaciones de obra—. */
@@ -408,6 +412,14 @@ export function leerComprobanteXml(xml: string): ComprobanteCpe {
         detraccion,
         guiaRemision: valor(bloque(xml, 'DespatchDocumentReference'), 'ID'),
         ordenCompra: valor(bloque(xml, 'OrderReference'), 'ID'),
+        placa:
+            placaDe({
+                propiedades: bloques(xml, 'AdditionalItemProperty')
+                    .filter((b) => valor(b, 'NameCode') === '7000' || /placa/i.test(valor(b, 'Name') ?? ''))
+                    .map((b) => valor(b, 'Value') ?? ''),
+                notas: valores(xml, 'Note'),
+                descripciones: items.map((i) => i.descripcion),
+            }) || null,
         anticipoAplicado: aMonto(valor(totales, 'PrepaidAmount')),
         documentoRelacionado: valor(relacionado, 'ID'),
         tipoDocumentoRelacionado: valor(relacionado, 'DocumentType'),

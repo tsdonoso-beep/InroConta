@@ -31,8 +31,17 @@ export interface DocSearch {
     single: { ruc: string; name: string } | null;
 }
 
+/** The plates of a document as search keys, without the dash. */
+const platesOf = (d: Doc) => d.plate.split(' / ').filter(Boolean);
+
 function matches(docs: Doc[], q: string): Doc[] {
     const Q = plain(q);
+    // A plate («ABC-123», «abc123»): before the series, which «ABC-123» also looks like.
+    const plate = Q.replace(/[^A-Z0-9]/g, '');
+    if (/^[A-Z0-9]{6}$/.test(plate) && /[A-Z].*[A-Z]/.test(plate)) {
+        const byPlate = docs.filter((d) => platesOf(d).includes(plate));
+        if (byPlate.length) return byPlate;
+    }
     const series = /^([A-Z0-9]{3,4})[\s-]+0*(\d+)$/.exec(Q);
     const bare = q.replace(/^S\/\s*|^US\$\s*/i, '');
     const amount = /^-?[\d,]*\.\d{1,2}$/.test(bare) ? Number(q.replace(/[^\d.-]/g, '')) : null;
@@ -45,7 +54,7 @@ function matches(docs: Doc[], q: string): Doc[] {
     if (amount !== null) return docs.filter((d) => Math.abs(Math.abs(d.total) - Math.abs(amount)) < 0.01);
     const words = Q.split(/\s+/).filter((w) => w.length > 1);
     return docs.filter((d) => {
-        const t = plain(`${d.number} ${d.ruc} ${d.name}`);
+        const t = plain(`${d.number} ${d.ruc} ${d.name} ${d.plate}`);
         return words.every((w) => t.includes(w));
     });
 }

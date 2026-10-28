@@ -20,6 +20,7 @@ diseña: la migración de datos y el arreglo de los workflows van después.
 | `012_nada_queda_fuera.sql`                | Lugar para todo lo de la base vieja: filas originales de Compras, COMEX, kardex y CG, el cuadro de aprobaciones por carpeta, lo que vio CAPTURA, lo que faltaba de viáticos y `dato_sin_ubicar`                                                                                          |
 | `013_usuario_inroconta.sql`               | Quién entra a la app web: una fila por cuenta @inroprin.com, con rol y `activo`                                                                                                                                                                                                          |
 | `014_lo_que_la_012_dejo_a_los_robots.sql` | Lo de la 012 que solo llenaba la mudanza lo escriben ahora las funciones: `guardar_fuente_oc` (`lineas_cg`, `pais`, `orden_compra_legajo`), `guardar_carpetas_oc` (el recorrido LEGAJO no pisa al de carpetas) y `guardar_calculos_oc` (lo contado y el centro de costo de cada carpeta) |
+| `015_placa.sql`                           | La placa del vehículo de cada comprobante (`comprobante.placa`, del XML: propiedad 7000, notas o descripción) y `guardar_cpe` que la guarda. Aplicarla ANTES de publicar la versión que la lee                                                                                           |
 
 Todo junto, listo para pegar: **`docs/database/database.full.v2.sql`**
 (GENERADO con `pnpm db:consolidar --v2`; `pnpm check` avisa si quedó viejo).

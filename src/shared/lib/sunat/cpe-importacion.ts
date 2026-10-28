@@ -53,6 +53,8 @@ export interface DocLote {
     detraccionMonto: number | null;
     guiaRemision: string | null;
     ordenCompra: string | null;
+    /** La placa del vehículo que trae el XML (placa.ts). */
+    placa: string | null;
     anticipoAplicado: number | null;
     documentoRelacionado: string | null;
     tipoDocumentoRelacionado: string | null;
@@ -131,6 +133,7 @@ export function prepararLote(comprobantes: ComprobanteCpe[], empresaRuc: string)
             detraccionMonto: c.detraccion?.monto ?? null,
             guiaRemision: c.guiaRemision,
             ordenCompra: c.ordenCompra,
+            placa: c.placa,
             anticipoAplicado: c.anticipoAplicado,
             documentoRelacionado: c.documentoRelacionado,
             tipoDocumentoRelacionado: c.tipoDocumentoRelacionado,

@@ -52,6 +52,9 @@ export function encodeDocs(s: DocsSnapshot): WireDocs {
             d.isImport ? 1 : 0,
             p ? 1 : 0,
             ...(p ? [...PROOF_TEXT.map((k) => code(p[k])), p.deposited] : []),
+            // Last, so a row of the version before still reads (without plate, not fuel).
+            code(d.plate),
+            d.fuel ? 1 : 0,
         ];
     });
     return { v: 1, lines: s.lines, readAt: s.readAt, dict, rows };
@@ -70,8 +73,10 @@ export function decodeDocs(w: WireDocs): DocsSnapshot {
         if (r[i++] === 1) {
             const p = {} as Record<(typeof PROOF_TEXT)[number], string>;
             for (const k of PROOF_TEXT) p[k] = t(r[i++]);
-            detractionProof = { ...p, deposited: r[i] };
+            detractionProof = { ...p, deposited: r[i++] };
         }
+        const plate = t(r[i++] ?? null);
+        const fuel = r[i] === 1;
         return {
             ...text,
             origin: text.origin as Origin,
@@ -85,6 +90,8 @@ export function decodeDocs(w: WireDocs): DocsSnapshot {
             exchangeRate: num.exchangeRate,
             isImport,
             detractionProof,
+            plate,
+            fuel,
         } satisfies Doc;
     });
     return { docs, lines: w.lines, readAt: w.readAt };

@@ -71,6 +71,17 @@ export function InvoiceRow({ d, idx, open, onToggle }: { d: Doc; idx: RucIndex; 
                     <div className={SUB}>
                         {KIND_NAME[d.kind]} · {d.origin === 'venta' ? 'emitida' : 'recibida'}
                     </div>
+                    {(d.plate || d.fuel) && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                            {d.plate ? (
+                                <Chip tone="info">Placa {d.plate}</Chip>
+                            ) : (
+                                <Chip tone="danger" title="Sin la placa del vehículo, el combustible no sustenta gasto ni crédito fiscal">
+                                    Combustible sin placa
+                                </Chip>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className="min-w-0">
                     <div className="truncate text-[13.5px] font-semibold">{d.name || d.ruc}</div>

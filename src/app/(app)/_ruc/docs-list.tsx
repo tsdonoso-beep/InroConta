@@ -18,6 +18,7 @@ import {
     type Doc,
     type DocListFilter,
     type DocSort,
+    type PlateFilter,
 } from '../../../modules/comprobantes/application/views.ts';
 import { docHasFlag, type DocFlag, type PartyLookup } from '../../../modules/ruc/application/views.ts';
 import { CONTROL, Empty, FilterRow, Select, TextButton } from '../../../shared/ui/bits.tsx';
@@ -36,6 +37,11 @@ const SORTS: { value: DocSort; label: string }[] = [
     { value: 'number', label: 'Número' },
 ];
 const CURRENCY_NAMES: Record<string, string> = { PEN: 'Soles', USD: 'Dólares' };
+const PLATES: { value: PlateFilter; label: string }[] = [
+    { value: 'with', label: 'Con placa' },
+    { value: 'fuel', label: 'Combustible' },
+    { value: 'fuel-without', label: 'Combustible sin placa' },
+];
 const FLAGS: { value: DocFlag; label: string }[] = [
     { value: 'observed', label: 'SSCO, no activo o no habido' },
     { value: 'ssco', label: 'En la lista SSCO' },
@@ -52,8 +58,25 @@ type DocListText = Omit<DocListFilter, 'min' | 'max'> & { min: string; max: stri
 /** Not remembered: the documents of the next RUC open without the last one's filters. */
 export const docList$ = urlState<DocListText>(
     { ...DOC_LIST_DEFAULT, min: '', max: '', flag: '', page: '1' },
-    { period: 'emision', kind: 'clase', origin: 'cv', currency: 'mon', min: 'desde', max: 'hasta', flag: 'cond', sort: 'cpe_orden', page: 'cpe_pag' },
-    { kind: ['', ...Object.keys(KIND_NAMES)], origin: ['', 'compra', 'venta'], flag: ['', ...FLAGS.map((f) => f.value)], sort: SORTS.map((s) => s.value) },
+    {
+        period: 'emision',
+        kind: 'clase',
+        origin: 'cv',
+        currency: 'mon',
+        min: 'desde',
+        max: 'hasta',
+        plate: 'placa',
+        flag: 'cond',
+        sort: 'cpe_orden',
+        page: 'cpe_pag',
+    },
+    {
+        kind: ['', ...Object.keys(KIND_NAMES)],
+        origin: ['', 'compra', 'venta'],
+        plate: ['', ...PLATES.map((p) => p.value)],
+        flag: ['', ...FLAGS.map((f) => f.value)],
+        sort: SORTS.map((s) => s.value),
+    },
     false,
 );
 
@@ -90,8 +113,17 @@ export interface DocList {
 export function useDocList(docs: Doc[], at?: PartyLookup & { ready: boolean }): DocList {
     const t = docList$.use();
     const filter = useMemo<DocListFilter>(
-        () => ({ period: t.period, kind: t.kind, origin: t.origin, currency: t.currency, min: bound(t.min), max: bound(t.max), sort: t.sort }),
-        [t],
+        () => ({
+            period: t.period,
+            kind: t.kind,
+            origin: t.origin,
+            currency: t.currency,
+            min: bound(t.min),
+            max: bound(t.max),
+            plate: at ? t.plate : '',
+            sort: t.sort,
+        }),
+        [t, at],
     );
     const flag = at ? t.flag : '';
     const waiting = !!flag && !at?.ready;
@@ -152,6 +184,16 @@ export function DocFilters({ docs, state, withFlags = false }: { docs: Doc[]; st
                 <AmountBox placeholder="Monto desde" value={state.text.min} onChange={(min) => set({ min })} />
                 <AmountBox placeholder="hasta" value={state.text.max} onChange={(max) => set({ max })} />
             </span>
+            {withFlags && (
+                <Select label="Placa" value={filter.plate} onChange={(v) => set({ plate: v as PlateFilter })}>
+                    <option value="">Con o sin placa</option>
+                    {PLATES.map((p) => (
+                        <option key={p.value} value={p.value}>
+                            {p.label}
+                        </option>
+                    ))}
+                </Select>
+            )}
             {withFlags && (
                 <Select label="Qué dice SUNAT del RUC" value={state.flag} onChange={(v) => set({ flag: v as DocFlag })}>
                     <option value="">Toda condición en SUNAT</option>

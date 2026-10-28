@@ -20,7 +20,7 @@ export interface DetailSource {
 const DOC =
     'id,origen,emisor_ruc,tipo,serie,numero,fecha_emision,periodo,moneda,subtotal,igv,total,anticipo_aplicado,tipo_cambio,forma_pago,' +
     'guia_remision,orden_compra_xml,detraccion_codigo,detraccion_porcentaje,detraccion_monto,detraccion_cuenta,documento_relacionado,' +
-    'documento_relacionado_tipo,xml_drive_id,pdf_drive_id,emisor:emisor_ruc(razon_social)';
+    'documento_relacionado_tipo,placa,xml_drive_id,pdf_drive_id,emisor:emisor_ruc(razon_social)';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Query = any;

@@ -91,6 +91,8 @@ export interface FilaDetalleCpe {
     retencionXml?: string | null;
     /** «Emitido», «Revertido», «Emitido y revertido» (con « · revisar: también tiene detracción» si la tiene) o vacío. */
     retencionEstado?: string | null;
+    /** La placa del vehículo (combustible, peajes): la del XML o la de las descripciones; varias con « / » (migración v2 015). */
+    placa?: string | null;
 }
 
 // El orden importa: lo que se busca primero —de qué comprobante es, qué se
@@ -158,6 +160,7 @@ export const CABECERAS_ITEMS = [
     'PDF comprobante de retención',
     'XML comprobante de retención',
     'Retención: estado',
+    'Placa',
 ];
 
 export const TIPOS_ITEMS: TipoColumna[] = [
@@ -221,6 +224,7 @@ export const TIPOS_ITEMS: TipoColumna[] = [
     'texto', // PDF comprobante de retención
     'texto', // XML comprobante de retención
     'texto', // Retención: estado
+    'texto', // Placa
 ];
 
 // Vacío cuando no hay dato, no un cero: distinguir un importe ausente de uno
@@ -297,6 +301,7 @@ export function filasItemsSunat(filas: FilaDetalleCpe[]): string[][] {
             f.retencionPdf ?? '',
             f.retencionXml ?? '',
             f.retencionEstado ?? '',
+            f.placa ?? '',
         ]),
     ];
 }

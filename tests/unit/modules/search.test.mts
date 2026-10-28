@@ -6,7 +6,7 @@ import type { Doc } from '../../../src/modules/comprobantes/domain/entities/Doc.
 import { docsOfRuc, partiesByLastDoc, searchDocs, splitNumber } from '../../../src/modules/comprobantes/domain/policies/search.ts';
 import type { SscoEntry, TaxpayerCard } from '../../../src/modules/ruc/domain/entities/Taxpayer.ts';
 import { byWords, isNaturalPerson, isOdd, placeOf, sscoHits } from '../../../src/modules/ruc/domain/policies.ts';
-import { listParties, PARTY_FILTER_DEFAULT, sscoByName, type PartyFilter } from '../../../src/modules/ruc/domain/parties.ts';
+import { docHasFlag, listParties, PARTY_FILTER_DEFAULT, sscoByName, type DocFlag, type PartyFilter } from '../../../src/modules/ruc/domain/parties.ts';
 
 const doc = (p: Partial<Doc>): Doc => ({
     period: '202609',
@@ -200,5 +200,34 @@ describe('listParties (the RUCs with us in Consulta RUC)', () => {
         const withUs = (r: string) => parties.some((p) => p.ruc === r);
         expect(sscoByName('fantasma', country, withUs).map((s) => s.ruc)).toEqual(['20999999999']);
         expect(sscoByName('fantasma', null, withUs)).toEqual([]);
+    });
+});
+
+describe('docHasFlag (the operations with SSCO or odd RUCs in Buscar factura)', () => {
+    const cards = new Map([
+        ['20101128777', card({ ruc: '20101128777' })],
+        ['20555555555', card({ ruc: '20555555555', condition: 'NO HALLADO' })],
+    ]);
+    const list = new Map([['20666666666', ssco('20666666666', '2026-09-15')]]);
+    const at = { card: (r: string) => cards.get(r) ?? null, ssco: (r: string) => list.get(r) };
+    const ops = [
+        { ruc: '20101128777', issuedOn: '01/10/2026' },
+        { ruc: '20555555555', issuedOn: '01/10/2026' },
+        { ruc: '20666666666', issuedOn: '14/09/2026' },
+        { ruc: '20666666666', issuedOn: '15/09/2026' },
+        { ruc: '20666666666', issuedOn: '' },
+    ];
+    const hits = (flag: DocFlag) => ops.map((d) => docHasFlag(flag, d, at));
+
+    it('lets everything through without a flag', () => {
+        expect(hits('')).toEqual([true, true, true, true, true]);
+    });
+    it('keeps the SSCO ones, and from the day their attribution became final', () => {
+        expect(hits('ssco')).toEqual([false, false, true, true, true]);
+        expect(hits('ssco-final')).toEqual([false, false, false, true, false]);
+    });
+    it('keeps the not active or not found ones, and both together', () => {
+        expect(hits('odd')).toEqual([false, true, false, false, false]);
+        expect(hits('observed')).toEqual([false, true, true, true, true]);
     });
 });

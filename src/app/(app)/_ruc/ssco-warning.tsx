@@ -41,9 +41,14 @@ export function SscoWarning() {
             <p className="mb-3 text-[13px] leading-[1.45] text-ink-2">
                 SUNAT considera que estos proveedores no pudieron realizar lo que facturan: sus comprobantes no sustentan crédito fiscal ni gasto.
             </p>
-            <Link href="/ruc?ssco=1" className={BUTTON}>
-                Ver en Consulta RUC
-            </Link>
+            <span className="flex flex-wrap gap-2">
+                <Link href="/factura?cv=compra&cond=ssco" className={BUTTON}>
+                    Ver los comprobantes
+                </Link>
+                <Link href="/ruc?ssco=1" className={buttonClass('secondary', 'lg')}>
+                    Ver los proveedores en Consulta RUC
+                </Link>
+            </span>
         </Card>
     );
 }

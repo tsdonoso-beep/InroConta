@@ -50,7 +50,7 @@ function Examples({ onPick }: { onPick: (q: string) => void }) {
 function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucIndex }) {
     const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
     const r = useMemo(() => searchDocs(docs, query), [docs, query]);
-    const state = useDocList(r.found);
+    const state = useDocList(r.found, idx);
     const paged = usePaged(state.list, null, undefined, docList$.usePage());
     const { title, sums } = listTitle(state, r.total, r.total === 1 ? 'comprobante' : 'comprobantes');
     const toggle = (k: string) =>
@@ -68,12 +68,12 @@ function Results({ docs, query, idx }: { docs: Doc[]; query: string; idx: RucInd
                         {title}
                         {sums && ` · ${sums}`}
                     </p>
-                    {r.total > 1 && <DocFilters docs={r.found} state={state} />}
+                    {r.total > 1 && <DocFilters docs={r.found} state={state} withFlags />}
                     <div className="mt-1 flex flex-col">
-                        {paged.rows.map((d) => (
-                            <InvoiceRow key={keyOf(d)} d={d} idx={idx} open={open.has(keyOf(d))} onToggle={() => toggle(keyOf(d))} />
-                        ))}
-                        {!paged.total && <p className="px-1 py-2.5 text-[13px] text-ink-3">Ningún comprobante con esos filtros.</p>}
+                        {state.waiting && [0, 1, 2].map((i) => <InvoiceRowGap key={i} />)}
+                        {!state.waiting &&
+                            paged.rows.map((d) => <InvoiceRow key={keyOf(d)} d={d} idx={idx} open={open.has(keyOf(d))} onToggle={() => toggle(keyOf(d))} />)}
+                        {!state.waiting && !paged.total && <p className="px-1 py-2.5 text-[13px] text-ink-3">Ningún comprobante con esos filtros.</p>}
                     </div>
                     <Pager paged={paged} />
                 </>

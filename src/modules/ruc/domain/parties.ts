@@ -89,6 +89,43 @@ export function listParties<P extends PartyLike>(parties: P[], f: PartyFilter, a
         .sort(ORDER[f.sort]);
 }
 
+/**
+ * What SUNAT says of the other party of a document (the supplier of a compra, the customer of a
+ * venta), for the operations list of Buscar factura: the operations with SSCO subjects or with RUCs
+ * that are not ACTIVO or not HABIDO (meeting with Contabilidad, 27/10/2026).
+ *   ssco        the RUC is in the SSCO list
+ *   ssco-final  … and the document was issued on or after its attribution became final
+ *   odd         not ACTIVO or not HABIDO
+ *   observed    either of them (SSCO or odd)
+ */
+export type DocFlag = '' | 'ssco' | 'ssco-final' | 'odd' | 'observed';
+
+/** The flags read SUNAT's cards and the SSCO list: without them they cannot answer yet. */
+export const docFlagNeedsLists = (flag: DocFlag) => !!flag;
+
+const isoOfIssue = (d: string) => {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+};
+
+/** Whether a document's RUC has the flag. `issuedOn` is «dd/mm/yyyy», as the documents carry it. */
+export function docHasFlag(flag: DocFlag, d: { ruc: string; issuedOn: string }, at: PartyLookup): boolean {
+    if (!flag) return true;
+    const ssco = at.ssco(d.ruc);
+    const card = at.card(d.ruc);
+    const odd = !!card && isOdd(card);
+    switch (flag) {
+        case 'ssco':
+            return !!ssco;
+        case 'ssco-final':
+            return !!ssco && !!ssco.finalDate && isoOfIssue(d.issuedOn) >= ssco.finalDate;
+        case 'odd':
+            return odd;
+        case 'observed':
+            return !!ssco || odd;
+    }
+}
+
 /** SSCO subjects the query names that we have no document with: SUNAT's list covers the whole country. */
 export function sscoByName(query: string, ssco: SscoEntry[] | null, withUs: (ruc: string) => boolean): SscoEntry[] {
     const words = byWords(query);

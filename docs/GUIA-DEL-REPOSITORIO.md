@@ -273,6 +273,14 @@ que es la evidencia para diagnosticar cuando algo falla.
   contando como incompleta hasta que el documento esté en la carpeta.
 - **Local:** `pnpm fuentes:local` (con `FUENTES_JSON=archivo.json` lee
   las pestañas de un archivo en vez de la hoja; `DEBUG=1` no sube nada).
+- **Kardex completo (desde el 28/10/2026):** la pestaña «KARDEX - MOVIMIENTOS»
+  de `CopiarFuentes.gs` trae TODO el kardex (ingresos y salidas, una fila por
+  producto). `scripts/local/kardex.mts` lo compara con la lectura anterior
+  (`src/shared/lib/kardex/movimientos.ts`) y lo guarda con `guardar_kardex`
+  (migración v2 016): cada movimiento nuevo, cambiado o borrado queda en
+  `cambio` (entidad `kardex`), marcado si su mes ya había cerrado. La pantalla
+  **Kardex** de la app lo muestra (pedido de Contabilidad para el cuadre de
+  José). Si la pestaña no está, el resto de las fuentes se carga igual.
 
 #### SUNAT detracciones — `sunat-detracciones.yml` → `scripts/local/detracciones/detracciones.mts`
 

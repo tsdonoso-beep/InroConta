@@ -11,6 +11,9 @@
 // src/shared/lib/oc/), compara con lo que ya tiene la base (un monto, una DAM,
 // un vale corregido o anulado) y la guarda con guardar_fuente_oc, una vez por
 // fuente, con esos cambios. Cuándo se copió cada pestaña va a `corrida`.
+// Aparte, el kardex COMPLETO (pestaña KARDEX - MOVIMIENTOS: ingresos y salidas)
+// va a kardex_movimiento con lo que cambió desde la lectura anterior
+// (scripts/local/kardex.mts, migración v2 016): la pantalla Kardex.
 // Entra a la base v2 con SUPABASE_URL_V2 + SUPABASE_SECRET_KEY.
 //
 //   FUENTES_HOJA   el ID de la hoja privada (por omisión, la de Contabilidad)
@@ -27,7 +30,9 @@ import { leerFuentes, PESTANAS, type Celda } from '../src/shared/lib/drive/fuent
 import { CG_TAB, cgRows } from '../src/shared/lib/oc/base-cg.ts';
 import { orderKey, sourceChanges } from '../src/shared/lib/oc/cambios-fuentes.ts';
 import { copyRuns, keepResolved, sourceRows } from '../src/shared/lib/oc/fuentes.ts';
+import { PESTANA_KARDEX } from '../src/shared/lib/kardex/movimientos.ts';
 import { cargarClaveDeArchivo } from './local/comun/config.mts';
+import { cargarKardex } from './local/kardex.mts';
 import { baseV2, type Base } from './local/oc/base.mts';
 import { canonicalCode, knownOrders, loadSource, readSourcesState, rowsBefore, saveCopies, type Source, type SourcesState } from './local/oc/fuentes.mts';
 
@@ -39,7 +44,7 @@ const EMPRESA_RUC = process.env.EMPRESA_RUC?.trim() || '20512201611';
 const SALIDA = join(process.cwd(), 'scripts', 'out', 'salida', 'fuentes-compras');
 mkdirSync(SALIDA, { recursive: true });
 
-type Pestanas = Partial<Record<(typeof PESTANAS)[number] | typeof CG_TAB, Celda[][]>>;
+type Pestanas = Partial<Record<(typeof PESTANAS)[number] | typeof CG_TAB | typeof PESTANA_KARDEX, Celda[][]>>;
 
 /** Las pestañas de la hoja privada, sin formato. Las que no están no se piden (Sheets rechaza todo el pedido). */
 async function leerHoja(): Promise<Pestanas> {
@@ -47,7 +52,7 @@ async function leerHoja(): Promise<Pestanas> {
     const meta = await hojas.spreadsheets.get({ spreadsheetId: HOJA, fields: 'properties(title),sheets(properties(title))' });
     const hay = new Set((meta.data.sheets ?? []).map((s) => s.properties?.title ?? ''));
     console.log(`· hoja «${meta.data.properties?.title}»: ${[...hay].join(', ')}`);
-    const pedir = ([...PESTANAS, CG_TAB] as const).filter((p) => hay.has(p));
+    const pedir = ([...PESTANAS, CG_TAB, PESTANA_KARDEX] as const).filter((p) => hay.has(p));
     const r = await hojas.spreadsheets.values.batchGet({
         spreadsheetId: HOJA,
         ranges: pedir.map((p) => `'${p}'`),
@@ -140,6 +145,24 @@ if (DEBUG) {
         console.log(`· COPIA: ${n} pestañas con una copia nueva`);
     }
 }
+
+// El kardex completo: aparte, porque una falla aquí no debe dejar sin cargar las demás fuentes.
+if (pestanas[PESTANA_KARDEX]?.length) {
+    try {
+        const k = await cargarKardex(sb, EMPRESA_RUC, pestanas[PESTANA_KARDEX]!, DEBUG);
+        const { cambiosDetalle, ...r } = k;
+        resumen.carga.KARDEX = r;
+        if (DEBUG) writeFileSync(join(SALIDA, 'kardex-cambios.json'), JSON.stringify(cambiosDetalle, null, 1));
+        console.log(
+            `· KARDEX: ${r.filas} movimientos (había ${r.habia}): ${r.nuevos} nuevos, ${r.cambiados} cambiados, ${r.borrados} borrados · ${r.cambios} cambios, ${r.enMesesCerrados} en meses ya cerrados${r.sinId ? ` · ${r.sinId} filas sin ID` : ''}${r.completa ? '' : ' ⚠ llegaron menos de la mitad: no se borró nada'}${DEBUG ? ' (DEBUG: no se guardó)' : ''}`,
+        );
+    } catch (e) {
+        resumen.carga.KARDEX = { error: e instanceof Error ? e.message : String(e) };
+        console.log(`⚠ KARDEX: ${e instanceof Error ? e.message : e}`);
+        process.exitCode = 1;
+    }
+} else
+    console.log(`· KARDEX: la hoja no tiene la pestaña «${PESTANA_KARDEX}» (¿falta actualizar CopiarFuentes.gs?): el seguimiento del kardex no se actualiza`);
 
 writeFileSync(join(SALIDA, 'resumen.json'), JSON.stringify(resumen, null, 2));
 console.log(`listo en ${Math.round((Date.now() - inicio) / 1000)} s`);

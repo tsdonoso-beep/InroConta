@@ -11,7 +11,9 @@
  *     KARDEX (una fila por producto) y KARDEX - VALES (una por vale, con el
  *     enlace a la guía o factura que Almacén escaneó al recibir). Solo
  *     ingresos por compra, servicio o devolución y anulados: lo que se cruza
- *     con la OC; las salidas no;
+ *     con la OC; las salidas no. Y KARDEX - MOVIMIENTOS: el kardex COMPLETO
+ *     (ingresos y salidas), para el seguimiento diario de cambios que pidió
+ *     Contabilidad (pantalla Kardex de INROCONTA);
  *   · la base de Control de Gestión («Bd ventas, costo y gastos», pestaña
  *     3. Registro Compras Grupo): el centro de costo y el monto de cada línea
  *     de OC, solo de INROPRIN (CG - REGISTRO COMPRAS).
@@ -200,6 +202,38 @@ var CF_FUENTES = [
         filtro: function (v) {
             return entraDelKardex_(v);
         },
+    },
+    {
+        // El kardex COMPLETO, sin filtro (ingresos, salidas y anulados): una fila por producto de cada vale. El robot
+        // lo compara con la lectura anterior y anota lo que entró, cambió o se borró, sobre todo en meses ya cerrados
+        // (src/shared/lib/kardex/movimientos.ts). Lo de la persona del vale queda en DESCRIPCION, como en KARDEX.
+        destino: 'KARDEX - MOVIMIENTOS',
+        id: CF_KARDEX,
+        hoja: 'KARDEX',
+        clave: ['VALE DE ALMACEN', 'NUMERO ORDEN'],
+        columnas: [
+            'ID',
+            'VALE DE ALMACEN',
+            'FECHA REGISTRO',
+            'FECHA OPERACION',
+            'TIPO DE MOVIMIENTO',
+            'TIPO DE OPERACION',
+            'TIPO ANEXO',
+            'DESCRIPCION',
+            'NUMERO DOCUMENTO',
+            'NUMERO ORDEN',
+            'PROYECTO',
+            'SEDE',
+            'RESPONSABLE DE REGISTRO',
+            'CODIGO SIDIGE',
+            'DESCRIPCION DE SKU',
+            'UNDIDAD DE MEDIDA',
+            'CATEGORIA',
+            'INGRESO',
+            'SALIDA',
+        ],
+        texto: ['ID', 'VALE DE ALMACEN', 'NUMERO DOCUMENTO', 'NUMERO ORDEN', 'CODIGO SIDIGE'],
+        conDato: 'ID',
     },
     {
         // La cabecera de cada vale (una fila por vale) con el documento que Almacén escaneó al recibir:

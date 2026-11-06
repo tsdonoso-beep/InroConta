@@ -668,17 +668,18 @@ de SOL (`descargar`, `extraer`, `individual`).
 
 ## 13. Índice de la documentación existente
 
-| Documento                                 | Tema                                                                                            | Estado                    |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------- |
-| **`docs/pipeline-cpe-local.md`**          | Pipeline de CPE por la API de SUNAT: cómo funciona, correrlo en local y en Actions, diagnóstico | **Vigente**               |
-| `docs/cron-sunat.md`                      | Puesta en marcha de SUNAT diario (robot, secretos)                                              | Vigente                   |
-| `docs/descarga-cpe-y-detalle-de-items.md` | Diseño de la descarga de XML y el detalle de ítems                                              | Vigente (diseño original) |
-| `docs/scraper-cpe-hallazgos-tecnicos.md`  | Grilla virtual del portal, carreras, botón Imprimir                                             | Vigente                   |
-| `docs/extraer-boletas-y-rangos-largos.md` | Boletas, rangos largos, hoja aparte                                                             | Vigente                   |
-| `docs/carpetas-oc-local.md`               | Carga pesada de las carpetas de OC en una computadora (PowerShell, Tesseract, Poppler)          | Vigente                   |
-| `docs/ESTADO-Y-PENDIENTES.md`             | Dónde vive todo y qué falta                                                                     | Vigente                   |
-| `docs/apps-script.md`                     | Instalación de cada Apps Script, tableros, captura de OC                                        | Vigente                   |
-| `docs/detracciones-spot.md`               | Constancias de detracción (SPOT): recorrido en SOL, Drive y cruce con facturas                  | En construcción           |
+| Documento                                 | Tema                                                                                             | Estado                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------- |
+| **`docs/pipeline-cpe-local.md`**          | Pipeline de CPE por la API de SUNAT: cómo funciona, correrlo en local y en Actions, diagnóstico  | **Vigente**               |
+| `docs/cron-sunat.md`                      | Puesta en marcha de SUNAT diario (robot, secretos)                                               | Vigente                   |
+| `docs/descarga-cpe-y-detalle-de-items.md` | Diseño de la descarga de XML y el detalle de ítems                                               | Vigente (diseño original) |
+| `docs/scraper-cpe-hallazgos-tecnicos.md`  | Grilla virtual del portal, carreras, botón Imprimir                                              | Vigente                   |
+| `docs/extraer-boletas-y-rangos-largos.md` | Boletas, rangos largos, hoja aparte                                                              | Vigente                   |
+| `docs/carpetas-oc-local.md`               | Carga pesada de las carpetas de OC en una computadora (PowerShell, Tesseract, Poppler)           | Vigente                   |
+| `docs/logica-lectura-carpetas-oc.md`      | Para compartir: cómo se interpreta cada carpeta y documento (OC, DAM/DUA…) + versión Apps Script | Vigente                   |
+| `docs/ESTADO-Y-PENDIENTES.md`             | Dónde vive todo y qué falta                                                                      | Vigente                   |
+| `docs/apps-script.md`                     | Instalación de cada Apps Script, tableros, captura de OC                                         | Vigente                   |
+| `docs/detracciones-spot.md`               | Constancias de detracción (SPOT): recorrido en SOL, Drive y cruce con facturas                   | En construcción           |
 
 ---
 

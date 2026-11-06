@@ -677,6 +677,7 @@ de SOL (`descargar`, `extraer`, `individual`).
 | `docs/extraer-boletas-y-rangos-largos.md` | Boletas, rangos largos, hoja aparte                                                              | Vigente                   |
 | `docs/carpetas-oc-local.md`               | Carga pesada de las carpetas de OC en una computadora (PowerShell, Tesseract, Poppler)           | Vigente                   |
 | `docs/logica-lectura-carpetas-oc.md`      | Para compartir: cómo se interpreta cada carpeta y documento (OC, DAM/DUA…) + versión Apps Script | Vigente                   |
+| `docs/QUE-HACE-INROCONTA.md`              | Para compartir: qué hace el sistema, en lenguaje simple                                          | Vigente                   |
 | `docs/ESTADO-Y-PENDIENTES.md`             | Dónde vive todo y qué falta                                                                      | Vigente                   |
 | `docs/apps-script.md`                     | Instalación de cada Apps Script, tableros, captura de OC                                         | Vigente                   |
 | `docs/detracciones-spot.md`               | Constancias de detracción (SPOT): recorrido en SOL, Drive y cruce con facturas                   | En construcción           |

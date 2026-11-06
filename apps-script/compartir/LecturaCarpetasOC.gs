@@ -13,8 +13,9 @@
  * ── Instalación ──
  * 1. Hoja de cálculo nueva → Extensiones → Apps Script → pegar este archivo.
  * 2. Servicios (+) → «Drive API» → versión v2 → Agregar (para el OCR).
- * 3. Poner abajo los ID de las dos carpetas madre (el ID es lo que va después
- *    de /folders/ en el enlace) y guardar. Recargar la hoja: aparece el menú
+ * 3. Los ID de las dos carpetas madre ya están abajo (son los mismos que usa
+ *    INROCONTA). La cuenta que corre el script tiene que poder VERLAS: si no,
+ *    pedir acceso como Lector. Guardar y recargar la hoja: aparece el menú
  *    «Carpetas de OC».
  * 4. Menú → 1 o 2 (leer nombres), luego 3 (leer por dentro, se repite hasta
  *    que no queden pendientes) y 4 (legajo por OC).
@@ -24,8 +25,8 @@
  */
 
 // ── Configuración ──
-var CARPETA_NACIONALES_ID = 'PEGAR_AQUI_EL_ID'; // «5. Ordenes de Compra»
-var CARPETA_IMPORTACIONES_ID = 'PEGAR_AQUI_EL_ID';
+var CARPETA_NACIONALES_ID = '1oGUtE0IhqwanRsmuuA7QlQRB_koZzOH3'; // «5. Ordenes de Compra» — https://drive.google.com/drive/folders/1oGUtE0IhqwanRsmuuA7QlQRB_koZzOH3
+var CARPETA_IMPORTACIONES_ID = '1oJjtLinBgWej-ofRisFyheC29UwdicKi'; // https://drive.google.com/drive/folders/1oJjtLinBgWej-ofRisFyheC29UwdicKi
 var RUC_EMPRESA = '20512201611'; // aparece en los comprobantes, pero nunca es el proveedor
 var SUBCARPETA = ''; // p. ej. 'TALLERES': solo ese proyecto (útil si la carpeta es muy grande)
 var MINUTOS = 5; // Apps Script corta a los 6

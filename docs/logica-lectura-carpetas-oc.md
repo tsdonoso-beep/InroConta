@@ -302,7 +302,15 @@ guía **o** acta, esa decide y no se pide la otra.
 
 1. Crear una **hoja de cálculo nueva** → _Extensiones_ → _Apps Script_ → pegar el archivo.
 2. A la izquierda, **Servicios (+)** → **Drive API** → versión **v2** → _Agregar_ (necesario para el OCR de PDF e imágenes).
-3. Arriba del archivo, poner los ID de las dos carpetas madre (lo que va después de `/folders/` en el enlace). La cuenta que corre el script tiene que poder **ver** esas carpetas.
+3. Las dos carpetas madre **ya vienen puestas** arriba del archivo (las mismas que usa INROCONTA):
+
+   | Área                  | Variable                   | Carpeta madre                                                                                    |
+   | --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
+   | Compras nacionales    | `CARPETA_NACIONALES_ID`    | [5. Ordenes de Compra](https://drive.google.com/drive/folders/1oGUtE0IhqwanRsmuuA7QlQRB_koZzOH3) |
+   | Importaciones (COMEX) | `CARPETA_IMPORTACIONES_ID` | [Importaciones](https://drive.google.com/drive/folders/1oJjtLinBgWej-ofRisFyheC29UwdicKi)        |
+
+   La cuenta que corre el script tiene que poder **ver** esas carpetas (al menos como Lector). Si cambian, el ID es lo que va después de `/folders/` en el enlace.
+
 4. Guardar y **recargar la hoja**: aparece el menú **«Carpetas de OC»**.
 5. Usar en orden:
    - **1 / 2. Leer nombres** (nacionales / importaciones): recorre la carpeta madre **solo por nombres** (no abre nada) y llena la pestaña **ARCHIVOS** (una fila por archivo: OC, proveedor, proyecto, qué parece, serie, prioridad de lectura).
